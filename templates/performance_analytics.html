@@ -1,0 +1,586 @@
+{% extends "base.html" %}
+
+{% block content %}
+<!-- Заголовок страницы -->
+<div class="bg-gradient-to-r from-purple-600 to-indigo-700 rounded-2xl shadow-2xl p-8 mb-8 text-white">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-3xl font-bold mb-2">Аналитика производительности</h1>
+            <p class="text-purple-100 text-lg">Визуальная аналитика и метрики эффективности системы</p>
+        </div>
+        <div class="text-4xl">
+            <i class="fas fa-chart-network"></i>
+        </div>
+    </div>
+</div>
+
+<!-- Индикатор загрузки -->
+<div id="loadingIndicator" class="bg-white rounded-2xl shadow-xl p-8 mb-8 text-center">
+    <div class="animate-pulse flex flex-col items-center">
+        <div class="animate-spin rounded-full h-16 w-16 border-b-2 border-purple-600 mb-4"></div>
+        <p class="text-gray-600 text-lg font-medium">Загрузка аналитики...</p>
+        <p class="text-gray-400 text-sm mt-2">Подготавливаем красивые графики для вас</p>
+    </div>
+</div>
+
+<!-- Основные метрики -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    <div class="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl shadow-xl p-6 text-white transform hover:scale-105 transition-transform duration-300">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-blue-100 text-sm font-medium">Всего уязвимостей</p>
+                <p class="text-3xl font-bold mt-2">{{ total_vulnerabilities }}</p>
+            </div>
+            <div class="text-3xl opacity-80">
+                <i class="fas fa-bug"></i>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-gradient-to-br from-green-500 to-green-600 rounded-2xl shadow-xl p-6 text-white transform hover:scale-105 transition-transform duration-300">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-green-100 text-sm font-medium">Активных операторов</p>
+                <p class="text-3xl font-bold mt-2">{{ active_operators }}</p>
+            </div>
+            <div class="text-3xl opacity-80">
+                <i class="fas fa-users"></i>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl shadow-xl p-6 text-white transform hover:scale-105 transition-transform duration-300">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-purple-100 text-sm font-medium">Завершено уязвимостей</p>
+                <p class="text-3xl font-bold mt-2">{{ completed_vulnerabilities }}</p>
+            </div>
+            <div class="text-3xl opacity-80">
+                <i class="fas fa-check-double"></i>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl shadow-xl p-6 text-white transform hover:scale-105 transition-transform duration-300">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-orange-100 text-sm font-medium">Средняя производительность</p>
+                <p class="text-3xl font-bold mt-2">{{ "%.1f"|format(avg_performance) }}%</p>
+            </div>
+            <div class="text-3xl opacity-80">
+                <i class="fas fa-tachometer-alt"></i>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Контейнер графиков -->
+<div id="chartsContainer" class="hidden space-y-8">
+    <!-- Первая строка графиков -->
+    <div class="grid grid-cols-1 xl:grid-cols-2 gap-8">
+        <!-- График производительности операторов -->
+        <div class="bg-white rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
+            <div class="p-6 border-b border-gray-100">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-xl font-bold text-gray-800 flex items-center">
+                        <i class="fas fa-chart-bar text-blue-500 mr-3"></i>
+                        Производительность операторов
+                    </h3>
+                    <span class="bg-blue-100 text-blue-600 text-xs font-medium px-3 py-1 rounded-full">Live</span>
+                </div>
+            </div>
+            <div class="p-6">
+                <div class="chart-container" style="position: relative; height: 300px; width: 100%">
+                    <canvas id="performanceChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- График распределения уязвимостей по уровням риска -->
+        <div class="bg-white rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
+            <div class="p-6 border-b border-gray-100">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-xl font-bold text-gray-800 flex items-center">
+                        <i class="fas fa-chart-pie text-red-500 mr-3"></i>
+                        Уровни риска уязвимостей
+                    </h3>
+                    <span class="bg-red-100 text-red-600 text-xs font-medium px-3 py-1 rounded-full">Risk</span>
+                </div>
+            </div>
+            <div class="p-6">
+                <div class="chart-container" style="position: relative; height: 300px; width: 100%">
+                    <canvas id="severityChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Вторая строка графиков -->
+    <div class="grid grid-cols-1 xl:grid-cols-2 gap-8">
+        <!-- График статусов уязвимостей -->
+        <div class="bg-white rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
+            <div class="p-6 border-b border-gray-100">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-xl font-bold text-gray-800 flex items-center">
+                        <i class="fas fa-chart-pie text-green-500 mr-3"></i>
+                        Статусы уязвимостей
+                    </h3>
+                    <span class="bg-green-100 text-green-600 text-xs font-medium px-3 py-1 rounded-full">Status</span>
+                </div>
+            </div>
+            <div class="p-6">
+                <div class="chart-container" style="position: relative; height: 300px; width: 100%">
+                    <canvas id="statusChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- График эффективности операторов -->
+        <div class="bg-white rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
+            <div class="p-6 border-b border-gray-100">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-xl font-bold text-gray-800 flex items-center">
+                        <i class="fas fa-chart-line text-purple-500 mr-3"></i>
+                        Эффективность операторов
+                    </h3>
+                    <span class="bg-purple-100 text-purple-600 text-xs font-medium px-3 py-1 rounded-full">Trend</span>
+                </div>
+            </div>
+            <div class="p-6">
+                <div class="chart-container" style="position: relative; height: 300px; width: 100%">
+                    <canvas id="efficiencyChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Дополнительная статистика -->
+    <div class="bg-gradient-to-r from-gray-800 to-gray-900 rounded-2xl shadow-2xl p-8 text-white">
+        <h3 class="text-2xl font-bold mb-6 text-center">Детальная статистика</h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="text-center">
+                <div class="text-4xl font-bold text-blue-400">{{ severity_counts.high|default(0) }}</div>
+                <p class="text-gray-300 mt-2">Уязвимостей высокого риска</p>
+            </div>
+            <div class="text-center">
+                <div class="text-4xl font-bold text-yellow-400">{{ severity_counts.medium|default(0) }}</div>
+                <p class="text-gray-300 mt-2">Уязвимостей среднего риска</p>
+            </div>
+            <div class="text-center">
+                <div class="text-4xl font-bold text-green-400">{{ severity_counts.low|default(0) }}</div>
+                <p class="text-gray-300 mt-2">Уязвимостей низкого риска</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Кнопка возврата -->
+<div class="mt-8 text-center">
+    <a href="{{ url_for('dashboard') }}"
+       class="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white font-bold py-4 px-8 rounded-2xl transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl inline-flex items-center">
+        <i class="fas fa-arrow-left mr-3"></i>
+        Назад к дашборду
+    </a>
+</div>
+
+<!-- Подключаем Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
+
+<script>
+// Ждем полной загрузки страницы
+window.addEventListener('load', function() {
+    // Скрываем индикатор загрузки и показываем графики с задержкой для плавности
+    setTimeout(function() {
+        document.getElementById('loadingIndicator').classList.add('hidden');
+        document.getElementById('chartsContainer').classList.remove('hidden');
+        initializeCharts();
+    }, 1000);
+});
+
+function initializeCharts() {
+    // Данные из Flask контекста
+    const operators = JSON.parse('{{ operators|map(attribute="name")|list|tojson }}');
+    const performanceData = JSON.parse('{{ operators|map(attribute="current_metric")|list|tojson }}');
+
+    // Данные для графиков риска и статусов
+    const severityData = {
+        high: {{ severity_counts.high|default(0) }},
+        medium: {{ severity_counts.medium|default(0) }},
+        low: {{ severity_counts.low|default(0) }}
+    };
+
+    const statusData = {
+        new: {{ status_counts.new|default(0) }},
+        in_progress: {{ status_counts.in_progress|default(0) }},
+        completed: {{ status_counts.completed|default(0) }},
+        approved: {{ status_counts.approved|default(0) }}
+    };
+
+    // Расчет эффективности (упрощенная формула)
+    const efficiencyData = performanceData.map(metric => {
+        return Math.max(0, metric * 0.8 + 20); // Базовая эффективность
+    });
+
+    // Стили для графиков
+    const chartStyles = {
+        fontFamily: "'Inter', 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif",
+        colors: {
+            blue: '#3B82F6',
+            blueLight: '#60A5FA',
+            red: '#EF4444',
+            redLight: '#F87171',
+            green: '#10B981',
+            greenLight: '#34D399',
+            yellow: '#F59E0B',
+            yellowLight: '#FBBF24',
+            purple: '#8B5CF6',
+            purpleLight: '#A78BFA',
+            orange: '#F97316',
+            orangeLight: '#FB923C'
+        }
+    };
+
+    // 1. График производительности операторов
+    const performanceCtx = document.getElementById('performanceChart');
+    if (performanceCtx) {
+        new Chart(performanceCtx, {
+            type: 'bar',
+            data: {
+                labels: operators,
+                datasets: [{
+                    label: 'Производительность (%)',
+                    data: performanceData,
+                    backgroundColor: chartStyles.colors.blue,
+                    borderColor: chartStyles.colors.blue,
+                    borderWidth: 0,
+                    borderRadius: 8,
+                    borderSkipped: false,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                        titleFont: {
+                            family: chartStyles.fontFamily,
+                            size: 12
+                        },
+                        bodyFont: {
+                            family: chartStyles.fontFamily,
+                            size: 14
+                        },
+                        padding: 12,
+                        cornerRadius: 8
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100,
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.1)'
+                        },
+                        ticks: {
+                            font: {
+                                family: chartStyles.fontFamily,
+                                size: 11
+                            },
+                            color: '#6B7280'
+                        }
+                    },
+                    x: {
+                        grid: {
+                            display: false
+                        },
+                        ticks: {
+                            font: {
+                                family: chartStyles.fontFamily,
+                                size: 11
+                            },
+                            color: '#6B7280'
+                        }
+                    }
+                },
+                animation: {
+                    duration: 2000,
+                    easing: 'easeOutQuart'
+                }
+            }
+        });
+    }
+
+    // 2. График уровней риска (Doughnut)
+    const severityCtx = document.getElementById('severityChart');
+    if (severityCtx) {
+        new Chart(severityCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Высокий риск', 'Средний риск', 'Низкий риск'],
+                datasets: [{
+                    data: [severityData.high, severityData.medium, severityData.low],
+                    backgroundColor: [
+                        chartStyles.colors.red,
+                        chartStyles.colors.yellow,
+                        chartStyles.colors.green
+                    ],
+                    borderWidth: 0,
+                    hoverOffset: 15
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '65%',
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            font: {
+                                family: chartStyles.fontFamily,
+                                size: 12
+                            },
+                            padding: 20,
+                            usePointStyle: true,
+                            pointStyle: 'circle'
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                        titleFont: {
+                            family: chartStyles.fontFamily
+                        },
+                        bodyFont: {
+                            family: chartStyles.fontFamily
+                        }
+                    }
+                },
+                animation: {
+                    animateScale: true,
+                    animateRotate: true
+                }
+            }
+        });
+    }
+
+    // 3. График статусов уязвимостей (Pie)
+    const statusCtx = document.getElementById('statusChart');
+    if (statusCtx) {
+        new Chart(statusCtx, {
+            type: 'pie',
+            data: {
+                labels: ['Новые', 'В работе', 'Завершены', 'Одобрены'],
+                datasets: [{
+                    data: [statusData.new, statusData.in_progress, statusData.completed, statusData.approved],
+                    backgroundColor: [
+                        chartStyles.colors.blue,
+                        chartStyles.colors.yellow,
+                        chartStyles.colors.green,
+                        chartStyles.colors.purple
+                    ],
+                    borderWidth: 0,
+                    hoverOffset: 20
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            font: {
+                                family: chartStyles.fontFamily,
+                                size: 12
+                            },
+                            padding: 20,
+                            usePointStyle: true,
+                            pointStyle: 'circle'
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                        titleFont: {
+                            family: chartStyles.fontFamily
+                        },
+                        bodyFont: {
+                            family: chartStyles.fontFamily
+                        }
+                    }
+                },
+                animation: {
+                    animateScale: true,
+                    animateRotate: true
+                }
+            }
+        });
+    }
+
+    // 4. График эффективности операторов (Line)
+    const efficiencyCtx = document.getElementById('efficiencyChart');
+    if (efficiencyCtx) {
+        new Chart(efficiencyCtx, {
+            type: 'line',
+            data: {
+                labels: operators,
+                datasets: [{
+                    label: 'Эффективность (%)',
+                    data: efficiencyData,
+                    backgroundColor: 'rgba(139, 92, 246, 0.1)',
+                    borderColor: chartStyles.colors.purple,
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.4,
+                    pointBackgroundColor: chartStyles.colors.purple,
+                    pointBorderColor: '#FFFFFF',
+                    pointBorderWidth: 2,
+                    pointRadius: 6,
+                    pointHoverRadius: 8
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        labels: {
+                            font: {
+                                family: chartStyles.fontFamily,
+                                size: 12
+                            }
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                        titleFont: {
+                            family: chartStyles.fontFamily
+                        },
+                        bodyFont: {
+                            family: chartStyles.fontFamily
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100,
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.1)'
+                        },
+                        ticks: {
+                            font: {
+                                family: chartStyles.fontFamily,
+                                size: 11
+                            },
+                            color: '#6B7280'
+                        }
+                    },
+                    x: {
+                        grid: {
+                            display: false
+                        },
+                        ticks: {
+                            font: {
+                                family: chartStyles.fontFamily,
+                                size: 11
+                            },
+                            color: '#6B7280'
+                        }
+                    }
+                },
+                animation: {
+                    duration: 2000,
+                    easing: 'easeOutQuart'
+                }
+            }
+        });
+    }
+}
+
+// Обработчик изменения размера окна с троттлингом
+let resizeTimer;
+window.addEventListener('resize', function() {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(function() {
+        // Chart.js автоматически обрабатывает ресайз
+    }, 250);
+});
+</script>
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+.chart-container {
+    position: relative;
+}
+
+/* Кастомные стили для улучшения внешнего вида */
+canvas {
+    border-radius: 12px;
+}
+</style>
+<script>
+// Автоматическое обновление аналитики
+let analyticsUpdateInterval;
+
+function startAnalyticsAutoRefresh() {
+    // Обновляем каждые 30 секунд
+    analyticsUpdateInterval = setInterval(refreshAnalyticsCharts, 30000);
+
+    // Также обновляем при видимости страницы
+    document.addEventListener('visibilitychange', function() {
+        if (!document.hidden) {
+            refreshAnalyticsCharts();
+        }
+    });
+}
+
+function refreshAnalyticsCharts() {
+    fetch('/api/analytics/current')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                updateAnalyticsCharts(data.data);
+            }
+        })
+        .catch(error => {
+            console.error('Error refreshing analytics:', error);
+        });
+}
+
+function updateAnalyticsCharts(analyticsData) {
+    // Обновляем графики с новыми данными
+    updateSeverityChart(analyticsData.severity_counts);
+    updateStatusChart(analyticsData.status_counts);
+    updatePerformanceChart(analyticsData.operator_stats);
+    updateEfficiencyChart(analyticsData.operator_stats);
+
+    // Обновляем метрики
+    updateMetrics(analyticsData);
+}
+
+function updateMetrics(analyticsData) {
+    document.getElementById('totalVulnerabilities').textContent = analyticsData.total_vulnerabilities;
+    document.getElementById('activeOperators').textContent = analyticsData.active_operators;
+    document.getElementById('completedVulnerabilities').textContent = analyticsData.completed_vulnerabilities;
+    document.getElementById('avgPerformance').textContent = analyticsData.avg_performance.toFixed(1);
+}
+
+// Запускаем при загрузке страницы
+document.addEventListener('DOMContentLoaded', function() {
+    startAnalyticsAutoRefresh();
+});
+
+// Останавливаем при уходе со страницы
+window.addEventListener('beforeunload', function() {
+    if (analyticsUpdateInterval) {
+        clearInterval(analyticsUpdateInterval);
+    }
+});
+</script>
+{% endblock %}

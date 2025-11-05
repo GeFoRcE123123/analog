@@ -1,0 +1,352 @@
+{% extends "base.html" %}
+
+{% block content %}
+<!-- СТАТУС ПАРСИНГА -->
+<div id="parsingStatus" class="hidden mb-6">
+    <div class="bg-blue-50 border border-blue-200 rounded-xl p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-semibold text-blue-800">
+                <i class="fas fa-sync-alt fa-spin mr-2"></i>Идет парсинг уязвимостей...
+            </h3>
+            <span id="parsingProgress" class="text-blue-600 font-medium">0%</span>
+        </div>
+        <div class="w-full bg-blue-200 rounded-full h-2">
+            <div id="progressBar" class="bg-blue-600 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+        </div>
+        <p id="parsingMessage" class="text-sm text-blue-600 mt-2">Подготовка к парсингу...</p>
+    </div>
+</div>
+
+<!-- КАРТОЧКИ СТАТИСТИКИ (КЛИКАБЕЛЬНЫЕ) -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    <!-- Всего уязвимостей -->
+    <a href="{{ url_for('vulnerabilities_list') }}"
+       class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-blue-500 hover:shadow-xl transition-all duration-300 transform hover:scale-105 cursor-pointer group">
+        <div class="flex items-center">
+            <div class="p-3 bg-blue-100 rounded-lg mr-4 group-hover:bg-blue-200 transition duration-300">
+                <i class="fas fa-bug text-blue-600 text-xl"></i>
+            </div>
+            <div>
+                <p class="text-2xl font-bold text-gray-800">{{ stats.total_vulnerabilities }}</p>
+                <p class="text-sm text-gray-600">Всего уязвимостей</p>
+            </div>
+        </div>
+    </a>
+
+    <!-- Высокий риск -->
+    <a href="{{ url_for('vulnerabilities_list') }}?filter=high"
+       class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-red-500 hover:shadow-xl transition-all duration-300 transform hover:scale-105 cursor-pointer group">
+        <div class="flex items-center">
+            <div class="p-3 bg-red-100 rounded-lg mr-4 group-hover:bg-red-200 transition duration-300">
+                <i class="fas fa-exclamation-triangle text-red-600 text-xl"></i>
+            </div>
+            <div>
+                <p class="text-2xl font-bold text-gray-800">{{ stats.high_risk }}</p>
+                <p class="text-sm text-gray-600">Высокий риск</p>
+            </div>
+        </div>
+    </a>
+
+    <!-- Новые уязвимости -->
+    <a href="{{ url_for('vulnerabilities_list') }}?filter=new"
+       class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-yellow-500 hover:shadow-xl transition-all duration-300 transform hover:scale-105 cursor-pointer group">
+        <div class="flex items-center">
+            <div class="p-3 bg-yellow-100 rounded-lg mr-4 group-hover:bg-yellow-200 transition duration-300">
+                <i class="fas fa-clock text-yellow-600 text-xl"></i>
+            </div>
+            <div>
+                <p class="text-2xl font-bold text-gray-800">{{ stats.new_vulnerabilities }}</p>
+                <p class="text-sm text-gray-600">Новые</p>
+            </div>
+        </div>
+    </a>
+
+    <!-- Завершено -->
+    <a href="{{ url_for('performance_analytics') }}"
+       class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-green-500 hover:shadow-xl transition-all duration-300 transform hover:scale-105 cursor-pointer group">
+        <div class="flex items-center">
+            <div class="p-3 bg-green-100 rounded-lg mr-4 group-hover:bg-green-200 transition duration-300">
+                <i class="fas fa-check-circle text-green-600 text-xl"></i>
+            </div>
+            <div>
+                <p class="text-2xl font-bold text-gray-800">{{ stats.completion_rate|int }}%</p>
+                <p class="text-sm text-gray-600">Завершено</p>
+            </div>
+        </div>
+    </a>
+</div>
+
+<!-- БЫСТРЫЕ ДЕЙСТВИЯ -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+    <!-- Импорт уязвимостей -->
+    <div class="bg-gradient-to-r from-blue-500 to-indigo-600 rounded-xl shadow-lg p-6 text-white hover:shadow-xl transition-all duration-300 transform hover:scale-105 import-btn-glow">
+        <h3 class="text-lg font-semibold mb-4">Импорт уязвимостей</h3>
+        <p class="text-blue-100 mb-4">Автоматически загрузите уязвимости из OSV базы данных</p>
+        <!-- В блоке быстрых действий замените кнопку -->
+        <button onclick="window.startGlobalParsing()"
+                class="bg-white text-blue-600 hover:bg-blue-50 font-bold py-3 px-6 rounded-lg transition duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl w-full">
+            <i class="fas fa-download mr-2"></i>Загрузить из OSV
+        </button>
+    </div>
+
+    <!-- Управление операторами -->
+    <a href="{{ url_for('operators_page') }}"
+       class="bg-gradient-to-r from-green-500 to-emerald-600 rounded-xl shadow-lg p-6 text-white hover:shadow-xl transition-all duration-300 transform hover:scale-105 block">
+        <h3 class="text-lg font-semibold mb-4">Управление командой</h3>
+        <p class="text-green-100 mb-4">Назначьте операторов и отслеживайте прогресс</p>
+        <div class="bg-white text-green-600 hover:bg-green-50 font-bold py-3 px-6 rounded-lg transition duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl inline-block">
+            <i class="fas fa-users mr-2"></i>К операторам
+        </div>
+    </a>
+</div>
+
+<!-- ПОСЛЕДНИЕ УЯЗВИМОСТИ (кликабельные) -->
+<div class="bg-white rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-300 mb-6">
+    <div class="px-6 py-4 border-b border-gray-200">
+        <div class="flex justify-between items-center">
+            <h2 class="text-xl font-semibold text-gray-800">Последние уязвимости</h2>
+            <a href="{{ url_for('vulnerabilities_list') }}"
+               class="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center group">
+                <i class="fas fa-list mr-1 group-hover:translate-x-1 transition-transform duration-300"></i>Все уязвимости
+            </a>
+        </div>
+    </div>
+    <div class="p-6">
+        {% if vulnerabilities %}
+        <div class="space-y-4">
+            {% for vuln in vulnerabilities[:5] %}
+            <a href="{{ url_for('vulnerabilities_list') }}#vuln-{{ vuln.id }}"
+               class="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition duration-300 transform hover:scale-102 group">
+                <div class="flex items-center space-x-4">
+                    <div class="flex-shrink-0">
+                        <span class="px-2 py-1 text-xs font-semibold rounded-full
+                            {% if vuln.severity == 'high' %}bg-red-100 text-red-800
+                            {% elif vuln.severity == 'medium' %}bg-yellow-100 text-yellow-800
+                            {% else %}bg-green-100 text-green-800{% endif %}">
+                            {{ vuln.severity|upper }}
+                        </span>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-medium text-gray-900 group-hover:text-blue-600 transition duration-300">{{ vuln.title }}</h3>
+                        <p class="text-sm text-gray-500 truncate max-w-md">{{ vuln.description }}</p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <span class="px-2 py-1 text-xs font-semibold rounded-full
+                        {% if vuln.status == 'new' %}bg-blue-100 text-blue-800
+                        {% elif vuln.status == 'in_progress' %}bg-yellow-100 text-yellow-800
+                        {% elif vuln.status == 'completed' %}bg-green-100 text-green-800
+                        {% else %}bg-gray-100 text-gray-800{% endif %}">
+                        {{ vuln.status }}
+                    </span>
+                    <span class="text-sm text-gray-500">CVSS: {{ vuln.cvss_score }}</span>
+                    <i class="fas fa-chevron-right text-gray-400 group-hover:text-blue-600 transition duration-300"></i>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center py-8">
+            <i class="fas fa-bug text-gray-300 text-4xl mb-4"></i>
+            <p class="text-gray-500">Уязвимости не найдены</p>
+            <button onclick="startParsing()" class="text-blue-600 hover:text-blue-800 text-sm mt-2">
+                Загрузите уязвимости из OSV
+            </button>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- СТАТУС ОПЕРАТОРОВ (кликабельные карточки) -->
+<div class="bg-white rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-300">
+    <div class="px-6 py-4 border-b border-gray-200">
+        <div class="flex justify-between items-center">
+            <h2 class="text-xl font-semibold text-gray-800">Статус операторов</h2>
+            <a href="{{ url_for('operators_page') }}"
+               class="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center group">
+                <i class="fas fa-users mr-1 group-hover:translate-x-1 transition-transform duration-300"></i>Все операторы
+            </a>
+        </div>
+    </div>
+    <div class="p-6">
+        {% if operators %}
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {% for operator in operators %}
+            <a href="{{ url_for('operators_page') }}#operator-{{ operator.id }}"
+               class="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition duration-300 transform hover:scale-105 group">
+                <div class="flex items-center justify-between mb-2">
+                    <h3 class="font-medium text-gray-900 group-hover:text-blue-600 transition duration-300">{{ operator.name }}</h3>
+                    <span class="px-2 py-1 text-xs font-semibold rounded-full
+                        {% if operator.current_metric >= 70 %}bg-green-100 text-green-800
+                        {% elif operator.current_metric >= 40 %}bg-yellow-100 text-yellow-800
+                        {% else %}bg-red-100 text-red-800{% endif %}">
+                        {{ operator.current_metric|int }}%
+                    </span>
+                </div>
+                <p class="text-sm text-gray-600 mb-2">{{ operator.email }}</p>
+                <div class="text-xs text-gray-500">
+                    Назначено: {{ operator.assigned_vulnerabilities|length }} уязвимостей
+                </div>
+                {% if operator.assigned_vulnerabilities %}
+                <div class="mt-2">
+                    <div class="flex space-x-1">
+                        {% for vuln in operator.assigned_vulnerabilities[:3] %}
+                        <span class="w-2 h-2 rounded-full
+                            {% if vuln.severity == 'high' %}bg-red-500
+                            {% elif vuln.severity == 'medium' %}bg-yellow-500
+                            {% else %}bg-green-500{% endif %}">
+                        </span>
+                        {% endfor %}
+                        {% if operator.assigned_vulnerabilities|length > 3 %}
+                        <span class="text-xs text-gray-400">+{{ operator.assigned_vulnerabilities|length - 3 }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+                <div class="mt-2 text-right">
+                    <i class="fas fa-arrow-right text-gray-400 group-hover:text-blue-600 transition duration-300 transform group-hover:translate-x-1"></i>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center py-4">
+            <p class="text-gray-500">Операторы не найдены</p>
+            <a href="{{ url_for('operators_page') }}" class="text-blue-600 hover:text-blue-800 text-sm">
+                Создайте первого оператора
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+// Функции для управления парсингом
+function startParsing() {
+    const statusElement = document.getElementById('parsingStatus');
+    const progressBar = document.getElementById('progressBar');
+    const progressText = document.getElementById('parsingProgress');
+    const messageElement = document.getElementById('parsingMessage');
+
+    // Показываем статус парсинга
+    statusElement.classList.remove('hidden');
+
+    // Запускаем парсинг
+    fetch('/api/start-parsing', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Запускаем отслеживание прогресса
+            trackParsingProgress();
+        } else {
+            showNotification('Ошибка запуска парсинга: ' + data.error, 'error');
+            statusElement.classList.add('hidden');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('Ошибка запуска парсинга', 'error');
+        statusElement.classList.add('hidden');
+    });
+}
+
+function trackParsingProgress() {
+    const progressBar = document.getElementById('progressBar');
+    const progressText = document.getElementById('parsingProgress');
+    const messageElement = document.getElementById('parsingMessage');
+
+    const eventSource = new EventSource('/api/parsing-progress');
+
+    eventSource.onmessage = function(event) {
+        const data = JSON.parse(event.data);
+
+        if (data.progress !== undefined) {
+            const progress = data.progress;
+            progressBar.style.width = progress + '%';
+            progressText.textContent = progress + '%';
+            messageElement.textContent = data.message || 'Парсинг в процессе...';
+        }
+
+        if (data.status === 'completed') {
+            messageElement.textContent = 'Парсинг завершен! Обновляем страницу...';
+            progressBar.style.width = '100%';
+            progressText.textContent = '100%';
+
+            setTimeout(() => {
+                location.reload();
+            }, 2000);
+
+            eventSource.close();
+        } else if (data.status === 'error') {
+            messageElement.textContent = 'Ошибка парсинга: ' + data.error;
+            showNotification('Ошибка парсинга', 'error');
+            eventSource.close();
+
+            setTimeout(() => {
+                document.getElementById('parsingStatus').classList.add('hidden');
+            }, 5000);
+        }
+    };
+
+    eventSource.onerror = function(event) {
+        console.error('EventSource failed:', event);
+        eventSource.close();
+    };
+}
+
+// Функция для показа уведомлений
+function showNotification(message, type) {
+    const notification = document.createElement('div');
+    notification.className = `fixed top-20 right-4 p-4 rounded-lg shadow-lg z-50 transform transition-transform duration-300 ${
+        type === 'success' ? 'bg-green-500 text-white' :
+        type === 'error' ? 'bg-red-500 text-white' : 'bg-blue-500 text-white'
+    }`;
+    notification.textContent = message;
+    document.body.appendChild(notification);
+
+    setTimeout(() => {
+        notification.remove();
+    }, 5000);
+}
+
+// Функция для обновления уязвимостей в реальном времени
+function startLiveVulnerabilitiesUpdate() {
+    const eventSource = new EventSource('/api/live-vulnerabilities');
+
+    eventSource.onmessage = function(event) {
+        const data = JSON.parse(event.data);
+
+        if (data.type === 'initial' || data.type === 'update') {
+            updateVulnerabilitiesList(data.vulnerabilities);
+        }
+    };
+
+    eventSource.onerror = function(event) {
+        console.error('Live updates error:', event);
+        // Пытаемся переподключиться через 5 секунд
+        setTimeout(startLiveVulnerabilitiesUpdate, 5000);
+    };
+}
+
+// Функция обновления списка уязвимостей
+function updateVulnerabilitiesList(vulnerabilities) {
+    // Обновляем счетчики на дашборде
+    updateDashboardCounters(vulnerabilities);
+
+    // Если мы на странице уязвимостей, обновляем таблицу
+    if (window.location.pathname === '/vulnerabilities') {
+        updateVulnerabilitiesTable(vulnerabilities);
+    }
+}
+
+// Запускаем при загрузке страницы
+document.addEventListener('DOMContentLoaded', function() {
+    startLiveVulnerabilitiesUpdate();
+});
+</script>
+{% endblock %}

@@ -1,0 +1,357 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="bg-white rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-300 mb-6">
+    <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+        <h2 class="text-xl font-semibold text-gray-800">Управление операторами</h2>
+        <div class="flex space-x-4">
+            <form method="POST" action="{{ url_for('export_operator_vulnerabilities') }}">
+                <button type="submit" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300 shadow-md hover:shadow-lg">
+                    <i class="fas fa-file-excel mr-2"></i>Экспорт всех операторов
+                </button>
+            </form>
+            <button onclick="openCreateOperatorModal()"
+                    class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300 shadow-md hover:shadow-lg">
+                <i class="fas fa-user-plus mr-2"></i>Добавить оператора
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="bg-white rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-300">
+    <div class="p-6">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {% for operator in operators %}
+            <div class="bg-gradient-to-br from-gray-50 to-blue-50 rounded-xl p-6 border border-gray-200 hover:shadow-lg transition duration-300">
+                <div class="flex items-center justify-between mb-4">
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-800">{{ operator.name }}</h3>
+                        <p class="text-sm text-gray-600">{{ operator.email }}</p>
+                    </div>
+                    <div class="text-right">
+                        <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium
+                            {% if operator.current_metric >= 70 %}bg-green-100 text-green-800
+                            {% elif operator.current_metric >= 40 %}bg-yellow-100 text-yellow-800
+                            {% else %}bg-red-100 text-red-800{% endif %}">
+                            {{ "%.1f"|format(operator.current_metric) }}%
+                        </span>
+                    </div>
+                </div>
+
+                <div class="space-y-2 mb-4">
+                    <div class="flex justify-between text-sm">
+                        <span class="text-gray-600">Уровень опыта:</span>
+                        <span class="font-medium">{{ "%.1f"|format(operator.experience_level) }}%</span>
+                    </div>
+                    <div class="flex justify-between text-sm">
+                        <span class="text-gray-600">Нагрузка:</span>
+                        <span class="font-medium">{{ "%.1f"|format(operator.calculate_workload()) }}%</span>
+                    </div>
+                    <div class="flex justify-between text-sm">
+                        <span class="text-gray-600">Уязвимости:</span>
+                        <span class="font-medium">{{ operator.assigned_vulnerabilities|length }}</span>
+                    </div>
+                </div>
+
+                <!-- Назначенные уязвимости -->
+                {% if operator.assigned_vulnerabilities %}
+                <div class="mt-4 p-3 bg-white rounded-lg border border-gray-200">
+                    <h4 class="text-sm font-semibold text-gray-700 mb-2">Назначенные уязвимости:</h4>
+                    <div class="space-y-2 max-h-32 overflow-y-auto">
+                        {% for vuln in operator.assigned_vulnerabilities %}
+                        <div class="flex items-center justify-between text-xs p-2 bg-gray-50 rounded">
+                            <span class="truncate flex-1 mr-2" title="{{ vuln.title }}">
+                                {{ vuln.title }}
+                            </span>
+                            <span class="px-1.5 py-0.5 rounded text-xs font-medium
+                                {% if vuln.severity == 'high' %}bg-red-100 text-red-800
+                                {% elif vuln.severity == 'medium' %}bg-yellow-100 text-yellow-800
+                                {% else %}bg-green-100 text-green-800{% endif %}">
+                                {% if vuln.severity == 'high' %}В
+                                {% elif vuln.severity == 'medium' %}С
+                                {% else %}Н{% endif %}
+                            </span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% else %}
+                <div class="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-200 text-center">
+                    <p class="text-sm text-gray-500">Нет назначенных уязвимостей</p>
+                </div>
+                {% endif %}
+
+                <div class="mt-4 space-y-2">
+                    <button onclick="assignVulnerabilities({{ operator.id }})"
+                            class="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium py-2 px-4 rounded-lg transition duration-300 shadow-md hover:shadow-lg">
+                        <i class="fas fa-tasks mr-2"></i>Назначить уязвимости
+                    </button>
+
+                    {% if operator.assigned_vulnerabilities %}
+                    <form method="POST" action="{{ url_for('export_single_operator', operator_id=operator.id) }}">
+                        <button type="submit"
+                                class="w-full bg-green-600 hover:bg-green-700 text-white text-sm font-medium py-2 px-4 rounded-lg transition duration-300 shadow-md hover:shadow-lg">
+                            <i class="fas fa-download mr-2"></i>Экспорт уязвимостей
+                        </button>
+                    </form>
+                    {% else %}
+                    <button disabled
+                            class="w-full bg-gray-400 text-white text-sm font-medium py-2 px-4 rounded-lg cursor-not-allowed">
+                        <i class="fas fa-download mr-2"></i>Нет уязвимостей
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно для создания оператора -->
+<div id="createOperatorModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">
+    <div class="relative top-20 mx-auto p-5 border w-11/12 md:w-1/2 lg:w-1/3 shadow-lg rounded-xl bg-white">
+        <div class="mt-3">
+            <h3 class="text-lg font-medium text-gray-900 mb-4">Добавить нового оператора</h3>
+
+            <form id="createOperatorForm" method="POST" action="{{ url_for('create_operator') }}">
+                <div class="space-y-4">
+                    <div>
+                        <label for="operatorName" class="block text-sm font-medium text-gray-700">Имя оператора *</label>
+                        <input type="text" id="operatorName" name="name" required
+                               class="mt-1 block w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                               placeholder="Введите имя оператора">
+                    </div>
+
+                    <div>
+                        <label for="operatorEmail" class="block text-sm font-medium text-gray-700">Email *</label>
+                        <input type="email" id="operatorEmail" name="email" required
+                               class="mt-1 block w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                               placeholder="Введите email оператора">
+                    </div>
+
+                    <div>
+                        <label for="operatorExperience" class="block text-sm font-medium text-gray-700">Уровень опыта (%)</label>
+                        <input type="number" id="operatorExperience" name="experience_level"
+                               min="0" max="100" step="1" value="50"
+                               class="mt-1 block w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                        <p class="text-xs text-gray-500 mt-1">Базовый уровень производительности оператора (0-100%)</p>
+                    </div>
+                </div>
+
+                <div class="flex justify-end space-x-3 mt-6">
+                    <button type="button" onclick="closeCreateOperatorModal()"
+                            class="px-4 py-2 bg-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-400 transition duration-300">
+                        Отмена
+                    </button>
+                    <button type="submit"
+                            class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition duration-300">
+                        Создать оператора
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно для назначения уязвимостей -->
+<div id="assignModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">
+    <div class="relative top-20 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-1/2 shadow-lg rounded-xl bg-white">
+        <div class="mt-3">
+            <h3 class="text-lg font-medium text-gray-900 mb-4">Назначение уязвимостей оператору</h3>
+
+            <div class="max-h-96 overflow-y-auto mb-4">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Выбрать</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Название</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Уровень риска</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Статус</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        <!-- Активные уязвимости -->
+                        {% for vuln in vulnerabilities %}
+                        {% if vuln.status != 'completed' and vuln.status != 'approved' %}
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-4 py-3">
+                                <input type="checkbox" name="vulnerability" value="{{ vuln.id }}"
+                                       class="vuln-checkbox rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                            </td>
+                            <td class="px-4 py-3 text-sm text-gray-900">{{ vuln.title }}</td>
+                            <td class="px-4 py-3">
+                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full
+                                    {% if vuln.severity == 'high' %}bg-red-100 text-red-800
+                                    {% elif vuln.severity == 'medium' %}bg-yellow-100 text-yellow-800
+                                    {% else %}bg-green-100 text-green-800{% endif %}">
+                                    {% if vuln.severity == 'high' %}ВЫСОКИЙ
+                                    {% elif vuln.severity == 'medium' %}СРЕДНИЙ
+                                    {% else %}НИЗКИЙ{% endif %}
+                                </span>
+                            </td>
+                            <td class="px-4 py-3 text-sm text-gray-500">
+                                {% if vuln.status == 'new' %}Новая
+                                {% elif vuln.status == 'in_progress' %}В работе
+                                {% elif vuln.status == 'needs_modification' %}Требует правок
+                                {% else %}{{ vuln.status }}{% endif %}
+                            </td>
+                        </tr>
+                        {% endif %}
+                        {% endfor %}
+
+                        <!-- Завершенные уязвимости -->
+                        {% set completed_vulnerabilities = [] %}
+                        {% for vuln in vulnerabilities %}
+                        {% if vuln.status == 'completed' or vuln.status == 'approved' %}
+                        {% set _ = completed_vulnerabilities.append(vuln) %}
+                        {% endif %}
+                        {% endfor %}
+
+                        {% if completed_vulnerabilities %}
+                        <!-- Сортировка по уровню риска: high -> medium -> low -->
+                        {% for severity in ['high', 'medium', 'low'] %}
+                            {% for vuln in completed_vulnerabilities %}
+                                {% if vuln.severity == severity %}
+                                <tr class="hover:bg-gray-50 bg-gray-50">
+                                    <td class="px-4 py-3">
+                                        <input type="checkbox" name="vulnerability" value="{{ vuln.id }}" disabled
+                                               class="vuln-checkbox rounded border-gray-300 text-gray-400">
+                                    </td>
+                                    <td class="px-4 py-3 text-sm text-gray-900">
+                                        <span class="line-through">{{ vuln.title }}</span>
+                                    </td>
+                                    <td class="px-4 py-3">
+                                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full
+                                            {% if vuln.severity == 'high' %}bg-red-100 text-red-800
+                                            {% elif vuln.severity == 'medium' %}bg-yellow-100 text-yellow-800
+                                            {% else %}bg-green-100 text-green-800{% endif %}">
+                                            {% if vuln.severity == 'high' %}ВЫСОКИЙ
+                                            {% elif vuln.severity == 'medium' %}СРЕДНИЙ
+                                            {% else %}НИЗКИЙ{% endif %}
+                                        </span>
+                                    </td>
+                                    <td class="px-4 py-3 text-sm text-gray-500">
+                                        <span class="text-green-600 font-medium">
+                                            {% if vuln.status == 'completed' %}Завершена
+                                            {% elif vuln.status == 'approved' %}Одобрена
+                                            {% else %}{{ vuln.status }}{% endif %}
+                                        </span>
+                                    </td>
+                                </tr>
+                                {% endif %}
+                            {% endfor %}
+                        {% endfor %}
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="flex justify-end space-x-3">
+                <button onclick="closeModal()"
+                        class="px-4 py-2 bg-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-400 transition duration-300">
+                    Отмена
+                </button>
+                <button onclick="confirmAssignment()"
+                        class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition duration-300">
+                    Назначить выбранные
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentOperatorId = null;
+
+function openCreateOperatorModal() {
+    document.getElementById('createOperatorModal').classList.remove('hidden');
+}
+
+function closeCreateOperatorModal() {
+    document.getElementById('createOperatorModal').classList.add('hidden');
+    // Очистка формы
+    document.getElementById('createOperatorForm').reset();
+}
+
+function assignVulnerabilities(operatorId) {
+    console.log('Opening modal for operator:', operatorId);
+    currentOperatorId = operatorId;
+    document.getElementById('assignModal').classList.remove('hidden');
+}
+
+function closeModal() {
+    console.log('Closing modal');
+    document.getElementById('assignModal').classList.add('hidden');
+    currentOperatorId = null;
+
+    // Сброс чекбоксов
+    document.querySelectorAll('.vuln-checkbox').forEach(checkbox => {
+        if (!checkbox.disabled) {
+            checkbox.checked = false;
+        }
+    });
+}
+
+function confirmAssignment() {
+    const selectedVulns = Array.from(document.querySelectorAll('.vuln-checkbox:checked'))
+        .map(checkbox => parseInt(checkbox.value));
+
+    console.log('Selected vulnerabilities:', selectedVulns);
+    console.log('For operator:', currentOperatorId);
+
+    if (selectedVulns.length === 0) {
+        alert('Пожалуйста, выберите хотя бы одну уязвимость');
+        return;
+    }
+
+    // AJAX запрос для назначения уязвимостей
+    fetch('/assign-vulnerabilities', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            operator_id: currentOperatorId,
+            vulnerability_ids: selectedVulns
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        console.log('Response data:', data);
+        if (data.success) {
+            alert('Уязвимости успешно назначены!');
+            closeModal();
+            // Обновляем страницу чтобы увидеть изменения
+            location.reload();
+        } else {
+            alert('Ошибка при назначении уязвимостей: ' + (data.message || 'Неизвестная ошибка'));
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Ошибка сети при назначении уязвимостей');
+    });
+}
+
+// Закрытие модальных окон при клике вне их
+document.addEventListener('click', function(event) {
+    const assignModal = document.getElementById('assignModal');
+    const createModal = document.getElementById('createOperatorModal');
+
+    if (event.target === assignModal) {
+        closeModal();
+    }
+    if (event.target === createModal) {
+        closeCreateOperatorModal();
+    }
+});
+
+// Закрытие модальных окон по ESC
+document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape') {
+        closeModal();
+        closeCreateOperatorModal();
+    }
+});
+</script>
+{% endblock %}

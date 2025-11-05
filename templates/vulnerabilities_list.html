@@ -1,0 +1,1382 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="bg-white rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-300">
+    <div class="px-6 py-4 border-b border-gray-200">
+        <h2 class="text-xl font-semibold text-gray-800">Управление уязвимостями</h2>
+        <p class="text-sm text-gray-600 mt-1">Список всех уязвимостей в системе</p>
+        <!-- Статистика -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div class="bg-gradient-to-r from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200">
+                <div class="text-center">
+                    <p class="text-2xl font-bold text-blue-600">{{ vulnerabilities|length }}</p>
+                    <p class="text-sm text-gray-600">Всего уязвимостей</p>
+                </div>
+            </div>
+            <div class="bg-gradient-to-r from-red-50 to-red-100 rounded-xl p-4 border border-red-200">
+                <div class="text-center">
+                    <p class="text-2xl font-bold text-red-600">{{ vulnerabilities|selectattr('severity', 'equalto', 'high')|list|length + vulnerabilities|selectattr('severity', 'equalto', 'critical')|list|length }}</p>
+                    <p class="text-sm text-gray-600">Высокий риск</p>
+                </div>
+            </div>
+            <div class="bg-gradient-to-r from-yellow-50 to-yellow-100 rounded-xl p-4 border border-yellow-200">
+                <div class="text-center">
+                    <p class="text-2xl font-bold text-yellow-600">{{ vulnerabilities|selectattr('status', 'equalto', 'new')|list|length }}</p>
+                    <p class="text-sm text-gray-600">Новые</p>
+                </div>
+            </div>
+            <div class="bg-gradient-to-r from-green-50 to-green-100 rounded-xl p-4 border border-green-200">
+                <div class="text-center">
+                    <p class="text-2xl font-bold text-green-600">{{ vulnerabilities|selectattr('status', 'equalto', 'completed')|list|length + vulnerabilities|selectattr('status', 'equalto', 'approved')|list|length }}</p>
+                    <p class="text-sm text-gray-600">Завершено</p>
+                </div>
+            </div>
+        </div>
+
+
+
+        <!-- Фильтры -->
+        <div class="bg-gradient-to-r from-gray-50 to-gray-100 rounded-2xl p-6 mb-8 shadow-sm">
+            <div class="flex flex-wrap gap-6 items-end">
+                <div class="flex-1 min-w-64">
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">🔍 Поиск уязвимостей</label>
+                    <div class="relative">
+                        <input type="text" id="search-filter" placeholder="Введите название уязвимости..."
+                               class="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200">
+                        <i class="fas fa-search absolute left-3 top-3.5 text-gray-400"></i>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">📊 Статус</label>
+                    <select id="status-filter" class="w-48 px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200">
+                        <option value="all">Все статусы</option>
+                        <option value="new">🆕 Новые</option>
+                        <option value="in_progress">🔄 В работе</option>
+                        <option value="completed">✅ Завершено</option>
+                        <option value="approved">👍 Одобрено</option>
+                        <option value="needs_modification">📝 На модификации</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">⚠️ Уровень риска</label>
+                    <select id="severity-filter" class="w-48 px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200">
+                        <option value="all">Все уровни</option>
+                        <option value="critical">🔴 Критический</option>
+                        <option value="high">🟠 Высокий</option>
+                        <option value="medium">🟡 Средний</option>
+                        <option value="low">🟢 Низкий</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Таблица уязвимостей -->
+        <div class="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gradient-to-r from-gray-50 to-gray-100">
+                        <tr>
+                            <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Название</th>
+                            <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Описание</th>
+                            <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Уровень</th>
+                            <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Статус</th>
+                            <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">CVSS</th>
+                            <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Оператор</th>
+                            <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200" id="vulnerabilities-table-body">
+                        {% for vulnerability in vulnerabilities %}
+                        <tr class="hover:bg-blue-50 transition-all duration-200 vulnerability-row group"
+                            data-status="{{ vulnerability.status }}"
+                            data-severity="{{ vulnerability.severity }}"
+                            data-title="{{ vulnerability.title|lower }}">
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="flex items-center">
+                                    <div class="flex-shrink-0 h-10 w-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center mr-3">
+                                        <i class="fas fa-bug text-white text-sm"></i>
+                                    </div>
+                                    <div>
+                                        <div class="text-sm font-semibold text-gray-900 group-hover:text-blue-700 transition-colors">{{ vulnerability.title }}</div>
+                                        <div class="text-xs text-gray-500">{{ vulnerability.category|title }}</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="px-6 py-4">
+                                <div class="text-sm text-gray-600 max-w-md line-clamp-2 leading-relaxed">{{ vulnerability.description }}</div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span class="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-semibold severity-{{ vulnerability.severity }} shadow-sm">
+                                    {% if vulnerability.severity == 'critical' %}🔴 Критический
+                                    {% elif vulnerability.severity == 'high' %}🟠 Высокий
+                                    {% elif vulnerability.severity == 'medium' %}🟡 Средний
+                                    {% else %}🟢 Низкий{% endif %}
+                                </span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span class="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-semibold status-{{ vulnerability.status }} shadow-sm">
+                                    {% if vulnerability.status == 'new' %}🆕 Новый
+                                    {% elif vulnerability.status == 'in_progress' %}🔄 В работе
+                                    {% elif vulnerability.status == 'completed' %}✅ Завершено
+                                    {% elif vulnerability.status == 'approved' %}👍 Одобрено
+                                    {% else %}📝 На модификации{% endif %}
+                                </span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="flex items-center">
+                                    <span class="text-lg font-bold {% if vulnerability.cvss_score >= 9 %}text-red-600{% elif vulnerability.cvss_score >= 7 %}text-orange-600{% elif vulnerability.cvss_score >= 4 %}text-yellow-600{% else %}text-green-600{% endif %}">
+                                        {{ "%.1f"|format(vulnerability.cvss_score) }}
+                                    </span>
+                                    <span class="text-xs text-gray-500 ml-1">/10</span>
+                                </div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                                {% if vulnerability.assigned_operator %}
+                                    {% set operator = operators|selectattr('id', 'equalto', vulnerability.assigned_operator)|first %}
+                                    <div class="flex items-center">
+                                        <div class="flex-shrink-0 h-8 w-8 bg-gradient-to-br from-purple-500 to-purple-600 rounded-full flex items-center justify-center mr-2">
+                                            <span class="text-white text-xs font-semibold">{{ operator.name.split(' ')[0][0] }}{{ operator.name.split(' ')[1][0] if operator.name.split(' ')|length > 1 else operator.name[0] }}</span>
+                                        </div>
+                                        <div>
+                                            <div class="font-medium text-gray-900">{{ operator.name }}</div>
+                                            <div class="text-xs text-gray-500">{{ operator.email }}</div>
+                                        </div>
+                                    </div>
+                                {% else %}
+                                    <div class="flex items-center text-gray-400">
+                                        <i class="fas fa-user-slash mr-2"></i>
+                                        <span>Не назначен</span>
+                                    </div>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                <div class="flex space-x-2">
+                                    <button onclick="showVulnerabilityDetails({{ vulnerability.id }})"
+                                            class="inline-flex items-center px-3 py-2 border border-transparent text-xs font-medium rounded-lg text-blue-700 bg-blue-100 hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200 transform hover:scale-105"
+                                            title="Просмотреть детали">
+                                        <i class="fas fa-eye mr-1"></i>
+                                        Просмотр
+                                    </button>
+                                    <button onclick="editVulnerability({{ vulnerability.id }})"
+                                            class="inline-flex items-center px-3 py-2 border border-transparent text-xs font-medium rounded-lg text-green-700 bg-green-100 hover:bg-green-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-all duration-200 transform hover:scale-105"
+                                            title="Редактировать">
+                                        <i class="fas fa-edit mr-1"></i>
+                                        Редакт.
+                                    </button>
+                                    {% if vulnerability.status == 'new' %}
+                                    <button onclick="assignVulnerability({{ vulnerability.id }})"
+                                            class="inline-flex items-center px-3 py-2 border border-transparent text-xs font-medium rounded-lg text-purple-700 bg-purple-100 hover:bg-purple-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 transition-all duration-200 transform hover:scale-105"
+                                            title="Назначить оператора">
+                                        <i class="fas fa-user-plus mr-1"></i>
+                                        Назначить
+                                    </button>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        {% if not vulnerabilities %}
+        <div class="text-center py-16">
+            <div class="bg-gradient-to-br from-gray-100 to-gray-200 rounded-2xl p-8 inline-block">
+                <i class="fas fa-search fa-4x text-gray-300 mb-4"></i>
+                <h3 class="text-xl font-semibold text-gray-900 mb-2">Уязвимостей не найдено</h3>
+                <p class="text-gray-500 mb-4">Запустите сканирование, чтобы добавить уязвимости в систему.</p>
+                <a href="{{ url_for('parsing_status') }}" class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-xl text-white bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200 transform hover:scale-105">
+                    <i class="fas fa-satellite-dish mr-2"></i>
+                    Запустить сканирование
+                </a>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Модальное окно просмотра уязвимости -->
+<div id="view-modal" class="fixed inset-0 bg-black bg-opacity-50 overflow-y-auto h-full w-full hidden z-50 transition-opacity duration-300">
+    <div class="relative top-10 mx-auto p-4 w-full max-w-4xl">
+        <div class="bg-white rounded-2xl shadow-2xl transform transition-all duration-300 scale-95 opacity-0" id="view-modal-content">
+            <!-- Заголовок -->
+            <div class="bg-gradient-to-r from-blue-500 to-blue-600 rounded-t-2xl px-6 py-4">
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center space-x-3">
+                        <div class="bg-white bg-opacity-20 p-2 rounded-xl">
+                            <i class="fas fa-bug text-white text-xl"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-xl font-bold text-white" id="view-title">Название уязвимости</h3>
+                            <p class="text-blue-100 text-sm">Детальная информация об уязвимости</p>
+                        </div>
+                    </div>
+                    <button onclick="closeViewModal()" class="text-white hover:text-blue-200 transition-colors duration-200 p-2 rounded-lg hover:bg-white hover:bg-opacity-10">
+                        <i class="fas fa-times text-xl"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Контент -->
+            <div class="p-6 max-h-96 overflow-y-auto">
+                <!-- Основная информация -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                    <!-- Левая колонка -->
+                    <div class="space-y-4">
+                        <div class="bg-gray-50 rounded-xl p-4">
+                            <h4 class="font-semibold text-gray-900 mb-3 flex items-center">
+                                <i class="fas fa-info-circle text-blue-500 mr-2"></i>
+                                Основная информация
+                            </h4>
+                            <div class="space-y-2">
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Статус:</span>
+                                    <span id="view-status" class="font-medium"></span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Уровень риска:</span>
+                                    <span id="view-risk-level" class="font-medium"></span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Категория:</span>
+                                    <span id="view-category" class="font-medium"></span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">CVSS Score:</span>
+                                    <span id="view-cvss" class="font-bold text-lg"></span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Детали безопасности -->
+                        <div class="bg-red-50 rounded-xl p-4">
+                            <h4 class="font-semibold text-red-900 mb-3 flex items-center">
+                                <i class="fas fa-shield-alt text-red-500 mr-2"></i>
+                                Детали безопасности
+                            </h4>
+                            <div class="space-y-2">
+                                <div class="flex justify-between">
+                                    <span class="text-red-700">Уровень серьезности:</span>
+                                    <span id="view-severity" class="font-semibold"></span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-red-700">Модификации:</span>
+                                    <span id="view-modifications" class="font-semibold"></span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-red-700">Одобрена:</span>
+                                    <span id="view-approved" class="font-semibold"></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Правая колонка -->
+                    <div class="space-y-4">
+                        <!-- Назначение -->
+                        <div class="bg-purple-50 rounded-xl p-4">
+                            <h4 class="font-semibold text-purple-900 mb-3 flex items-center">
+                                <i class="fas fa-user-tie text-purple-500 mr-2"></i>
+                                Назначение
+                            </h4>
+                            <div id="view-assignment" class="space-y-2">
+                                <!-- Динамически заполняется -->
+                            </div>
+                        </div>
+
+                        <!-- Даты -->
+                        <div class="bg-green-50 rounded-xl p-4">
+                            <h4 class="font-semibold text-green-900 mb-3 flex items-center">
+                                <i class="fas fa-calendar-alt text-green-500 mr-2"></i>
+                                Временные метки
+                            </h4>
+                            <div class="space-y-2">
+                                <div class="flex justify-between">
+                                    <span class="text-green-700">Создана:</span>
+                                    <span id="view-created" class="font-medium text-sm"></span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-green-700">Завершена:</span>
+                                    <span id="view-completed" class="font-medium text-sm"></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Описание (аккордеон) -->
+                <div class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200">
+                    <button onclick="toggleDescription()" class="w-full px-6 py-4 text-left flex justify-between items-center hover:bg-blue-100 transition-colors duration-200 rounded-xl">
+                        <h4 class="font-semibold text-blue-900 flex items-center">
+                            <i class="fas fa-file-alt text-blue-500 mr-2"></i>
+                            Полное описание уязвимости
+                        </h4>
+                        <i class="fas fa-chevron-down text-blue-500 transition-transform duration-200" id="description-chevron"></i>
+                    </button>
+                    <div id="description-content" class="px-6 pb-4 hidden">
+                        <div class="bg-white rounded-lg p-4 border border-gray-200">
+                            <p id="view-description" class="text-gray-700 leading-relaxed"></p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Дополнительная информация (аккордеон) -->
+                <div class="bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl border border-gray-200 mt-4">
+                    <button onclick="toggleAdditionalInfo()" class="w-full px-6 py-4 text-left flex justify-between items-center hover:bg-gray-200 transition-colors duration-200 rounded-xl">
+                        <h4 class="font-semibold text-gray-900 flex items-center">
+                            <i class="fas fa-database text-gray-500 mr-2"></i>
+                            Технические детали
+                        </h4>
+                        <i class="fas fa-chevron-down text-gray-500 transition-transform duration-200" id="additional-info-chevron"></i>
+                    </button>
+                    <div id="additional-info-content" class="px-6 pb-4 hidden">
+                        <div class="bg-white rounded-lg p-4 border border-gray-200 space-y-3">
+                            <div class="grid grid-cols-2 gap-4 text-sm">
+                                <div>
+                                    <span class="font-medium text-gray-600">ID уязвимости:</span>
+                                    <span id="view-id" class="text-gray-900 ml-2 font-mono"></span>
+                                </div>
+                                <div>
+                                    <span class="font-medium text-gray-600">Последнее обновление:</span>
+                                    <span id="view-last-updated" class="text-gray-900 ml-2"></span>
+                                </div>
+                            </div>
+                            <div class="border-t pt-3">
+                                <span class="font-medium text-gray-600">Метрики:</span>
+                                <div class="mt-2 grid grid-cols-2 gap-2">
+                                    <div class="bg-blue-50 rounded-lg p-2 text-center">
+                                        <div class="text-xs text-blue-600">Уровень сложности</div>
+                                        <div class="font-bold text-blue-700" id="view-complexity">Средний</div>
+                                    </div>
+                                    <div class="bg-green-50 rounded-lg p-2 text-center">
+                                        <div class="text-xs text-green-600">Время исправления</div>
+                                        <div class="font-bold text-green-700" id="view-fix-time">2-4 недели</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Футер -->
+            <div class="bg-gray-50 rounded-b-2xl px-6 py-4 border-t border-gray-200">
+                <div class="flex justify-between items-center">
+                    <div class="text-sm text-gray-500">
+                        <i class="fas fa-clock mr-1"></i>
+                        <span id="view-timestamp">Загружено только что</span>
+                    </div>
+                    <div class="flex space-x-3">
+                        <button onclick="closeViewModal()"
+                                class="px-6 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-all duration-200 transform hover:scale-105">
+                            Закрыть
+                        </button>
+                        <button onclick="editCurrentVulnerability()"
+                                class="px-6 py-2 text-sm font-medium text-white bg-gradient-to-r from-green-500 to-green-600 rounded-xl hover:from-green-600 hover:to-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-all duration-200 transform hover:scale-105">
+                            <i class="fas fa-edit mr-2"></i>
+                            Редактировать
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно редактирования уязвимости -->
+<div id="edit-modal" class="fixed inset-0 bg-black bg-opacity-50 overflow-y-auto h-full w-full hidden z-50 transition-opacity duration-300">
+    <div class="relative top-10 mx-auto p-4 w-full max-w-2xl">
+        <div class="bg-white rounded-2xl shadow-2xl transform transition-all duration-300 scale-95 opacity-0" id="edit-modal-content">
+            <div class="bg-gradient-to-r from-green-500 to-green-600 rounded-t-2xl px-6 py-4">
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center space-x-3">
+                        <div class="bg-white bg-opacity-20 p-2 rounded-xl">
+                            <i class="fas fa-edit text-white text-xl"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-xl font-bold text-white">Редактирование уязвимости</h3>
+                            <p class="text-green-100 text-sm">Изменение параметров уязвимости</p>
+                        </div>
+                    </div>
+                    <button onclick="closeEditModal()" class="text-white hover:text-green-200 transition-colors duration-200 p-2 rounded-lg hover:bg-white hover:bg-opacity-10">
+                        <i class="fas fa-times text-xl"></i>
+                    </button>
+                </div>
+            </div>
+
+            <form id="edit-vulnerability-form" class="space-y-6 p-6 max-h-96 overflow-y-auto">
+                <input type="hidden" id="edit-vuln-id" name="vulnerability_id">
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label for="edit-title" class="block text-sm font-semibold text-gray-700 mb-2">Название уязвимости</label>
+                        <input type="text" id="edit-title" name="title"
+                               class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200">
+                    </div>
+
+                    <div>
+                        <label for="edit-category" class="block text-sm font-semibold text-gray-700 mb-2">Категория</label>
+                        <input type="text" id="edit-category" name="category"
+                               class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200">
+                    </div>
+                </div>
+
+                <div>
+                    <label for="edit-description" class="block text-sm font-semibold text-gray-700 mb-2">Описание</label>
+                    <textarea id="edit-description" name="description" rows="4"
+                              class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200"></textarea>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label for="edit-severity" class="block text-sm font-semibold text-gray-700 mb-2">Уровень серьезности</label>
+                        <select id="edit-severity" name="severity"
+                                class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200">
+                            <option value="low">🟢 Низкий</option>
+                            <option value="medium">🟡 Средний</option>
+                            <option value="high">🟠 Высокий</option>
+                            <option value="critical">🔴 Критический</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label for="edit-status" class="block text-sm font-semibold text-gray-700 mb-2">Статус</label>
+                        <select id="edit-status" name="status"
+                                class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200">
+                            <option value="new">🆕 Новый</option>
+                            <option value="in_progress">🔄 В работе</option>
+                            <option value="completed">✅ Завершено</option>
+                            <option value="approved">👍 Одобрено</option>
+                            <option value="needs_modification">📝 Требует модификации</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label for="edit-cvss" class="block text-sm font-semibold text-gray-700 mb-2">CVSS Score</label>
+                        <input type="number" id="edit-cvss" name="cvss_score" step="0.1" min="0" max="10"
+                               class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200">
+                    </div>
+
+                    <div>
+                        <label for="edit-risk-level" class="block text-sm font-semibold text-gray-700 mb-2">Уровень риска</label>
+                        <select id="edit-risk-level" name="risk_level"
+                                class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200">
+                            <option value="low">Низкий</option>
+                            <option value="medium">Средний</option>
+                            <option value="high">Высокий</option>
+                            <option value="critical">Критический</option>
+                        </select>
+                    </div>
+                </div>
+            </form>
+
+            <div class="bg-gray-50 rounded-b-2xl px-6 py-4 border-t border-gray-200">
+                <div class="flex justify-end space-x-4">
+                    <button onclick="closeEditModal()"
+                            class="px-6 py-3 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-all duration-200 transform hover:scale-105">
+                        Отмена
+                    </button>
+                    <button onclick="saveVulnerabilityChanges()"
+                            class="px-6 py-3 text-sm font-medium text-white bg-gradient-to-r from-green-500 to-green-600 rounded-xl hover:from-green-600 hover:to-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-all duration-200 transform hover:scale-105">
+                        <i class="fas fa-save mr-2"></i>
+                        Сохранить изменения
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно назначения оператора -->
+<div id="assign-modal" class="fixed inset-0 bg-black bg-opacity-50 overflow-y-auto h-full w-full hidden z-50 transition-opacity duration-300">
+    <div class="relative top-20 mx-auto p-4 w-full max-w-md">
+        <div class="bg-white rounded-2xl shadow-2xl transform transition-all duration-300 scale-95 opacity-0" id="assign-modal-content">
+            <div class="bg-gradient-to-r from-purple-500 to-purple-600 rounded-t-2xl px-6 py-4">
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center space-x-3">
+                        <div class="bg-white bg-opacity-20 p-2 rounded-xl">
+                            <i class="fas fa-user-plus text-white text-xl"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-xl font-bold text-white">Назначение оператора</h3>
+                            <p class="text-purple-100 text-sm">Выберите ответственного специалиста</p>
+                        </div>
+                    </div>
+                    <button onclick="closeAssignModal()" class="text-white hover:text-purple-200 transition-colors duration-200 p-2 rounded-lg hover:bg-white hover:bg-opacity-10">
+                        <i class="fas fa-times text-xl"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="p-6">
+                <input type="hidden" id="assign-vuln-id">
+                <div class="mb-6">
+                    <label class="block text-sm font-semibold text-gray-700 mb-3">Выберите оператора</label>
+                    <select id="assign-operator-select" class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200">
+                        <option value="">-- Выберите оператора --</option>
+                        {% for operator in operators %}
+                        <option value="{{ operator.id }}">{{ operator.name }} ({{ operator.email }}) - {{ "%.1f"|format(operator.current_metric) }}%</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="bg-purple-50 rounded-xl p-4">
+                    <h4 class="font-semibold text-purple-900 mb-2 flex items-center">
+                        <i class="fas fa-info-circle text-purple-500 mr-2"></i>
+                        Информация
+                    </h4>
+                    <p class="text-purple-700 text-sm">При назначении оператора статус уязвимости автоматически изменится на "В работе"</p>
+                </div>
+            </div>
+
+            <div class="bg-gray-50 rounded-b-2xl px-6 py-4 border-t border-gray-200">
+                <div class="flex justify-end space-x-4">
+                    <button onclick="closeAssignModal()"
+                            class="px-6 py-3 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-all duration-200">
+                        Отмена
+                    </button>
+                    <button onclick="confirmAssignment()"
+                            class="px-6 py-3 text-sm font-medium text-white bg-gradient-to-r from-purple-500 to-purple-600 rounded-xl hover:from-purple-600 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 transition-all duration-200 transform hover:scale-105">
+                        <i class="fas fa-check mr-2"></i>
+                        Назначить
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Уведомления -->
+<div id="notifications" class="fixed top-4 right-4 space-y-3 z-50"></div>
+
+<style>
+.severity-critical { @apply bg-red-100 text-red-800 border border-red-200; }
+.severity-high { @apply bg-orange-100 text-orange-800 border border-orange-200; }
+.severity-medium { @apply bg-yellow-100 text-yellow-800 border border-yellow-200; }
+.severity-low { @apply bg-green-100 text-green-800 border border-green-200; }
+
+.status-new { @apply bg-blue-100 text-blue-800 border border-blue-200; }
+.status-in_progress { @apply bg-yellow-100 text-yellow-800 border border-yellow-200; }
+.status-completed { @apply bg-green-100 text-green-800 border border-green-200; }
+.status-approved { @apply bg-purple-100 text-purple-800 border border-purple-200; }
+.status-needs_modification { @apply bg-red-100 text-red-800 border border-red-200; }
+
+.vulnerability-row.hidden {
+    display: none;
+}
+
+.line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+/* Анимации для модальных окон */
+.modal-enter {
+    animation: modalEnter 0.3s ease-out forwards;
+}
+
+@keyframes modalEnter {
+    from {
+        opacity: 0;
+        transform: scale(0.95) translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+</style>
+
+<script>
+// Глобальные переменные
+let currentViewingVulnId = null;
+let currentEditingVulnId = null;
+
+// Функции для фильтрации
+document.addEventListener('DOMContentLoaded', function() {
+    const statusFilter = document.getElementById('status-filter');
+    const severityFilter = document.getElementById('severity-filter');
+    const searchFilter = document.getElementById('search-filter');
+
+    function applyFilters() {
+        const statusValue = statusFilter.value;
+        const severityValue = severityFilter.value;
+        const searchValue = searchFilter.value.toLowerCase();
+
+        document.querySelectorAll('.vulnerability-row').forEach(row => {
+            const status = row.getAttribute('data-status');
+            const severity = row.getAttribute('data-severity');
+            const title = row.getAttribute('data-title');
+
+            const statusMatch = statusValue === 'all' || status === statusValue;
+            const severityMatch = severityValue === 'all' || severity === severityValue;
+            const searchMatch = title.includes(searchValue);
+
+            if (statusMatch && severityMatch && searchMatch) {
+                row.classList.remove('hidden');
+            } else {
+                row.classList.add('hidden');
+            }
+        });
+    }
+
+    statusFilter.addEventListener('change', applyFilters);
+    severityFilter.addEventListener('change', applyFilters);
+    searchFilter.addEventListener('input', applyFilters);
+});
+
+function showVulnerabilityDetails(vulnId) {
+    currentViewingVulnId = vulnId;
+    console.log('Opening vulnerability details for ID:', vulnId);
+
+    // Загружаем данные уязвимости
+    fetch(`/get-vulnerability/${vulnId}`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('Vulnerability data received:', data);
+            if (data.success) {
+                const vuln = data.vulnerability;
+                populateViewModal(vuln);
+                openViewModal();
+            } else {
+                console.error('Error in response:', data);
+                showNotification('Ошибка загрузки данных уязвимости', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching vulnerability:', error);
+            showNotification('Ошибка загрузки данных уязвимости', 'error');
+        });
+}
+
+function populateViewModal(vuln) {
+    console.log('Заполнение модального окна для уязвимости:', vuln);
+    console.log('🔍 DEBUG populateViewModal - Полные данные уязвимости:', vuln);
+    console.log('🔍 DEBUG - assigned_operator:', vuln.assigned_operator);
+    console.log('🔍 DEBUG - Тип assigned_operator:', typeof vuln.assigned_operator);
+
+    // Метрики
+    document.getElementById('view-complexity').textContent = calculateComplexity(vuln);
+    document.getElementById('view-fix-time').textContent = calculateFixTime(vuln);
+    document.getElementById('view-timestamp').textContent = 'Загружено только что';
+    // Основная информация
+    document.getElementById('view-title').textContent = vuln.title || 'Нет названия';
+    document.getElementById('view-description').textContent = vuln.description || 'Нет описания';
+    document.getElementById('view-status').innerHTML = getStatusBadge(vuln.status || 'new');
+    document.getElementById('view-severity').innerHTML = getSeverityBadge(vuln.severity || 'medium');
+    document.getElementById('view-risk-level').textContent = getRiskLevelText(vuln.risk_level || 'medium');
+    document.getElementById('view-category').textContent = vuln.category || 'web';
+    document.getElementById('view-cvss').textContent = vuln.cvss_score ? vuln.cvss_score.toFixed(1) : '0.0';
+    document.getElementById('view-modifications').textContent = vuln.modifications || 0;
+    document.getElementById('view-approved').textContent = vuln.approved ? '✅ Да' : '❌ Нет';
+    document.getElementById('view-id').textContent = vuln.id || 'N/A';
+
+    // Даты
+    const now = new Date();
+    document.getElementById('view-created').textContent = vuln.created_date ?
+        new Date(vuln.created_date).toLocaleString() : now.toLocaleString();
+    document.getElementById('view-completed').textContent = vuln.completed_date ?
+        new Date(vuln.completed_date).toLocaleString() : 'Не завершена';
+    document.getElementById('view-last-updated').textContent = now.toLocaleString();
+
+    // Назначение оператора - ВАЖНО: используем assigned_operator из данных уязвимости
+    console.log('Assigned operator ID:', vuln.assigned_operator);
+    loadOperatorAssignment(vuln.assigned_operator, vuln.id);
+
+    // Метрики (расчетные)
+    document.getElementById('view-complexity').textContent = calculateComplexity(vuln);
+    document.getElementById('view-fix-time').textContent = calculateFixTime(vuln);
+    document.getElementById('view-timestamp').textContent = 'Загружено только что';
+}
+
+function loadOperatorAssignment(operatorId, vulnId) {
+    const assignmentDiv = document.getElementById('view-assignment');
+    console.log('🔍 DEBUG loadOperatorAssignment - operatorId:', operatorId, 'vulnId:', vulnId);
+
+    // Показываем загрузку
+    assignmentDiv.innerHTML = '<div class="text-center py-4"><i class="fas fa-spinner fa-spin text-purple-500 text-2xl"></i><p class="text-purple-700 mt-2">Загрузка данных оператора...</p></div>';
+
+    // Проверяем наличие operatorId
+    if (operatorId && operatorId !== 0 && operatorId !== '0' && operatorId !== null && operatorId !== undefined) {
+        console.log('🔍 DEBUG - Делаем запрос к /get-operator/' + operatorId);
+
+        fetch(`/get-operator/${operatorId}`)
+            .then(response => {
+                console.log('🔍 DEBUG - Ответ от /get-operator:', response.status, response.statusText);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('🔍 DEBUG - Данные оператора получены:', data);
+
+                if (data.success && data.operator) {
+                    const operator = data.operator;
+                    console.log('🔍 DEBUG - Оператор найден:', operator);
+
+                    assignmentDiv.innerHTML = `
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center">
+                                <div class="flex-shrink-0 h-10 w-10 bg-gradient-to-br from-purple-500 to-purple-600 rounded-full flex items-center justify-center mr-3">
+                                    <span class="text-white text-sm font-semibold">
+                                        ${getInitials(operator.name)}
+                                    </span>
+                                </div>
+                                <div>
+                                    <div class="font-semibold text-purple-900">${operator.name}</div>
+                                    <div class="text-xs text-purple-700">${operator.email}</div>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-sm font-semibold text-purple-900">${operator.current_metric}%</div>
+                                <div class="text-xs text-purple-700">Эффективность</div>
+                            </div>
+                        </div>
+                        <div class="mt-3 flex space-x-2">
+                            <button onclick="reassignOperator(${vulnId})"
+                                    class="flex-1 px-3 py-1 text-xs font-medium text-purple-700 bg-purple-100 hover:bg-purple-200 rounded-lg transition-colors duration-200">
+                                <i class="fas fa-sync-alt mr-1"></i>Переназначить
+                            </button>
+                            <button onclick="unassignOperator(${vulnId})"
+                                    class="flex-1 px-3 py-1 text-xs font-medium text-red-700 bg-red-100 hover:bg-red-200 rounded-lg transition-colors duration-200">
+                                <i class="fas fa-times mr-1"></i>Снять
+                            </button>
+                        </div>
+                    `;
+                } else {
+                    console.error('🔍 DEBUG - Ошибка в данных оператора:', data);
+                    showAssignmentNotAssigned(vulnId);
+                }
+            })
+            .catch(error => {
+                console.error('🔍 DEBUG - Ошибка загрузки оператора:', error);
+                assignmentDiv.innerHTML = `
+                    <div class="text-center py-4">
+                        <i class="fas fa-exclamation-triangle text-3xl text-red-500 mb-2"></i>
+                        <p class="text-red-700 font-medium">Ошибка загрузки оператора</p>
+                        <p class="text-red-600 text-sm">${error.message}</p>
+                        <button onclick="loadOperatorAssignment(${operatorId}, ${vulnId})"
+                                class="mt-2 px-4 py-2 text-xs font-medium text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors duration-200">
+                            Повторить загрузку
+                        </button>
+                    </div>
+                `;
+            });
+    } else {
+        console.log('🔍 DEBUG - operatorId отсутствует или равен 0/null');
+        showAssignmentNotAssigned(vulnId);
+    }
+}
+
+// Тестовая функция для проверки загрузки оператора
+function testOperatorLoad(operatorId) {
+    console.log('🧪 TEST: Загрузка оператора', operatorId);
+    fetch(`/get-operator/${operatorId}`)
+        .then(response => response.json())
+        .then(data => {
+            console.log('🧪 TEST: Результат загрузки оператора:', data);
+            if (data.success) {
+                alert(`✅ Оператор загружен: ${data.operator.name} (${data.operator.email})`);
+            } else {
+                alert(`❌ Ошибка: ${data.message}`);
+            }
+        })
+        .catch(error => {
+            console.error('🧪 TEST: Ошибка:', error);
+            alert(`❌ Ошибка сети: ${error.message}`);
+        });
+}
+
+// Вспомогательная функция для получения инициалов
+function getInitials(name) {
+    if (!name) return '??';
+    const parts = name.split(' ');
+    if (parts.length >= 2) {
+        return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return name.substring(0, 2).toUpperCase();
+}
+
+
+
+// Функция для отображения состояния "не назначено"
+function showAssignmentNotAssigned(vulnId) {
+    const assignmentDiv = document.getElementById('view-assignment');
+    assignmentDiv.innerHTML = `
+        <div class="text-center py-4">
+            <i class="fas fa-user-slash text-3xl text-purple-400 mb-2"></i>
+            <p class="text-purple-700 font-medium">Оператор не назначен</p>
+            <button onclick="assignCurrentVulnerability()"
+                    class="mt-2 px-4 py-2 text-xs font-medium text-white bg-purple-500 hover:bg-purple-600 rounded-lg transition-colors duration-200">
+                Назначить оператора
+            </button>
+        </div>
+    `;
+}
+
+// Функция для переназначения оператора
+function reassignOperator(vulnId) {
+    closeViewModal();
+    setTimeout(() => {
+        assignVulnerability(vulnId);
+    }, 350);
+}
+
+// Функция для снятия оператора
+function unassignOperator(vulnId) {
+    if (confirm('Вы уверены, что хотите снять назначение с этой уязвимости?')) {
+        fetch('/api/unassign-vulnerability', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                vulnerability_id: parseInt(vulnId)
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification('✅ Назначение оператора успешно снято', 'success');
+                // Обновляем модальное окно
+                if (currentViewingVulnId === vulnId) {
+                    showVulnerabilityDetails(vulnId);
+                }
+                // Обновляем таблицу через 1 секунду
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1000);
+            } else {
+                showNotification(data.message || '❌ Ошибка при снятии назначения', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showNotification('❌ Ошибка при снятии назначения', 'error');
+        });
+    }
+}
+
+
+function getStatusBadge(status) {
+    const badges = {
+        'new': '<span class="status-new px-2 py-1 rounded-full text-xs font-semibold">🆕 Новый</span>',
+        'in_progress': '<span class="status-in_progress px-2 py-1 rounded-full text-xs font-semibold">🔄 В работе</span>',
+        'completed': '<span class="status-completed px-2 py-1 rounded-full text-xs font-semibold">✅ Завершено</span>',
+        'approved': '<span class="status-approved px-2 py-1 rounded-full text-xs font-semibold">👍 Одобрено</span>',
+        'needs_modification': '<span class="status-needs_modification px-2 py-1 rounded-full text-xs font-semibold">📝 На модификации</span>'
+    };
+    return badges[status] || badges['new'];
+}
+
+function getSeverityBadge(severity) {
+    const badges = {
+        'critical': '<span class="severity-critical px-2 py-1 rounded-full text-xs font-semibold">🔴 Критический</span>',
+        'high': '<span class="severity-high px-2 py-1 rounded-full text-xs font-semibold">🟠 Высокий</span>',
+        'medium': '<span class="severity-medium px-2 py-1 rounded-full text-xs font-semibold">🟡 Средний</span>',
+        'low': '<span class="severity-low px-2 py-1 rounded-full text-xs font-semibold">🟢 Низкий</span>'
+    };
+    return badges[severity] || badges['medium'];
+}
+
+function getRiskLevelText(riskLevel) {
+    const texts = {
+        'critical': '🔴 Критический',
+        'high': '🟠 Высокий',
+        'medium': '🟡 Средний',
+        'low': '🟢 Низкий'
+    };
+    return texts[riskLevel] || texts['medium'];
+}
+
+function calculateComplexity(vuln) {
+    if (vuln.cvss_score >= 9) return 'Очень высокая';
+    if (vuln.cvss_score >= 7) return 'Высокая';
+    if (vuln.cvss_score >= 4) return 'Средняя';
+    return 'Низкая';
+}
+
+function calculateFixTime(vuln) {
+    if (vuln.cvss_score >= 9) return '4-6 недель';
+    if (vuln.cvss_score >= 7) return '2-4 недели';
+    if (vuln.cvss_score >= 4) return '1-2 недели';
+    return '3-7 дней';
+}
+
+// Функции для аккордеонов
+function toggleDescription() {
+    const content = document.getElementById('description-content');
+    const chevron = document.getElementById('description-chevron');
+    content.classList.toggle('hidden');
+    chevron.style.transform = content.classList.contains('hidden') ? 'rotate(0deg)' : 'rotate(180deg)';
+}
+
+function toggleAdditionalInfo() {
+    const content = document.getElementById('additional-info-content');
+    const chevron = document.getElementById('additional-info-chevron');
+    content.classList.toggle('hidden');
+    chevron.style.transform = content.classList.contains('hidden') ? 'rotate(0deg)' : 'rotate(180deg)';
+}
+
+// Функции открытия/закрытия модальных окон
+function openViewModal() {
+    const modal = document.getElementById('view-modal');
+    const content = document.getElementById('view-modal-content');
+    modal.classList.remove('hidden');
+    setTimeout(() => {
+        content.classList.remove('scale-95', 'opacity-0');
+        content.classList.add('scale-100', 'opacity-100');
+    }, 10);
+}
+
+function closeViewModal() {
+    const modal = document.getElementById('view-modal');
+    const content = document.getElementById('view-modal-content');
+    content.classList.add('scale-95', 'opacity-0');
+    content.classList.remove('scale-100', 'opacity-100');
+    setTimeout(() => {
+        modal.classList.add('hidden');
+    }, 300);
+}
+
+function editVulnerability(vulnId) {
+    currentEditingVulnId = vulnId;
+
+    // Загружаем данные уязвимости
+    fetch(`/get-vulnerability/${vulnId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const vuln = data.vulnerability;
+                document.getElementById('edit-vuln-id').value = vuln.id;
+                document.getElementById('edit-title').value = vuln.title;
+                document.getElementById('edit-description').value = vuln.description;
+                document.getElementById('edit-severity').value = vuln.severity;
+                document.getElementById('edit-status').value = vuln.status;
+                document.getElementById('edit-cvss').value = vuln.cvss_score;
+                document.getElementById('edit-category').value = vuln.category;
+                document.getElementById('edit-risk-level').value = vuln.risk_level;
+
+                openEditModal();
+            } else {
+                showNotification('Ошибка загрузки данных уязвимости', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showNotification('Ошибка загрузки данных уязвимости', 'error');
+        });
+}
+
+function openEditModal() {
+    const modal = document.getElementById('edit-modal');
+    const content = document.getElementById('edit-modal-content');
+    modal.classList.remove('hidden');
+    setTimeout(() => {
+        content.classList.remove('scale-95', 'opacity-0');
+        content.classList.add('scale-100', 'opacity-100');
+    }, 10);
+}
+
+function closeEditModal() {
+    const modal = document.getElementById('edit-modal');
+    const content = document.getElementById('edit-modal-content');
+    content.classList.add('scale-95', 'opacity-0');
+    content.classList.remove('scale-100', 'opacity-100');
+    setTimeout(() => {
+        modal.classList.add('hidden');
+    }, 300);
+}
+
+function assignVulnerability(vulnId) {
+    document.getElementById('assign-vuln-id').value = vulnId;
+    openAssignModal();
+}
+
+function openAssignModal() {
+    const modal = document.getElementById('assign-modal');
+    const content = document.getElementById('assign-modal-content');
+
+    // Загружаем операторов
+    loadOperatorsForAssignment();
+
+    modal.classList.remove('hidden');
+    setTimeout(() => {
+        content.classList.remove('scale-95', 'opacity-0');
+        content.classList.add('scale-100', 'opacity-100');
+    }, 10);
+}
+
+// Функция загрузки операторов для назначения
+function loadOperatorsForAssignment() {
+    const select = document.getElementById('assign-operator-select');
+
+    fetch('/api/operators')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Очищаем select
+                select.innerHTML = '<option value="">-- Выберите оператора --</option>';
+
+                // Добавляем операторов
+                data.operators.forEach(operator => {
+                    const option = document.createElement('option');
+                    option.value = operator.id;
+                    option.textContent = `${operator.name} (${operator.email}) - ${operator.current_metric}% эффективности`;
+                    option.setAttribute('data-operator', JSON.stringify(operator));
+                    select.appendChild(option);
+                });
+
+                // Добавляем обработчик изменения выбора
+                select.addEventListener('change', function() {
+                    showOperatorInfo(this.value, JSON.parse(this.options[this.selectedIndex]?.getAttribute('data-operator') || '{}'));
+                });
+            } else {
+                showNotification('Ошибка загрузки операторов', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error loading operators:', error);
+            showNotification('Ошибка загрузки операторов', 'error');
+        });
+}
+
+// Функция показа информации об операторе
+function showOperatorInfo(operatorId, operator) {
+    const infoDiv = document.getElementById('operator-info');
+
+    if (operatorId && operator.id) {
+        // Загружаем нагрузку оператора
+        fetch(`/api/operator-workload/${operatorId}`)
+            .then(response => response.json())
+            .then(data => {
+                const workload = data.success ? data.workload : 0;
+                const recommendation = workload < 50 ? '✅ Рекомендован' : workload < 80 ? '⚠️ Средняя нагрузка' : '❌ Высокая нагрузка';
+
+                document.getElementById('operator-metric').textContent = `${operator.current_metric}%`;
+                document.getElementById('operator-experience').textContent = `${operator.experience_level}%`;
+                document.getElementById('operator-workload').textContent = `${workload}%`;
+                document.getElementById('operator-recommendation').textContent = recommendation;
+
+                infoDiv.classList.remove('hidden');
+            })
+            .catch(error => {
+                console.error('Error loading workload:', error);
+                infoDiv.classList.add('hidden');
+            });
+    } else {
+        infoDiv.classList.add('hidden');
+    }
+}
+
+function closeAssignModal() {
+    const modal = document.getElementById('assign-modal');
+    const content = document.getElementById('assign-modal-content');
+    content.classList.add('scale-95', 'opacity-0');
+    content.classList.remove('scale-100', 'opacity-100');
+    setTimeout(() => {
+        modal.classList.add('hidden');
+    }, 300);
+}
+
+// Вспомогательные функции
+function editCurrentVulnerability() {
+    closeViewModal();
+    setTimeout(() => {
+        editVulnerability(currentViewingVulnId);
+    }, 350);
+}
+
+function assignCurrentVulnerability() {
+    closeViewModal();
+    setTimeout(() => {
+        assignVulnerability(currentViewingVulnId);
+    }, 350);
+}
+
+// Остальные функции (saveVulnerabilityChanges, confirmAssignment, showNotification) остаются без изменений
+// ... (они такие же как в предыдущем коде)
+
+// Закрытие модальных окон по клику вне области
+window.onclick = function(event) {
+    const viewModal = document.getElementById('view-modal');
+    const editModal = document.getElementById('edit-modal');
+    const assignModal = document.getElementById('assign-modal');
+
+    if (event.target === viewModal) {
+        closeViewModal();
+    }
+    if (event.target === editModal) {
+        closeEditModal();
+    }
+    if (event.target === assignModal) {
+        closeAssignModal();
+    }
+}
+
+
+function saveVulnerabilityChanges() {
+    const form = document.getElementById('edit-vulnerability-form');
+    const formData = new FormData(form);
+    const updates = {};
+
+    for (let [key, value] of formData.entries()) {
+        if (key !== 'vulnerability_id') {
+            updates[key] = value;
+        }
+    }
+
+    const vulnId = formData.get('vulnerability_id');
+
+    fetch('/update-vulnerability', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            vulnerability_id: parseInt(vulnId),
+            updates: updates
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showNotification('Уязвимость успешно обновлена', 'success');
+            closeEditModal();
+            // Обновляем страницу через 1 секунду
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
+        } else {
+            showNotification('Ошибка при обновлении уязвимости', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('Ошибка при обновлении уязвимости', 'error');
+    });
+}
+function confirmAssignment() {
+    const vulnId = document.getElementById('assign-vuln-id').value;
+    const operatorId = document.getElementById('assign-operator-select').value;
+
+    if (!operatorId) {
+        alert('Пожалуйста, выберите оператора');
+        return;
+    }
+
+    fetch('/api/assign-operator', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            vulnerability_id: parseInt(vulnId),
+            operator_id: parseInt(operatorId)
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showNotification('Оператор успешно назначен', 'success');
+            closeAssignModal();
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
+        } else {
+            showNotification(data.message || 'Ошибка при назначении оператора', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('Ошибка при назначении оператора', 'error');
+    });
+}
+// Утилита для показа уведомлений
+function showNotification(message, type = 'info') {
+    // Создаем элемент уведомления
+    const notification = document.createElement('div');
+    notification.className = `fixed top-4 right-4 px-6 py-3 rounded-lg shadow-lg text-white transform transition-transform duration-300 ${
+        type === 'success' ? 'bg-green-500' :
+        type === 'error' ? 'bg-red-500' : 'bg-blue-500'
+    }`;
+    notification.textContent = message;
+    notification.style.zIndex = '1000';
+
+    document.body.appendChild(notification);
+
+    // Авто-удаление через 5 секунд
+    setTimeout(() => {
+        notification.remove();
+    }, 5000);
+}
+
+
+
+
+// Функция сохранения изменений уязвимости
+function saveVulnerabilityChanges() {
+    const form = document.getElementById('edit-vulnerability-form');
+    const formData = new FormData(form);
+    const updates = {};
+
+    for (let [key, value] of formData.entries()) {
+        if (key !== 'vulnerability_id' && value !== '') {
+            // Конвертируем числовые поля
+            if (key === 'cvss_score') {
+                updates[key] = parseFloat(value);
+            } else if (key === 'modifications') {
+                updates[key] = parseInt(value);
+            } else {
+                updates[key] = value;
+            }
+        }
+    }
+
+    const vulnId = formData.get('vulnerability_id');
+
+    if (Object.keys(updates).length === 0) {
+        showNotification('⚠️ Нет изменений для сохранения', 'info');
+        return;
+    }
+
+    fetch('/update-vulnerability', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            vulnerability_id: parseInt(vulnId),
+            updates: updates
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showNotification('✅ Уязвимость успешно обновлена', 'success');
+            closeEditModal();
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
+        } else {
+            showNotification('❌ Ошибка при обновлении уязвимости', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('❌ Ошибка при обновлении уязвимости', 'error');
+    });
+}
+
+// Функция подтверждения назначения оператора
+function confirmAssignment() {
+    const vulnId = document.getElementById('assign-vuln-id').value;
+    const operatorId = document.getElementById('assign-operator-select').value;
+
+    if (!operatorId) {
+        showNotification('⚠️ Пожалуйста, выберите оператора', 'error');
+        return;
+    }
+
+    fetch('/api/assign-operator', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            vulnerability_id: parseInt(vulnId),
+            operator_id: parseInt(operatorId)
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showNotification('✅ Оператор успешно назначен', 'success');
+            closeAssignModal();
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
+        } else {
+            showNotification(data.message || '❌ Ошибка при назначении оператора', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('❌ Ошибка при назначении оператора', 'error');
+    });
+}
+
+// Функция показа уведомлений
+function showNotification(message, type = 'info') {
+    const notifications = document.getElementById('notifications');
+    const notification = document.createElement('div');
+
+    const typeClasses = {
+        'success': 'bg-gradient-to-r from-green-500 to-green-600 text-white border-l-4 border-green-400',
+        'error': 'bg-gradient-to-r from-red-500 to-red-600 text-white border-l-4 border-red-400',
+        'info': 'bg-gradient-to-r from-blue-500 to-blue-600 text-white border-l-4 border-blue-400'
+    };
+
+    const icons = {
+        'success': 'fa-check-circle',
+        'error': 'fa-exclamation-circle',
+        'info': 'fa-info-circle'
+    };
+
+    notification.className = `${typeClasses[type]} px-6 py-4 rounded-r-xl shadow-lg transform transition-all duration-300 translate-x-96`;
+    notification.innerHTML = `
+        <div class="flex items-center">
+            <i class="fas ${icons[type]} mr-3 text-lg"></i>
+            <span class="font-medium">${message}</span>
+            <button onclick="this.parentElement.parentElement.remove()" class="ml-4 text-white hover:text-gray-200 transition-colors">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    `;
+
+    notifications.appendChild(notification);
+
+    // Анимация появления
+    setTimeout(() => {
+        notification.classList.remove('translate-x-96');
+        notification.classList.add('translate-x-0');
+    }, 10);
+
+    // Авто-удаление через 5 секунд
+    setTimeout(() => {
+        notification.classList.add('translate-x-96');
+        notification.classList.remove('translate-x-0');
+        setTimeout(() => {
+            if (notification.parentElement) {
+                notification.remove();
+            }
+        }, 300);
+    }, 5000);
+}
+
+// Закрытие модальных окон по ESC
+document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape') {
+        closeViewModal();
+        closeEditModal();
+        closeAssignModal();
+    }
+});
+
+// Инициализация при загрузке
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Vulnerability Management System loaded');
+});
+</script>
+
+{% endblock %}
