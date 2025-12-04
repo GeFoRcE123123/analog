@@ -7,6 +7,85 @@
             <a href="#" onclick="refreshParsersStatus(); return false;" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
                 <i class="fas fa-rotate mr-2"></i>Обновить статусы
             </a>
+            <a href="#" onclick="location.reload(); return false;" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                <i class="fas fa-sync mr-2"></i>Полное обновление
+            </a>
+        </div>
+    </div>
+    
+    <!-- HTML Parser Section -->
+    <div class="bg-white rounded-xl shadow border border-purple-200 p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-xl font-semibold text-gray-800">HTML-ориентированный парсер</h2>
+            <span class="px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-sm">Новый</span>
+        </div>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Parsing Controls -->
+            <div>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Источники для парсинга</label>
+                    <div class="space-y-2">
+                        <label class="flex items-center">
+                            <input type="checkbox" class="html-source-checkbox rounded" value="ubuntu" checked>
+                            <span class="ml-2 text-gray-700">Ubuntu Security</span>
+                        </label>
+                        <label class="flex items-center">
+                            <input type="checkbox" class="html-source-checkbox rounded" value="debian" checked>
+                            <span class="ml-2 text-gray-700">Debian Security Tracker</span>
+                        </label>
+                        <label class="flex items-center">
+                            <input type="checkbox" class="html-source-checkbox rounded" value="nvd">
+                            <span class="ml-2 text-gray-700">NVD (National Vulnerability Database)</span>
+                        </label>
+                        <label class="flex items-center">
+                            <input type="checkbox" class="html-source-checkbox rounded" value="redhat">
+                            <span class="ml-2 text-gray-700">Red Hat Security</span>
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Лимит уязвимостей</label>
+                    <input type="number" id="htmlParseLimit" class="w-full px-3 py-2 border border-gray-300 rounded-lg" value="10" min="1" max="100">
+                </div>
+                
+                <button onclick="startHTMLParsing()" class="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center justify-center">
+                    <i class="fas fa-spider mr-2"></i>Запустить HTML-парсинг
+                </button>
+            </div>
+            
+            <!-- Parsing Results -->
+            <div>
+                <h3 class="text-lg font-medium text-gray-800 mb-3">Результаты последнего парсинга</h3>
+                <div id="htmlParsingResults" class="bg-gray-50 rounded-lg p-4 min-h-[150px]">
+                    <p class="text-gray-500 text-center py-8">Нет данных для отображения</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Real-time Parsing Information -->
+        <div id="htmlParsingLiveInfo" class="mt-6 hidden">
+            <h3 class="text-lg font-medium text-gray-800 mb-3">Информация о процессе парсинга</h3>
+            <div id="htmlParsingLiveContent" class="bg-gray-50 rounded-lg p-4 max-h-60 overflow-y-auto">
+                <p class="text-gray-500 text-center">Ожидание запуска парсинга...</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Общая статистика -->
+    <div id="summaryStats" class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl shadow border border-blue-200 p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <h2 class="text-lg font-semibold text-gray-800 mb-3">📊 Общая статистика БД</h2>
+                <div id="summaryContent" class="text-sm text-gray-600">
+                    Загрузка...
+                </div>
+            </div>
+            <div class="text-right">
+                <div class="text-xs text-gray-500">Последнее обновление:</div>
+                <div id="lastUpdated" class="text-sm font-medium text-gray-700">-</div>
+            </div>
         </div>
     </div>
 
@@ -28,6 +107,7 @@ function statusPill(text, color) {
 }
 
 function renderParsers(parsers){
+    console.log('Rendering parsers:', parsers);
     const container = document.getElementById('parsersStatus');
     const cards = [];
 
@@ -40,10 +120,10 @@ function renderParsers(parsers){
             ${statusPill(osv.status || 'ready', (osv.status==='error'?'red':'green'))}
         </div>
         <div class="text-sm text-gray-600 space-y-1">
+            <div>В БД: <b>${osv.total_in_db ?? 0}</b> уязвимостей <span class="text-blue-600">(${osv.percentage ?? 0}%)</span></div>
             <div>Макс. страниц: <b>${osv.max_pages ?? '-'}</b></div>
-            <div>Всего в системе: <b>${osv.total_in_system ?? '-'}</b></div>
             <div>Последний запуск: <b>${osv.last_updated || '-'}</b></div>
-            <div>Обработано всего: <b>${osv.total_processed ?? '-'}</b></div>
+            <div>Обработано: <b>${osv.total_processed ?? 0}</b></div>
         </div>
         <div class="mt-3 flex space-x-2">
             <button onclick="window.startGlobalParsing()" class="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">Запустить OSV</button>
@@ -61,8 +141,10 @@ function renderParsers(parsers){
             ${statusPill(nvdService.status || 'unknown', (nvdService.status==='error'?'red':'green'))}
         </div>
         <div class="text-sm text-gray-600 space-y-1">
+            <div>В БД: <b>${nvdService.total_in_db ?? 0}</b> CVE <span class="text-blue-600">(${nvdService.percentage ?? 0}%)</span></div>
+            <div>За неделю: <b class="text-green-600">${nvdService.recent_week ?? 0}</b> новых</div>
             <div>Соединение: ${statusPill(nvdConn.status || 'unknown', (nvdConn.status==='error'?'red':'green'))}</div>
-            <div>Сообщение: <b>${(nvdConn.message || nvdService.message || '-') }</b></div>
+            <div>Последняя синхронизация: <b>${nvdService.last_sync || '-'}</b></div>
         </div>
         <div class="mt-3 flex flex-wrap gap-2">
             <button onclick="quickNvdIncremental()" class="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">NVD инкрементальная (1 день)</button>
@@ -79,11 +161,86 @@ function renderParsers(parsers){
             ${statusPill(redhat.available ? 'available' : 'unavailable', redhat.available ? 'green' : 'red')}
         </div>
         <div class="text-sm text-gray-600 space-y-1">
-            <div>Последний запуск: <b>${redhat.last_run || '-'}</b></div>
-            <div>Примечание: <b>${redhat.notes || '-'}</b></div>
+            <div>В БД: <b>${redhat.total_in_db ?? 0}</b> CVE <span class="text-blue-600">(${redhat.percentage ?? 0}%)</span></div>
+            <div>Высокая критичность: <b class="text-red-600">${redhat.high_severity_count ?? 0}</b></div>
+            <div>Последний импорт: <b>${redhat.last_import || '-'}</b></div>
         </div>
         <div class="mt-3 flex flex-wrap gap-2">
             <button onclick="quickRedHatRecent()" class="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">Импорт последних 7 дней</button>
+        </div>
+    </div>`);
+    
+    // Ubuntu Security
+    const ubuntu = parsers.ubuntu || {};
+    cards.push(`
+    <div class="bg-white rounded-xl shadow border border-gray-200 p-4">
+        <div class="flex items-center justify-between mb-2">
+            <div class="font-semibold text-gray-800">Ubuntu Security</div>
+            ${statusPill(ubuntu.available ? 'API' : 'unavailable', ubuntu.available ? 'blue' : 'red')}
+        </div>
+        <div class="text-sm text-gray-600 space-y-1">
+            <div>В БД: <b>${ubuntu.total_in_db ?? 0}</b> уязвимостей <span class="text-blue-600">(${ubuntu.percentage ?? 0}%)</span></div>
+            <div>Тип: <b>${ubuntu.type || 'API'}</b></div>
+            <div>Последний импорт: <b>${ubuntu.last_import || 'никогда'}</b></div>
+        </div>
+        <div class="mt-3 flex flex-wrap gap-2">
+            <button onclick="quickVendorParse(['ubuntu'])" class="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">Парсить Ubuntu (50)</button>
+        </div>
+    </div>`);
+    
+    // Debian Security
+    const debian = parsers.debian || {};
+    cards.push(`
+    <div class="bg-white rounded-xl shadow border border-gray-200 p-4">
+        <div class="flex items-center justify-between mb-2">
+            <div class="font-semibold text-gray-800">Debian Security Tracker</div>
+            ${statusPill(debian.available ? 'API' : 'unavailable', debian.available ? 'blue' : 'red')}
+        </div>
+        <div class="text-sm text-gray-600 space-y-1">
+            <div>В БД: <b>${debian.total_in_db ?? 0}</b> уязвимостей <span class="text-blue-600">(${debian.percentage ?? 0}%)</span></div>
+            <div>Тип: <b>${debian.type || 'API'}</b></div>
+            <div>Последний импорт: <b>${debian.last_import || 'никогда'}</b></div>
+        </div>
+        <div class="mt-3 flex flex-wrap gap-2">
+            <button onclick="quickVendorParse(['debian'])" class="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">Парсить Debian (50)</button>
+        </div>
+    </div>`);
+    
+    // AI Tagger
+    const aiTagger = parsers.ai_tagger || {};
+    cards.push(`
+    <div class="bg-white rounded-xl shadow border border-gray-200 p-4">
+        <div class="flex items-center justify-between mb-2">
+            <div class="font-semibold text-gray-800">AI Tagger Service</div>
+            ${statusPill(aiTagger.available ? 'active' : 'unavailable', aiTagger.available ? 'green' : 'red')}
+        </div>
+        <div class="text-sm text-gray-600 space-y-1">
+            <div>AI уязвимостей: <b class="text-purple-600">${aiTagger.ai_vulnerabilities ?? 0}</b> <span class="text-blue-600">(${aiTagger.percentage ?? 0}%)</span></div>
+            <div>Средняя уверенность: <b>${aiTagger.avg_confidence ?? 0}%</b></div>
+            <div>Высокая уверенность (>70%): <b class="text-green-600">${aiTagger.high_confidence_count ?? 0}</b></div>
+        </div>
+        <div class="mt-3 flex flex-wrap gap-2">
+            <<button onclick="quickAITaggerScan()" class="px-3 py-2 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700">Сканировать уязвимости (100)</button>
+        </div>
+    </div>`);
+    
+    // Universal Vendor Parser
+    const vendorParser = parsers.vendor_parser || {};
+    const breakdown = vendorParser.breakdown || {};
+    cards.push(`
+    <div class="bg-white rounded-xl shadow border border-gray-200 p-4">
+        <div class="flex items-center justify-between mb-2">
+            <div class="font-semibold text-gray-800">Universal Vendor Parser</div>
+            ${statusPill(vendorParser.available ? `${vendorParser.sources_count || 9} sources` : 'unavailable', vendorParser.available ? 'green' : 'red')}
+        </div>
+        <div class="text-sm text-gray-600 space-y-1">
+            <div>Всего спарсено: <b class="text-green-600">${vendorParser.total_parsed ?? 0}</b></div>
+            <div class="ml-4 text-xs">• Ubuntu: <b>${breakdown.ubuntu ?? 0}</b>, Debian: <b>${breakdown.debian ?? 0}</b></div>
+            <div>Источников доступно: <b>${vendorParser.sources_count || '-'}</b></div>
+        </div>
+        <div class="mt-3 flex flex-wrap gap-2">
+            <button onclick="quickVendorParse(['ubuntu','debian'])" class="px-3 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700">Парсить все API источники</button>
+            <button onclick="quickHTMLParse(['ubuntu','debian'])" class="px-3 py-2 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700">HTML-парсинг</button>
         </div>
     </div>`);
 
@@ -107,16 +264,254 @@ function renderParsers(parsers){
 }
 
 function refreshParsersStatus(){
+    console.log('Refreshing parser status...');
     fetch('/api/parsers/status')
         .then(r=>r.json())
         .then(data => {
+            console.log('Received parser status data:', data);
             if (data.success) {
                 renderParsers(data.parsers || {});
+                renderSummary(data.summary || {});
+                console.log('Parser status refreshed successfully');
             } else {
-                showNotification('Ошибка загрузки статусов', 'error');
+                showNotification('Ошибка загрузки статусов: ' + (data.error || 'Неизвестная ошибка'), 'error');
             }
         })
-        .catch(() => showNotification('Ошибка сети при загрузке статусов', 'error'));
+        .catch(error => {
+            console.error('Error refreshing parser status:', error);
+            showNotification('Ошибка сети при загрузке статусов: ' + error.message, 'error');
+        });
+}
+
+function renderSummary(summary) {
+    console.log('Rendering summary:', summary);
+    const total = summary.total_vulnerabilities || 0;
+    const bySource = summary.by_source || {};
+    const aiRelated = summary.ai_related || 0;
+    const lastUpdated = summary.last_updated || '-';
+    
+    const summaryHTML = `
+        <div class="grid grid-cols-2 md:grid-cols-6 gap-4">
+            <div class="text-center">
+                <div class="text-2xl font-bold text-blue-600">${total.toLocaleString()}</div>
+                <div class="text-xs text-gray-600">Всего уязвимостей</div>
+            </div>
+            <div class="text-center">
+                <div class="text-2xl font-bold text-green-600">${(bySource.osv || 0).toLocaleString()}</div>
+                <div class="text-xs text-gray-600">OSV</div>
+            </div>
+            <div class="text-center">
+                <div class="text-2xl font-bold text-indigo-600">${(bySource.nvd || 0).toLocaleString()}</div>
+                <div class="text-xs text-gray-600">NVD</div>
+            </div>
+            <div class="text-center">
+                <div class="text-2xl font-bold text-red-600">${(bySource.redhat || 0).toLocaleString()}</div>
+                <div class="text-xs text-gray-600">Red Hat</div>
+            </div>
+            <div class="text-center">
+                <div class="text-2xl font-bold text-yellow-600">${((bySource.ubuntu || 0) + (bySource.debian || 0)).toLocaleString()}</div>
+                <div class="text-xs text-gray-600">Linux Distros</div>
+            </div>
+            <div class="text-center">
+                <div class="text-2xl font-bold text-purple-600">${aiRelated.toLocaleString()}</div>
+                <div class="text-xs text-gray-600">AI-уязвимости</div>
+            </div>
+        </div>
+    `;
+    
+    document.getElementById('summaryContent').innerHTML = summaryHTML;
+    document.getElementById('lastUpdated').textContent = lastUpdated;
+}
+
+// Quick actions for parsers
+function quickVendorParse(sources) {
+    showNotification(`Запуск парсинга ${sources.join(', ')}...`, 'info');
+    fetch('/api/vendors/parse', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({sources: sources, limit: 50})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            showNotification(`Успешно! Спарсено: ${data.total_parsed} уязвимостей`, 'success');
+            setTimeout(refreshParsersStatus, 1000);
+        } else {
+            showNotification(`Ошибка: ${data.message}`, 'error');
+        }
+    })
+    .catch(e => showNotification(`Ошибка сети: ${e.message}`, 'error'));
+}
+
+function quickAITaggerScan() {
+    showNotification('Запуск AI Tagger сканирования...', 'info');
+    fetch('/api/ai-tagger/scan-all', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'}
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            showNotification(`AI Tagger: Проверено ${data.scanned}, AI найдено: ${data.ai_found}`, 'success');
+            setTimeout(refreshParsersStatus, 1000);
+        } else {
+            showNotification(`Ошибка: ${data.message}`, 'error');
+        }
+    })
+    .catch(e => showNotification(`Ошибка сети: ${e.message}`, 'error'));
+}
+
+function quickRedHatRecent() {
+    showNotification('Запуск Red Hat импорта...', 'info');
+    fetch('/api/redhat/import', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({recent_days: 7})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            const result = data.result || {};
+            const saved = result.successfully_saved || 0;
+            showNotification(`Red Hat: Сохранено ${saved} уязвимостей`, 'success');
+            setTimeout(refreshParsersStatus, 1000);
+        } else {
+            showNotification(`Ошибка: ${data.error || 'Неизвестная ошибка'}`, 'error');
+        }
+    })
+    .catch(e => showNotification(`Ошибка сети: ${e.message}`, 'error'));
+}
+
+function quickHTMLParse(sources) {
+    showNotification('Запуск HTML-парсинга...', 'info');
+    fetch('/api/html-parser/parse', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({sources: sources, limit: 50})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            showNotification(`HTML-парсер: Спарсено ${data.total_parsed}, сохранено ${data.total_saved} уязвимостей`, 'success');
+            setTimeout(refreshParsersStatus, 1000);
+        } else {
+            showNotification(`Ошибка HTML-парсера: ${data.message}`, 'error');
+        }
+    })
+    .catch(e => showNotification(`Ошибка сети: ${e.message}`, 'error'));
+}
+
+function startHTMLParsing() {
+    // Get selected sources
+    const selectedSources = [];
+    document.querySelectorAll('.html-source-checkbox:checked').forEach(checkbox => {
+        selectedSources.push(checkbox.value);
+    });
+    
+    if (selectedSources.length === 0) {
+        showNotification('Пожалуйста, выберите хотя бы один источник', 'warning');
+        return;
+    }
+    
+    const limit = parseInt(document.getElementById('htmlParseLimit').value) || 10;
+    
+    // Show live parsing info section
+    document.getElementById('htmlParsingLiveInfo').classList.remove('hidden');
+    document.getElementById('htmlParsingLiveContent').innerHTML = '<p class="text-purple-600">🚀 Запуск HTML-парсинга...</p>';
+    
+    // Update results section
+    document.getElementById('htmlParsingResults').innerHTML = `
+        <div class="flex items-center justify-center py-4">
+            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+            <span class="ml-3 text-gray-600">Парсинг в процессе...</span>
+        </div>
+    `;
+    
+    showNotification(`Запуск HTML-парсинга для ${selectedSources.join(', ')} (лимит: ${limit})`, 'info');
+    
+    fetch('/api/html-parser/parse', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({sources: selectedSources, limit: limit})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            // Update results display
+            const resultsHTML = `
+                <div class="space-y-3">
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-600">Всего спарсено:</span>
+                        <span class="font-semibold text-purple-600">${data.total_parsed}</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-600">Сохранено в БД:</span>
+                        <span class="font-semibold text-green-600">${data.total_saved}</span>
+                    </div>
+                    <div class="pt-2 border-t border-gray-200">
+                        <span class="text-gray-600">По источникам:</span>
+                        <div class="mt-2 space-y-1">
+                            ${Object.entries(data.by_source).map(([source, count]) => 
+                                `<div class="flex justify-between text-sm">
+                                    <span class="capitalize">${source}:</span>
+                                    <span class="font-medium">${count}</span>
+                                </div>`
+                            ).join('')}
+                        </div>
+                    </div>
+                    ${data.errors && data.errors.length > 0 ? `
+                    <div class="pt-2 border-t border-gray-200">
+                        <span class="text-red-600">Ошибки: ${data.errors.length}</span>
+                    </div>
+                    ` : ''}
+                </div>
+            `;
+            document.getElementById('htmlParsingResults').innerHTML = resultsHTML;
+            
+            showNotification(`HTML-парсер: Спарсено ${data.total_parsed}, сохранено ${data.total_saved} уязвимостей`, 'success');
+            setTimeout(refreshParsersStatus, 1000);
+        } else {
+            document.getElementById('htmlParsingResults').innerHTML = `
+                <div class="text-center py-4 text-red-600">
+                    <i class="fas fa-exclamation-circle text-2xl mb-2"></i>
+                    <p>Ошибка парсинга</p>
+                    <p class="text-sm mt-1">${data.message}</p>
+                </div>
+            `;
+            showNotification(`Ошибка HTML-парсера: ${data.message}`, 'error');
+        }
+    })
+    .catch(e => {
+        document.getElementById('htmlParsingResults').innerHTML = `
+            <div class="text-center py-4 text-red-600">
+                <i class="fas fa-exclamation-circle text-2xl mb-2"></i>
+                <p>Ошибка сети</p>
+                <p class="text-sm mt-1">${e.message}</p>
+            </div>
+        `;
+        showNotification(`Ошибка сети: ${e.message}`, 'error');
+    });
+}
+
+function showNotification(message, type) {
+    // Простое уведомление
+    const colors = {
+        success: 'bg-green-500',
+        error: 'bg-red-500',
+        info: 'bg-blue-500',
+        warning: 'bg-yellow-500'
+    };
+    
+    const notification = document.createElement('div');
+    notification.className = `fixed top-4 right-4 ${colors[type] || colors.info} text-white px-6 py-3 rounded-lg shadow-lg z-50`;
+    notification.textContent = message;
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+        notification.style.opacity = '0';
+        notification.style.transition = 'opacity 0.5s';
+        setTimeout(() => notification.remove(), 500);
+    }, 3000);
 }
 
 document.addEventListener('DOMContentLoaded', refreshParsersStatus);

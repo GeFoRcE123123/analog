@@ -1,0 +1,389 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <div class="bg-white rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-300">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h2 class="text-xl font-semibold text-gray-800">Импорт уязвимостей из Excel</h2>
+            <p class="text-sm text-gray-600 mt-1">Загрузите файл Excel для импорта уязвимостей в систему</p>
+        </div>
+        
+        <div class="p-6">
+            <!-- Форма загрузки файла -->
+            <div class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-6 mb-8 border border-blue-200">
+                <h3 class="text-lg font-semibold text-blue-900 mb-4 flex items-center">
+                    <i class="fas fa-file-upload text-blue-500 mr-2"></i>
+                    Загрузить Excel файл
+                </h3>
+                
+                <form id="upload-form" class="space-y-6">
+                    <div class="flex items-center justify-center w-full">
+                        <label for="excel-file" class="flex flex-col items-center justify-center w-full h-64 border-2 border-dashed border-blue-300 rounded-2xl cursor-pointer bg-white hover:bg-blue-50 transition-colors duration-200">
+                            <div class="flex flex-col items-center justify-center pt-5 pb-6">
+                                <i class="fas fa-file-excel text-5xl text-green-500 mb-4"></i>
+                                <p class="mb-2 text-sm text-gray-500"><span class="font-semibold">Нажмите для загрузки</span> или перетащите файл</p>
+                                <p class="text-xs text-gray-500">XLSX, XLS (Макс. размер: 10MB)</p>
+                            </div>
+                            <input id="excel-file" type="file" class="hidden" accept=".xlsx,.xls" />
+                        </label>
+                    </div>
+                    
+                    <div class="flex justify-center">
+                        <button type="button" onclick="uploadFile()" 
+                                class="px-6 py-3 bg-gradient-to-r from-green-500 to-green-600 text-white font-medium rounded-xl hover:from-green-600 hover:to-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+                                id="upload-button" disabled>
+                            <i class="fas fa-cloud-upload-alt mr-2"></i>
+                            Загрузить файл
+                        </button>
+                    </div>
+                </form>
+            </div>
+            
+            <!-- Предварительный просмотр -->
+            <div id="preview-section" class="hidden">
+                <div class="bg-gradient-to-r from-purple-50 to-pink-50 rounded-2xl p-6 mb-8 border border-purple-200">
+                    <h3 class="text-lg font-semibold text-purple-900 mb-4 flex items-center">
+                        <i class="fas fa-eye text-purple-500 mr-2"></i>
+                        Предварительный просмотр данных
+                    </h3>
+                    
+                    <div class="mb-4">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-sm font-medium text-gray-700">Структура файла:</span>
+                            <span class="text-sm text-gray-500" id="row-count">0 строк</span>
+                        </div>
+                        <div class="bg-white rounded-lg p-4 border border-gray-200">
+                            <div class="flex flex-wrap gap-2" id="columns-list">
+                                <!-- Колонки будут добавлены здесь -->
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-6">
+                        <span class="text-sm font-medium text-gray-700 block mb-2">Пример данных:</span>
+                        <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                            <div class="overflow-x-auto">
+                                <table class="min-w-full divide-y divide-gray-200">
+                                    <thead class="bg-gray-50">
+                                        <tr id="preview-headers">
+                                            <!-- Заголовки будут добавлены здесь -->
+                                        </tr>
+                                    </thead>
+                                    <tbody class="bg-white divide-y divide-gray-200" id="preview-data">
+                                        <!-- Данные будут добавлены здесь -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="flex justify-center">
+                        <button onclick="importFile()" 
+                                class="px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white font-medium rounded-xl hover:from-blue-600 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200 transform hover:scale-105">
+                            <i class="fas fa-file-import mr-2"></i>
+                            Импортировать данные
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Результат импорта -->
+            <div id="result-section" class="hidden">
+                <div class="bg-gradient-to-r from-green-50 to-emerald-50 rounded-2xl p-6 border border-green-200">
+                    <h3 class="text-lg font-semibold text-green-900 mb-4 flex items-center">
+                        <i class="fas fa-check-circle text-green-500 mr-2"></i>
+                        Результат импорта
+                    </h3>
+                    
+                    <div class="text-center py-8">
+                        <i class="fas fa-check-circle text-5xl text-green-500 mb-4"></i>
+                        <h4 class="text-xl font-bold text-green-800 mb-2" id="result-message">Импорт успешно завершен!</h4>
+                        <p class="text-gray-600 mb-6" id="result-details">Было импортировано 0 уязвимостей из 0 строк</p>
+                        
+                        <div id="import-errors" class="hidden">
+                            <h5 class="font-semibold text-red-700 mb-2">Ошибки импорта:</h5>
+                            <div class="bg-red-50 rounded-lg p-4 text-left max-h-40 overflow-y-auto">
+                                <ul class="list-disc pl-5 space-y-1 text-red-700" id="error-list">
+                                    <!-- Ошибки будут добавлены здесь -->
+                                </ul>
+                            </div>
+                        </div>
+                        
+                        <button onclick="resetImport()" 
+                                class="mt-4 px-6 py-3 bg-gradient-to-r from-gray-500 to-gray-600 text-white font-medium rounded-xl hover:from-gray-600 hover:to-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-all duration-200 transform hover:scale-105">
+                            <i class="fas fa-redo mr-2"></i>
+                            Импортировать другой файл
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let uploadedFile = null;
+let previewData = null;
+
+// Обработчик выбора файла
+document.getElementById('excel-file').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (file) {
+        uploadedFile = file;
+        document.getElementById('upload-button').disabled = false;
+        showNotification(`Файл выбран: ${file.name}`, 'info');
+    }
+});
+
+// Функция загрузки файла
+function uploadFile() {
+    if (!uploadedFile) {
+        showNotification('Пожалуйста, выберите файл для загрузки', 'error');
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('file', uploadedFile);
+    
+    // Показываем индикатор загрузки
+    const button = document.getElementById('upload-button');
+    const originalText = button.innerHTML;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Анализ файла...';
+    button.disabled = true;
+    
+    fetch('/api/excel/import/preview', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            previewData = data;
+            showPreview(data);
+            showNotification('Файл успешно проанализирован', 'success');
+        } else {
+            showNotification(`Ошибка: ${data.error}`, 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('Ошибка при анализе файла', 'error');
+    })
+    .finally(() => {
+        button.innerHTML = originalText;
+        button.disabled = false;
+    });
+}
+
+// Функция показа предварительного просмотра
+function showPreview(data) {
+    // Показываем секцию предварительного просмотра
+    document.getElementById('preview-section').classList.remove('hidden');
+    
+    // Обновляем информацию о структуре файла
+    document.getElementById('row-count').textContent = `${data.row_count} строк`;
+    
+    // Обновляем список колонок
+    const columnsList = document.getElementById('columns-list');
+    columnsList.innerHTML = '';
+    data.columns.forEach(column => {
+        const span = document.createElement('span');
+        span.className = 'inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800';
+        span.innerHTML = `<i class="fas fa-table mr-1"></i>${column}`;
+        columnsList.appendChild(span);
+    });
+    
+    // Обновляем заголовки таблицы
+    const headers = document.getElementById('preview-headers');
+    headers.innerHTML = '';
+    data.columns.forEach(column => {
+        const th = document.createElement('th');
+        th.className = 'px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider';
+        th.textContent = column;
+        headers.appendChild(th);
+    });
+    
+    // Обновляем данные таблицы
+    const tbody = document.getElementById('preview-data');
+    tbody.innerHTML = '';
+    data.sample_data.forEach(row => {
+        const tr = document.createElement('tr');
+        data.columns.forEach(column => {
+            const td = document.createElement('td');
+            td.className = 'px-6 py-4 whitespace-nowrap text-sm text-gray-500';
+            td.textContent = row[column] || '';
+            tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+    });
+    
+    // Прокручиваем к предварительному просмотру
+    document.getElementById('preview-section').scrollIntoView({ behavior: 'smooth' });
+}
+
+// Функция импорта файла
+function importFile() {
+    if (!uploadedFile) {
+        showNotification('Нет файла для импорта', 'error');
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('file', uploadedFile);
+    
+    // Показываем индикатор импорта
+    const button = document.querySelector('#preview-section button');
+    const originalText = button.innerHTML;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Импорт данных...';
+    button.disabled = true;
+    
+    fetch('/api/excel/import', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showResult(data);
+            showNotification('Данные успешно импортированы', 'success');
+        } else {
+            showNotification(`Ошибка импорта: ${data.error}`, 'error');
+            if (data.missing_columns) {
+                showColumnError(data.missing_columns, data.available_columns);
+            }
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('Ошибка при импорте данных', 'error');
+    })
+    .finally(() => {
+        button.innerHTML = originalText;
+        button.disabled = false;
+    });
+}
+
+// Функция показа результата импорта
+function showResult(data) {
+    // Скрываем секцию предварительного просмотра
+    document.getElementById('preview-section').classList.add('hidden');
+    
+    // Показываем секцию результата
+    document.getElementById('result-section').classList.remove('hidden');
+    
+    // Обновляем сообщение о результате
+    const successCount = data.imported_count;
+    const totalCount = data.total_rows;
+    document.getElementById('result-message').textContent = 'Импорт успешно завершен!';
+    document.getElementById('result-details').textContent = 
+        `Было импортировано ${successCount} уязвимостей из ${totalCount} строк`;
+    
+    // Показываем ошибки, если есть
+    if (data.errors && data.errors.length > 0) {
+        document.getElementById('import-errors').classList.remove('hidden');
+        const errorList = document.getElementById('error-list');
+        errorList.innerHTML = '';
+        data.errors.forEach(error => {
+            const li = document.createElement('li');
+            li.textContent = error;
+            errorList.appendChild(li);
+        });
+    } else {
+        document.getElementById('import-errors').classList.add('hidden');
+    }
+    
+    // Прокручиваем к результату
+    document.getElementById('result-section').scrollIntoView({ behavior: 'smooth' });
+}
+
+// Функция показа ошибки колонок
+function showColumnError(missingColumns, availableColumns) {
+    const notification = document.createElement('div');
+    notification.className = 'bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-r-xl mb-4';
+    notification.innerHTML = `
+        <div class="flex">
+            <div class="py-1">
+                <i class="fas fa-exclamation-triangle mr-2"></i>
+                <strong>Ошибка формата файла:</strong>
+            </div>
+            <div class="flex-1 ml-2">
+                <p>Отсутствуют обязательные колонки: <strong>${missingColumns.join(', ')}</strong></p>
+                <p class="mt-1 text-sm">Доступные колонки: ${availableColumns.join(', ')}</p>
+                <p class="mt-2 text-sm">Обязательные колонки: title, description, severity</p>
+            </div>
+        </div>
+    `;
+    
+    // Вставляем уведомление перед формой загрузки
+    const form = document.getElementById('upload-form');
+    form.parentNode.insertBefore(notification, form);
+}
+
+// Функция сброса импорта
+function resetImport() {
+    // Скрываем все секции
+    document.getElementById('preview-section').classList.add('hidden');
+    document.getElementById('result-section').classList.add('hidden');
+    
+    // Сбрасываем форму
+    document.getElementById('excel-file').value = '';
+    uploadedFile = null;
+    previewData = null;
+    
+    // Активируем кнопку загрузки
+    document.getElementById('upload-button').disabled = true;
+    
+    // Удаляем уведомления об ошибках
+    const errorNotifications = document.querySelectorAll('.bg-red-100');
+    errorNotifications.forEach(el => el.remove());
+}
+
+// Функция показа уведомлений
+function showNotification(message, type = 'info') {
+    const notifications = document.getElementById('notifications');
+    const notification = document.createElement('div');
+
+    const typeClasses = {
+        'success': 'bg-gradient-to-r from-green-500 to-green-600 text-white border-l-4 border-green-400',
+        'error': 'bg-gradient-to-r from-red-500 to-red-600 text-white border-l-4 border-red-400',
+        'info': 'bg-gradient-to-r from-blue-500 to-blue-600 text-white border-l-4 border-blue-400'
+    };
+
+    const icons = {
+        'success': 'fa-check-circle',
+        'error': 'fa-exclamation-circle',
+        'info': 'fa-info-circle'
+    };
+
+    notification.className = `${typeClasses[type]} px-6 py-4 rounded-r-xl shadow-lg transform transition-all duration-300 translate-x-96`;
+    notification.innerHTML = `
+        <div class="flex items-center">
+            <i class="fas ${icons[type]} mr-3 text-lg"></i>
+            <span class="font-medium">${message}</span>
+            <button onclick="this.parentElement.parentElement.remove()" class="ml-4 text-white hover:text-gray-200 transition-colors">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    `;
+
+    notifications.appendChild(notification);
+
+    // Анимация появления
+    setTimeout(() => {
+        notification.classList.remove('translate-x-96');
+        notification.classList.add('translate-x-0');
+    }, 10);
+
+    // Авто-удаление через 5 секунд
+    setTimeout(() => {
+        notification.classList.add('translate-x-96');
+        notification.classList.remove('translate-x-0');
+        setTimeout(() => {
+            if (notification.parentElement) {
+                notification.remove();
+            }
+        }, 300);
+    }, 5000);
+}
+</script>
+{% endblock %}
