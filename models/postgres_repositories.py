@@ -1,7 +1,7 @@
 import logging
 import json
 from datetime import datetime
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional, Any, Tuple
 from models.repositories import VulnerabilityRepository, OperatorRepository
 from models.entities import Vulnerability, Operator, NVDVulnerability
 logger = logging.getLogger(__name__)
@@ -385,6 +385,26 @@ class PostgresVulnerabilityRepository:
             return None
 
     def get_all(self) -> List[Vulnerability]:
+        """Получить все уязвимости (ограничено для предотвращения перегрузки)"""
+        query = """
+            SELECT id, title, description, severity, status, assigned_operator, 
+                   created_date, completed_date, approved, modifications, 
+                   cvss_score, risk_level, category
+            FROM vulnerabilities 
+            ORDER BY created_date DESC
+            LIMIT 1000
+            """
+        try:
+            with self.connection.cursor() as cursor:
+                cursor.execute(query)
+                rows = cursor.fetchall()
+                return [Vulnerability.from_db_row(row) for row in rows]
+        except Exception as e:
+            logger.error(f"Error getting all vulnerabilities: {e}")
+            return []
+
+    def get_all_unlimited(self) -> List[Vulnerability]:
+        """Получить все уязвимости без ограничений (для аналитики)"""
         query = """
             SELECT id, title, description, severity, status, assigned_operator, 
                    created_date, completed_date, approved, modifications, 
@@ -398,8 +418,88 @@ class PostgresVulnerabilityRepository:
                 rows = cursor.fetchall()
                 return [Vulnerability.from_db_row(row) for row in rows]
         except Exception as e:
-            logger.error(f"Error getting all vulnerabilities: {e}")
+            logger.error(f"Error getting all vulnerabilities (unlimited): {e}")
             return []
+
+    def get_all_unlimited(self) -> List[Vulnerability]:
+        """Получить все уязвимости без ограничений (для аналитики)"""
+        query = """
+            SELECT id, title, description, severity, status, assigned_operator, 
+                   created_date, completed_date, approved, modifications, 
+                   cvss_score, risk_level, category
+            FROM vulnerabilities 
+            ORDER BY created_date DESC
+            """
+        try:
+            with self.connection.cursor() as cursor:
+                cursor.execute(query)
+                rows = cursor.fetchall()
+                return [Vulnerability.from_db_row(row) for row in rows]
+        except Exception as e:
+            logger.error(f"Error getting all vulnerabilities (unlimited): {e}")
+            return []
+
+    def get_paginated(self, page: int = 1, per_page: int = 50, 
+                     status: Optional[str] = None, severity: Optional[str] = None, 
+                     search: Optional[str] = None) -> Tuple[List[Vulnerability], int]:
+        """Получить уязвимости с пагинацией и фильтрацией"""
+        try:
+            offset = (page - 1) * per_page
+            
+            # Базовый запрос
+            base_query = """
+                SELECT id, title, description, severity, status, assigned_operator, 
+                       created_date, completed_date, approved, modifications, 
+                       cvss_score, risk_level, category
+                FROM vulnerabilities 
+            """
+            
+            # Условия фильтрации
+            conditions = []
+            params = []
+            
+            if status and status != 'all':
+                conditions.append("status = %s")
+                params.append(status)
+                
+            if severity and severity != 'all':
+                conditions.append("severity = %s")
+                params.append(severity)
+                
+            if search:
+                conditions.append("(title ILIKE %s OR description ILIKE %s)")
+                params.extend([f'%{search}%', f'%{search}%'])
+            
+            # Добавляем WHERE если есть условия
+            if conditions:
+                base_query += " WHERE " + " AND ".join(conditions)
+            
+            # Добавляем ORDER BY и LIMIT/OFFSET
+            base_query += " ORDER BY created_date DESC LIMIT %s OFFSET %s"
+            params.extend([per_page, offset])
+            
+            # Запрос для данных
+            with self.connection.cursor() as cursor:
+                cursor.execute(base_query, params)
+                rows = cursor.fetchall()
+                vulnerabilities = [Vulnerability.from_db_row(row) for row in rows]
+                
+                # Запрос для подсчета общего количества
+                count_query = "SELECT COUNT(*) FROM vulnerabilities"
+                count_params = []
+                
+                if conditions:
+                    count_query += " WHERE " + " AND ".join(conditions)
+                    count_params = params[:-2]  # Исключаем LIMIT и OFFSET
+                    
+                cursor.execute(count_query, count_params)
+                total_count = cursor.fetchone()[0]
+                
+                return vulnerabilities, total_count
+                
+        except Exception as e:
+            logger.error(f"Error getting paginated vulnerabilities: {e}")
+            return [], 0
 
     def get_by_title(self, title: str) -> Optional[Vulnerability]:
         query = """
@@ -483,7 +583,7 @@ class PostgresVulnerabilityRepository:
         (title, description, severity, status, assigned_operator, created_date, 
          completed_date, approved, modifications, cvss_score, risk_level, category,
          cve_id, source_identifier, published, last_modified, vuln_status,
-         descriptions, metrics, weaknesses, configurations, references, 
+         descriptions, metrics, weaknesses, configurations, "references", 
          vendor_comments, is_ai_related, ai_confidence, has_kev, has_cert_alerts)
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         RETURNING id

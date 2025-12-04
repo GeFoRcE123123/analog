@@ -1,0 +1,45 @@
+2025-11-10 23:08:01,346 - INFO - Database connection established
+2025-11-10 23:08:01,346 - INFO - VulnerabilityService initialized with PostgreSQL
+2025-11-10 23:08:01,346 - INFO - OperatorService initialized with PostgreSQL
+2025-11-10 23:08:01,371 - INFO - VulnerabilityService initialized with PostgreSQL
+2025-11-10 23:08:01,371 - INFO - OperatorService initialized with PostgreSQL
+2025-11-10 23:08:01,371 - INFO - VulnerabilityService initialized with PostgreSQL
+2025-11-10 23:08:01,371 - INFO - OperatorService initialized with PostgreSQL
+2025-11-10 23:08:01,371 - INFO - DataManager initialized with PostgreSQL services
+ * Serving Flask app 'app'
+ * Debug mode: on
+2025-11-10 23:08:01,413 - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://198.18.0.1:5001
+2025-11-10 23:08:01,413 - INFO - [33mPress CTRL+C to quit[0m
+2025-11-10 23:08:01,413 - INFO -  * Restarting with stat
+2025-11-10 23:08:01,688 - INFO - Database connection established
+2025-11-10 23:08:01,688 - INFO - VulnerabilityService initialized with PostgreSQL
+2025-11-10 23:08:01,688 - INFO - OperatorService initialized with PostgreSQL
+2025-11-10 23:08:01,712 - INFO - VulnerabilityService initialized with PostgreSQL
+2025-11-10 23:08:01,712 - INFO - OperatorService initialized with PostgreSQL
+2025-11-10 23:08:01,712 - INFO - VulnerabilityService initialized with PostgreSQL
+2025-11-10 23:08:01,712 - INFO - OperatorService initialized with PostgreSQL
+2025-11-10 23:08:01,712 - INFO - DataManager initialized with PostgreSQL services
+2025-11-10 23:08:01,735 - WARNING -  * Debugger is active!
+2025-11-10 23:08:01,742 - INFO -  * Debugger PIN: 118-726-853
+2025-11-10 23:08:58,854 - INFO - 127.0.0.1 - - [10/Nov/2025 23:08:58] "GET /vulnerabilities?page=1&per_page=10 HTTP/1.1" 200 -
+2025-11-10 23:08:58,909 - INFO - 127.0.0.1 - - [10/Nov/2025 23:08:58] "GET /vulnerabilities?status=new&per_page=5 HTTP/1.1" 200 -
+2025-11-10 23:08:58,977 - INFO - 127.0.0.1 - - [10/Nov/2025 23:08:58] "GET /vulnerabilities?search=OSV&per_page=5 HTTP/1.1" 200 -
+2025-11-10 23:13:59,329 - INFO -  * Detected change in '/Users/kirillstepanov/Downloads/vulnerability_manager/models/postgres_repositories.py', reloading
+2025-11-10 23:13:59,649 - INFO -  * Restarting with stat
+2025-11-10 23:14:01,540 - INFO - Database connection established
+2025-11-10 23:14:01,541 - INFO - VulnerabilityService initialized with PostgreSQL
+2025-11-10 23:14:01,541 - INFO - OperatorService initialized with PostgreSQL
+2025-11-10 23:14:01,583 - INFO - VulnerabilityService initialized with PostgreSQL
+2025-11-10 23:14:01,583 - INFO - OperatorService initialized with PostgreSQL
+2025-11-10 23:14:01,583 - INFO - VulnerabilityService initialized with PostgreSQL
+2025-11-10 23:14:01,583 - INFO - OperatorService initialized with PostgreSQL
+2025-11-10 23:14:01,583 - INFO - DataManager initialized with PostgreSQL services
+2025-11-10 23:14:01,620 - WARNING -  * Debugger is active!
+2025-11-10 23:14:01,634 - INFO -  * Debugger PIN: 118-726-853
+/opt/homebrew/Cellar/python@3.13/3.13.2/Frameworks/Python.framework/Versions/3.13/lib/python3.13/multiprocessing/resource_tracker.py:277: UserWarning: resource_tracker: There appear to be 1 leaked semaphore objects to clean up at shutdown: {'/mp-ason0a1x'}
+  warnings.warn(
+/opt/homebrew/Cellar/python@3.13/3.13.2/Frameworks/Python.framework/Versions/3.13/lib/python3.13/multiprocessing/resource_tracker.py:277: UserWarning: resource_tracker: There appear to be 1 leaked semaphore objects to clean up at shutdown: {'/mp-vq7alasj'}
+  warnings.warn(

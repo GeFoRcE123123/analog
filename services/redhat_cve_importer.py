@@ -350,14 +350,36 @@ class RedHatCVEImporter:
 
     def import_recent_cves(self, days: int = 7) -> Dict[str, Any]:
         """
-        Импортировать недавние CVE
+        Импортировать недавние CVE (сначала critical, потом important)
         """
         from datetime import datetime, timedelta
 
         after_date = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
         logger.info(f"Importing CVE from last {days} days (after {after_date})")
 
-        return self.import_cves(after_date=after_date, severity='important,critical')
+        # Red Hat API не поддерживает множественные severity через запятую
+        # Импортируем по отдельности
+        stats_total = {
+            'total_fetched': 0,
+            'successfully_saved': 0,
+            'errors': 0,
+            'skipped': 0
+        }
+        
+        # Сначала critical
+        logger.info("Importing CRITICAL CVEs...")
+        stats_critical = self.import_cves(after_date=after_date, severity='critical')
+        
+        # Потом important
+        logger.info("Importing IMPORTANT CVEs...")
+        stats_important = self.import_cves(after_date=after_date, severity='important')
+        
+        # Объединяем статистику
+        for key in stats_total.keys():
+            stats_total[key] = stats_critical.get(key, 0) + stats_important.get(key, 0)
+        
+        logger.info(f"Total imported: {stats_total['successfully_saved']} CVEs")
+        return stats_total
 
     def import_by_severity(self, severity: str, limit: int = 50) -> Dict[str, Any]:
         """

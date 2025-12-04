@@ -115,46 +115,18 @@
 
                 <!-- Правая часть навигации -->
                 <div class="flex items-center space-x-4">
-                    <!-- Кнопка быстрого импорта -->
-                    <!-- В навигационной панели замените кнопку -->
-                    <div class="relative">
-                        <button id="parsers-menu-button"
-                                class="bg-white text-blue-600 hover:bg-blue-50 font-bold py-2 px-4 rounded-lg transition duration-300 import-btn-glow flex items-center space-x-2">
-                            <i class="fas fa-download"></i>
-                            <span>Парсеры</span>
-                            <i class="fas fa-caret-down ml-1"></i>
-                        </button>
-                        <div id="parsers-menu" class="hidden absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-xl border border-gray-200 z-50">
-                            <div class="py-2">
-                                <a href="#" onclick="window.startGlobalParsing(); hideParsersMenu();" class="block px-4 py-2 hover:bg-gray-50 text-sm">
-                                    ▶ Запустить OSV парсер
-                                </a>
-                                <a href="#" onclick="quickNvdIncremental(); hideParsersMenu();" class="block px-4 py-2 hover:bg-gray-50 text-sm">
-                                    ▶ NVD: инкрементальная синхронизация (1 день)
-                                </a>
-                                <a href="#" onclick="quickNvdFull(); hideParsersMenu();" class="block px-4 py-2 hover:bg-gray-50 text-sm">
-                                    ▶ NVD: полная синхронизация
-                                </a>
-                                <a href="#" onclick="quickRedHatRecent(); hideParsersMenu();" class="block px-4 py-2 hover:bg-gray-50 text-sm">
-                                    ▶ Red Hat: последние 7 дней
-                                </a>
-                                <div class="border-t my-2"></div>
-                                <a href="#" onclick="schedulerStartHourly(); hideParsersMenu();" class="block px-4 py-2 hover:bg-gray-50 text-sm">
-                                    ⏱ Планировщик: старт каждый час
-                                </a>
-                                <a href="#" onclick="schedulerStartDaily(); hideParsersMenu();" class="block px-4 py-2 hover:bg-gray-50 text-sm">
-                                    ⏱ Планировщик: старт ежедневно 02:00
-                                </a>
-                                <a href="#" onclick="schedulerStop(); hideParsersMenu();" class="block px-4 py-2 hover:bg-gray-50 text-sm">
-                                    ⏹ Планировщик: остановить
-                                </a>
-                                <div class="border-t my-2"></div>
-                                <a href="{{ url_for('parsers_page') }}" class="block px-4 py-2 hover:bg-gray-50 text-sm">
-                                    📊 Страница статусов парсеров
-                                </a>
-                            </div>
-                        </div>
-                    </div>
+                    <!-- Простая ссылка на страницу парсеров -->
+                    <a href="{{ url_for('parsers_page') }}" 
+                       class="bg-white text-blue-600 hover:bg-blue-50 font-bold py-2 px-4 rounded-lg transition duration-300 import-btn-glow flex items-center space-x-2">
+                        <i class="fas fa-download"></i>
+                        <span>Парсеры</span>
+                    </a>
+                    <!-- Отдельная кнопка для импорта Excel в зеленом стиле -->
+                    <a href="{{ url_for('import_excel_page') }}" 
+                       class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg transition duration-300 flex items-center space-x-2">
+                        <i class="fas fa-file-excel"></i>
+                        <span>Импорт Excel</span>
+                    </a>
 
                     <!-- Мобильное меню -->
                     <div class="md:hidden">
@@ -202,6 +174,11 @@
                    class="text-white block px-3 py-2 rounded-lg font-medium flex items-center space-x-2 {% if request.path == '/review' %}bg-white bg-opacity-20{% endif %}">
                     <i class="fas fa-check-double w-5"></i>
                     <span>Проверка</span>
+                </a>
+                <a href="{{ url_for('import_excel_page') }}"
+                   class="text-white block px-3 py-2 rounded-lg font-medium flex items-center space-x-2 {% if request.path == '/import-excel' %}bg-white bg-opacity-20{% endif %}">
+                    <i class="fas fa-file-excel w-5"></i>
+                    <span>Импорт Excel</span>
                 </a>
             </div>
         </div>
@@ -351,20 +328,43 @@ function showNotification(message, type) {
 function quickNvdIncremental() {
     fetch('/api/nvd/sync/incremental', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ days: 1 })
-    }).then(r=>r.json()).then(_=>showNotification('NVD инкрементальная синхронизация запущена', 'success'))
-      .catch(_=>showNotification('Ошибка запуска NVD', 'error'));
+    }).then(r=>r.json()).then(data=>{
+        if (data.status === 'success') {
+            showNotification('NVD инкрементальная синхронизация запущена', 'success');
+            setTimeout(refreshParsersStatus, 1000);
+        } else {
+            showNotification('Ошибка запуска NVD: ' + (data.message || 'Неизвестная ошибка'), 'error');
+        }
+    }).catch(_=>showNotification('Ошибка запуска NVD', 'error'));
 }
+
 function quickNvdFull() {
     fetch('/api/nvd/sync/full', { method: 'POST', headers: { 'Content-Type': 'application/json' } })
-        .then(r=>r.json()).then(_=>showNotification('NVD полная синхронизация запущена', 'success'))
-        .catch(_=>showNotification('Ошибка запуска NVD полной синхронизации', 'error'));
+        .then(r=>r.json()).then(data=>{
+            if (data.status === 'success') {
+                showNotification('NVD полная синхронизация запущена', 'success');
+                setTimeout(refreshParsersStatus, 1000);
+            } else {
+                showNotification('Ошибка запуска NVD полной синхронизации: ' + (data.message || 'Неизвестная ошибка'), 'error');
+            }
+        }).catch(_=>showNotification('Ошибка запуска NVD полной синхронизации', 'error'));
 }
+
 function quickRedHatRecent() {
     fetch('/api/redhat/import', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ recent_days: 7 })
-    }).then(r=>r.json()).then(_=>showNotification('Red Hat импорт за последние 7 дней запущен', 'success'))
-      .catch(_=>showNotification('Ошибка запуска Red Hat импорта', 'error'));
+    }).then(r=>r.json()).then(data=>{
+        if (data.success) {
+            const result = data.result || {};
+            const saved = result.successfully_saved || 0;
+            showNotification('Red Hat импорт за последние 7 дней запущен. Сохранено: ' + saved + ' уязвимостей', 'success');
+            setTimeout(refreshParsersStatus, 1000);
+        } else {
+            showNotification('Ошибка запуска Red Hat импорта: ' + (data.error || 'Неизвестная ошибка'), 'error');
+        }
+    }).catch(_=>showNotification('Ошибка запуска Red Hat импорта', 'error'));
 }
+
 function schedulerStartHourly() {
     fetch('/api/nvd/scheduler/start', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'hourly' })
@@ -388,19 +388,7 @@ function schedulerStop() {
             menu.classList.toggle('hidden');
         });
 
-        // Парсер-меню
-        const parsersBtn = document.getElementById('parsers-menu-button');
-        const parsersMenu = document.getElementById('parsers-menu');
-        window.hideParsersMenu = function() { parsersMenu.classList.add('hidden'); }
-        parsersBtn.addEventListener('click', function(e) {
-            e.stopPropagation();
-            parsersMenu.classList.toggle('hidden');
-        });
-        document.addEventListener('click', function(e){
-            if (!parsersMenu.contains(e.target) && !parsersBtn.contains(e.target)) {
-                parsersMenu.classList.add('hidden');
-            }
-        });
+        // Парсер-меню удален по запросу пользователя
 
         // Функция для парсинга (будет переопределена в дочерних шаблонах)
         function startParsing() {

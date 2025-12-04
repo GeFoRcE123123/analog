@@ -6,10 +6,10 @@
         <h2 class="text-xl font-semibold text-gray-800">Управление уязвимостями</h2>
         <p class="text-sm text-gray-600 mt-1">Список всех уязвимостей в системе</p>
         <!-- Статистика -->
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div class="grid grid-cols-1 md:grid-cols-6 gap-4 mb-6">
             <div class="bg-gradient-to-r from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200">
                 <div class="text-center">
-                    <p class="text-2xl font-bold text-blue-600">{{ vulnerabilities|length }}</p>
+                    <p class="text-2xl font-bold text-blue-600">{{ total_count }}</p>
                     <p class="text-sm text-gray-600">Всего уязвимостей</p>
                 </div>
             </div>
@@ -25,25 +25,41 @@
                     <p class="text-sm text-gray-600">Новые</p>
                 </div>
             </div>
+            <div class="bg-gradient-to-r from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200">
+                <div class="text-center">
+                    <p class="text-2xl font-bold text-blue-600">{{ vulnerabilities|selectattr('status', 'equalto', 'in_progress')|list|length }}</p>
+                    <p class="text-sm text-gray-600">В работе</p>
+                </div>
+            </div>
             <div class="bg-gradient-to-r from-green-50 to-green-100 rounded-xl p-4 border border-green-200">
                 <div class="text-center">
                     <p class="text-2xl font-bold text-green-600">{{ vulnerabilities|selectattr('status', 'equalto', 'completed')|list|length + vulnerabilities|selectattr('status', 'equalto', 'approved')|list|length }}</p>
                     <p class="text-sm text-gray-600">Завершено</p>
                 </div>
             </div>
+            <div class="bg-gradient-to-r from-purple-50 to-purple-100 rounded-xl p-4 border border-purple-200">
+                <div class="text-center">
+                    <p class="text-2xl font-bold text-purple-600">{{ total_pages }}</p>
+                    <p class="text-sm text-gray-600">Всего страниц</p>
+                </div>
+            </div>
         </div>
-
-
-
+                    <p class="text-sm text-gray-600">Всего страниц</p>
+                </div>
+            </div>
+        </div>
         <!-- Фильтры -->
-        <div class="bg-gradient-to-r from-gray-50 to-gray-100 rounded-2xl p-6 mb-8 shadow-sm">
-            <div class="flex flex-wrap gap-6 items-end">
-                <div class="flex-1 min-w-64">
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">🔍 Поиск уязвимостей</label>
-                    <div class="relative">
-                        <input type="text" id="search-filter" placeholder="Введите название уязвимости..."
-                               class="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200">
-                        <i class="fas fa-search absolute left-3 top-3.5 text-gray-400"></i>
+        <!-- Фильтры удалены по запросу пользователя -->
+        <!-- Таблица уязвимостей -->
+<!-- Фильтры -->
+<div class="bg-gradient-to-r from-gray-50 to-gray-100 rounded-2xl p-6 mb-8 shadow-sm">
+    <div class="flex flex-wrap gap-6 items-end">
+        <div class="flex-1 min-w-64">
+            <label class="block text-sm font-semibold text-gray-700 mb-2">🔍 Поиск уязвимостей</label>
+            <div class="relative">
+                <input type="text" id="search-filter" placeholder="Введите название уязвимости..."
+                       class="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200">
+                <i class="fas fa-search absolute left-3 top-3.5 text-gray-400"></i>
                     </div>
                 </div>
                 <div>
@@ -76,13 +92,61 @@
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gradient-to-r from-gray-50 to-gray-100">
                         <tr>
-                            <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Название</th>
-                            <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Описание</th>
-                            <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Уровень</th>
-                            <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Статус</th>
-                            <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">CVSS</th>
-                            <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Оператор</th>
+                            <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider cursor-pointer" onclick="sortTable(0)">
+                                Название <i class="fas fa-sort ml-1"></i>
+                            </th>
+                            <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider cursor-pointer" onclick="sortTable(1)">
+                                Описание <i class="fas fa-sort ml-1"></i>
+                            </th>
+                            <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider cursor-pointer" onclick="sortTable(2)">
+                                Уровень <i class="fas fa-sort ml-1"></i>
+                            </th>
+                            <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider cursor-pointer" onclick="sortTable(3)">
+                                Статус <i class="fas fa-sort ml-1"></i>
+                            </th>
+                            <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider cursor-pointer" onclick="sortTable(4)">
+                                CVSS <i class="fas fa-sort ml-1"></i>
+                            </th>
+                            <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider cursor-pointer" onclick="sortTable(5)">
+                                Оператор <i class="fas fa-sort ml-1"></i>
+                            </th>
                             <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Действия</th>
+                        </tr>
+                        <tr class="bg-gray-50">
+                            <th class="px-6 py-2">
+                                <input type="text" id="filter-title" placeholder="Фильтр по названию" class="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
+                            </th>
+                            <th class="px-6 py-2">
+                                <input type="text" id="filter-description" placeholder="Фильтр по описанию" class="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
+                            </th>
+                            <th class="px-6 py-2">
+                                <select id="filter-severity" class="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
+                                    <option value="">Все</option>
+                                    <option value="critical">Критический</option>
+                                    <option value="high">Высокий</option>
+                                    <option value="medium">Средний</option>
+                                    <option value="low">Низкий</option>
+                                </select>
+                            </th>
+                            <th class="px-6 py-2">
+                                <select id="filter-status" class="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
+                                    <option value="">Все</option>
+                                    <option value="new">Новый</option>
+                                    <option value="in_progress">В работе</option>
+                                    <option value="completed">Завершено</option>
+                                    <option value="approved">Одобрено</option>
+                                    <option value="needs_modification">На модификации</option>
+                                </select>
+                            </th>
+                            <th class="px-6 py-2">
+                                <input type="text" id="filter-cvss" placeholder="Фильтр по CVSS" class="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
+                            </th>
+                            <th class="px-6 py-2">
+                                <input type="text" id="filter-operator" placeholder="Фильтр по оператору" class="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
+                            </th>
+                            <th class="px-6 py-2">
+                                <button onclick="clearFilters()" class="px-2 py-1 text-xs bg-gray-200 hover:bg-gray-300 rounded">Сброс</button>
+                            </th>
                         </tr>
                     </thead>
                     <tbody class="bg-white divide-y divide-gray-200" id="vulnerabilities-table-body">
@@ -97,7 +161,7 @@
                                         <i class="fas fa-bug text-white text-sm"></i>
                                     </div>
                                     <div>
-                                        <div class="text-sm font-semibold text-gray-900 group-hover:text-blue-700 transition-colors">{{ vulnerability.title }}</div>
+                                        <div class="text-sm font-semibold text-gray-900 group-hover:text-blue-700 transition-colors cursor-pointer" onclick="showVulnerabilityDetails({{ vulnerability.id }})">{{ vulnerability.title }}</div>
                                         <div class="text-xs text-gray-500">{{ vulnerability.category|title }}</div>
                                     </div>
                                 </div>
@@ -195,6 +259,63 @@
         {% endif %}
     </div>
 </div>
+
+<!-- Пагинация -->
+{% if total_pages and total_pages > 1 %}
+<div class="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6 rounded-b-2xl">
+    <div class="flex flex-1 justify-between sm:hidden">
+        {% if current_page > 1 %}
+        <a href="?page={{ current_page - 1 }}&per_page={{ per_page }}{% if status %}&status={{ status }}{% endif %}{% if severity %}&severity={{ severity }}{% endif %}{% if search %}&search={{ search }}{% endif %}" 
+           class="relative inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+            Назад
+        </a>
+        {% endif %}
+        {% if current_page < total_pages %}
+        <a href="?page={{ current_page + 1 }}&per_page={{ per_page }}{% if status %}&status={{ status }}{% endif %}{% if severity %}&severity={{ severity }}{% endif %}{% if search %}&search={{ search }}{% endif %}" 
+           class="relative ml-3 inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+            Вперед
+        </a>
+        {% endif %}
+    </div>
+    <div class="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+        <div>
+            <p class="text-sm text-gray-700">
+                Показано <span class="font-medium">{{ (current_page - 1) * per_page + 1 }}</span> до 
+                <span class="font-medium">{{ [current_page * per_page, total_count]|min }}</span> из 
+                <span class="font-medium">{{ total_count }}</span> уязвимостей
+            </p>
+        </div>
+        <div>
+            <nav class="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
+                {% if current_page > 1 %}
+                <a href="?page={{ current_page - 1 }}&per_page={{ per_page }}{% if status %}&status={{ status }}{% endif %}{% if severity %}&severity={{ severity }}{% endif %}{% if search %}&search={{ search }}{% endif %}" 
+                   class="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0">
+                    <span class="sr-only">Назад</span>
+                    <i class="fas fa-chevron-left"></i>
+                </a>
+                {% endif %}
+                
+                {% for page_num in range([1, current_page - 3]|max, [total_pages + 1, current_page + 4]|min) %}
+                {% if page_num == current_page %}
+                <span class="relative z-10 inline-flex items-center px-4 py-2 text-sm font-semibold text-white bg-blue-600 focus:z-20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">{{ page_num }}</span>
+                {% else %}
+                <a href="?page={{ page_num }}&per_page={{ per_page }}{% if status %}&status={{ status }}{% endif %}{% if severity %}&severity={{ severity }}{% endif %}{% if search %}&search={{ search }}{% endif %}" 
+                   class="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0">{{ page_num }}</a>
+                {% endif %}
+                {% endfor %}
+                
+                {% if current_page < total_pages %}
+                <a href="?page={{ current_page + 1 }}&per_page={{ per_page }}{% if status %}&status={{ status }}{% endif %}{% if severity %}&severity={{ severity }}{% endif %}{% if search %}&search={{ search }}{% endif %}" 
+                   class="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0">
+                    <span class="sr-only">Вперед</span>
+                    <i class="fas fa-chevron-right"></i>
+                </a>
+                {% endif %}
+            </nav>
+        </div>
+    </div>
+</div>
+{% endif %}
 
 <!-- Модальное окно просмотра уязвимости -->
 <div id="view-modal" class="fixed inset-0 bg-black bg-opacity-50 overflow-y-auto h-full w-full hidden z-50 transition-opacity duration-300">
@@ -354,6 +475,79 @@
                                         <div class="font-bold text-green-700" id="view-fix-time">2-4 недели</div>
                                     </div>
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Графики риска -->
+            <div class="bg-gradient-to-r from-red-50 to-orange-50 rounded-xl border border-red-200 mt-4">
+                <button onclick="toggleRiskCharts()" class="w-full px-6 py-4 text-left flex justify-between items-center hover:bg-red-100 transition-colors duration-200 rounded-xl">
+                    <h4 class="font-semibold text-red-900 flex items-center">
+                        <i class="fas fa-chart-bar text-red-500 mr-2"></i>
+                        Графики риска и аналитика
+                    </h4>
+                    <i class="fas fa-chevron-down text-red-500 transition-transform duration-200" id="risk-charts-chevron"></i>
+                </button>
+                <div id="risk-charts-content" class="px-6 pb-4 hidden">
+                    <div class="bg-white rounded-lg p-4 border border-gray-200">
+                        <!-- График CVSS -->
+                        <div class="mb-6">
+                            <h5 class="font-semibold text-gray-800 mb-3 flex items-center">
+                                <i class="fas fa-shield-alt text-blue-500 mr-2"></i>
+                                Метрики CVSS
+                            </h5>
+                            <div class="grid grid-cols-3 gap-4">
+                                <div class="bg-blue-50 rounded-lg p-3 text-center">
+                                    <div class="text-xs text-blue-600 mb-1">Базовая оценка</div>
+                                    <div class="text-2xl font-bold text-blue-700" id="cvss-base-score">0.0</div>
+                                    <div class="text-xs text-gray-500">/10.0</div>
+                                </div>
+                                <div class="bg-green-50 rounded-lg p-3 text-center">
+                                    <div class="text-xs text-green-600 mb-1">Временная оценка</div>
+                                    <div class="text-2xl font-bold text-green-700" id="cvss-temporal-score">0.0</div>
+                                    <div class="text-xs text-gray-500">/10.0</div>
+                                </div>
+                                <div class="bg-purple-50 rounded-lg p-3 text-center">
+                                    <div class="text-xs text-purple-600 mb-1">Окружен. оценка</div>
+                                    <div class="text-2xl font-bold text-purple-700" id="cvss-environmental-score">0.0</div>
+                                    <div class="text-xs text-gray-500">/10.0</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- График уровня риска -->
+                        <div class="mb-6">
+                            <h5 class="font-semibold text-gray-800 mb-3 flex items-center">
+                                <i class="fas fa-exclamation-triangle text-orange-500 mr-2"></i>
+                                Уровень риска
+                            </h5>
+                            <div class="flex items-center justify-between bg-gray-100 rounded-full h-6 px-2">
+                                <div class="text-xs text-gray-500">Низкий</div>
+                                <div class="flex-1 mx-2 relative">
+                                    <div class="h-2 bg-gradient-to-r from-green-400 via-yellow-400 to-red-500 rounded-full"></div>
+                                    <div class="absolute top-0 left-0 h-2 bg-gray-200 rounded-full" id="risk-level-bar" style="width: 0%;"></div>
+                                    <div class="absolute top-0 h-4 w-4 bg-white border-2 border-blue-500 rounded-full transform -translate-x-1/2 -translate-y-1" id="risk-level-marker" style="left: 0%;"></div>
+                                </div>
+                                <div class="text-xs text-gray-500">Критичный</div>
+                            </div>
+                            <div class="text-center mt-2">
+                                <span class="font-semibold text-gray-800" id="risk-level-text">Низкий</span>
+                            </div>
+                        </div>
+                        
+                        <!-- Источники риска -->
+                        <div>
+                            <h5 class="font-semibold text-gray-800 mb-3 flex items-center">
+                                <i class="fas fa-globe text-indigo-500 mr-2"></i>
+                                Источники риска
+                            </h5>
+                            <div class="flex flex-wrap gap-2" id="risk-sources">
+                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                    <i class="fas fa-question-circle mr-1"></i>
+                                    Нет данных
+                                </span>
                             </div>
                         </div>
                     </div>
@@ -598,25 +792,57 @@ let currentEditingVulnId = null;
 
 // Функции для фильтрации
 document.addEventListener('DOMContentLoaded', function() {
+    // Старые фильтры
     const statusFilter = document.getElementById('status-filter');
     const severityFilter = document.getElementById('severity-filter');
     const searchFilter = document.getElementById('search-filter');
+    
+    // Новые фильтры в заголовках
+    const titleFilter = document.getElementById('filter-title');
+    const descriptionFilter = document.getElementById('filter-description');
+    const severityColumnFilter = document.getElementById('filter-severity');
+    const statusColumnFilter = document.getElementById('filter-status');
+    const cvssFilter = document.getElementById('filter-cvss');
+    const operatorFilter = document.getElementById('filter-operator');
 
     function applyFilters() {
+        // Получаем значения фильтров
         const statusValue = statusFilter.value;
         const severityValue = severityFilter.value;
         const searchValue = searchFilter.value.toLowerCase();
+        
+        // Новые фильтры
+        const titleValue = titleFilter.value.toLowerCase();
+        const descriptionValue = descriptionFilter.value.toLowerCase();
+        const severityColumnValue = severityColumnFilter.value;
+        const statusColumnValue = statusColumnFilter.value;
+        const cvssValue = cvssFilter.value;
+        const operatorValue = operatorFilter.value.toLowerCase();
 
         document.querySelectorAll('.vulnerability-row').forEach(row => {
             const status = row.getAttribute('data-status');
             const severity = row.getAttribute('data-severity');
             const title = row.getAttribute('data-title');
+            const description = row.querySelector('td:nth-child(2)').textContent.toLowerCase();
+            const cvss = row.querySelector('td:nth-child(5)').textContent;
+            const operator = row.querySelector('td:nth-child(6)').textContent.toLowerCase();
 
-            const statusMatch = statusValue === 'all' || status === statusValue;
-            const severityMatch = severityValue === 'all' || severity === severityValue;
-            const searchMatch = title.includes(searchValue);
+            // Старые фильтры
+            const statusMatch = statusValue === 'all' || statusValue === '' || status === statusValue;
+            const severityMatch = severityValue === 'all' || severityValue === '' || severity === severityValue;
+            const searchMatch = searchValue === '' || title.includes(searchValue);
+            
+            // Новые фильтры
+            const titleMatch = titleValue === '' || title.includes(titleValue);
+            const descriptionMatch = descriptionValue === '' || description.includes(descriptionValue);
+            const severityColumnMatch = severityColumnValue === '' || severity === severityColumnValue;
+            const statusColumnMatch = statusColumnValue === '' || status === statusColumnValue;
+            const cvssMatch = cvssValue === '' || cvss.includes(cvssValue);
+            const operatorMatch = operatorValue === '' || operator.includes(operatorValue);
 
-            if (statusMatch && severityMatch && searchMatch) {
+            if (statusMatch && severityMatch && searchMatch && 
+                titleMatch && descriptionMatch && severityColumnMatch && 
+                statusColumnMatch && cvssMatch && operatorMatch) {
                 row.classList.remove('hidden');
             } else {
                 row.classList.add('hidden');
@@ -624,10 +850,72 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // Добавляем обработчики событий для всех фильтров
     statusFilter.addEventListener('change', applyFilters);
     severityFilter.addEventListener('change', applyFilters);
     searchFilter.addEventListener('input', applyFilters);
+    
+    // Новые фильтры
+    titleFilter.addEventListener('input', applyFilters);
+    descriptionFilter.addEventListener('input', applyFilters);
+    severityColumnFilter.addEventListener('change', applyFilters);
+    statusColumnFilter.addEventListener('change', applyFilters);
+    cvssFilter.addEventListener('input', applyFilters);
+    operatorFilter.addEventListener('input', applyFilters);
 });
+
+// Функция для сброса всех фильтров
+function clearFilters() {
+    // Старые фильтры
+    document.getElementById('status-filter').value = 'all';
+    document.getElementById('severity-filter').value = 'all';
+    document.getElementById('search-filter').value = '';
+    
+    // Новые фильтры
+    document.getElementById('filter-title').value = '';
+    document.getElementById('filter-description').value = '';
+    document.getElementById('filter-severity').value = '';
+    document.getElementById('filter-status').value = '';
+    document.getElementById('filter-cvss').value = '';
+    document.getElementById('filter-operator').value = '';
+    
+    // Применяем фильтры
+    document.querySelectorAll('.vulnerability-row').forEach(row => {
+        row.classList.remove('hidden');
+    });
+}
+
+// Функция для сортировки таблицы
+function sortTable(columnIndex) {
+    const table = document.querySelector('.min-w-full');
+    const rows = Array.from(table.querySelectorAll('tbody tr.vulnerability-row'));
+    
+    // Определяем направление сортировки
+    const isAscending = table.getAttribute('data-sort-direction') !== 'asc';
+    table.setAttribute('data-sort-direction', isAscending ? 'asc' : 'desc');
+    
+    // Сортируем строки
+    rows.sort((a, b) => {
+        const aText = a.cells[columnIndex].textContent.trim();
+        const bText = b.cells[columnIndex].textContent.trim();
+        
+        // Для числовых значений (CVSS)
+        if (columnIndex === 4) {
+            const aNum = parseFloat(aText);
+            const bNum = parseFloat(bText);
+            return isAscending ? aNum - bNum : bNum - aNum;
+        }
+        
+        // Для текстовых значений
+        return isAscending ? 
+            aText.localeCompare(bText, 'ru') : 
+            bText.localeCompare(aText, 'ru');
+    });
+    
+    // Перемещаем отсортированные строки в таблицу
+    const tbody = table.querySelector('tbody');
+    rows.forEach(row => tbody.appendChild(row));
+}
 
 function showVulnerabilityDetails(vulnId) {
     currentViewingVulnId = vulnId;
@@ -696,6 +984,9 @@ function populateViewModal(vuln) {
     document.getElementById('view-complexity').textContent = calculateComplexity(vuln);
     document.getElementById('view-fix-time').textContent = calculateFixTime(vuln);
     document.getElementById('view-timestamp').textContent = 'Загружено только что';
+    
+    // Обновляем графики риска
+    updateRiskCharts(vuln);
 }
 
 function loadOperatorAssignment(operatorId, vulnId) {
@@ -1364,6 +1655,82 @@ function showNotification(message, type = 'info') {
     }, 5000);
 }
 
+// Функция переключения видимости графиков риска
+function toggleRiskCharts() {
+    const content = document.getElementById('risk-charts-content');
+    const chevron = document.getElementById('risk-charts-chevron');
+    
+    if (content.classList.contains('hidden')) {
+        content.classList.remove('hidden');
+        chevron.classList.add('rotate-180');
+    } else {
+        content.classList.add('hidden');
+        chevron.classList.remove('rotate-180');
+    }
+}
+
+// Функция обновления графиков риска
+function updateRiskCharts(vulnerability) {
+    // Обновляем CVSS метрики
+    const cvssBase = vulnerability.cvss_score || 0;
+    document.getElementById('cvss-base-score').textContent = cvssBase.toFixed(1);
+    
+    // Для временной и окружающей оценки используем базовую оценку как пример
+    document.getElementById('cvss-temporal-score').textContent = cvssBase.toFixed(1);
+    document.getElementById('cvss-environmental-score').textContent = cvssBase.toFixed(1);
+    
+    // Обновляем уровень риска
+    const riskLevelText = document.getElementById('risk-level-text');
+    const riskLevelBar = document.getElementById('risk-level-bar');
+    const riskLevelMarker = document.getElementById('risk-level-marker');
+    
+    let riskText = 'Низкий';
+    let riskPosition = 0;
+    
+    if (cvssBase >= 9.0) {
+        riskText = 'Критичный';
+        riskPosition = 100;
+    } else if (cvssBase >= 7.0) {
+        riskText = 'Высокий';
+        riskPosition = 75;
+    } else if (cvssBase >= 4.0) {
+        riskText = 'Средний';
+        riskPosition = 50;
+    } else {
+        riskText = 'Низкий';
+        riskPosition = 25;
+    }
+    
+    riskLevelText.textContent = riskText;
+    riskLevelBar.style.width = riskPosition + '%';
+    riskLevelMarker.style.left = riskPosition + '%';
+    
+    // Обновляем источники риска
+    const riskSourcesContainer = document.getElementById('risk-sources');
+    riskSourcesContainer.innerHTML = '';
+    
+    // Добавляем источники на основе данных уязвимости
+    const sources = [];
+    if (vulnerability.source_identifier) {
+        sources.push(vulnerability.source_identifier);
+    }
+    
+    if (vulnerability.cve_id) {
+        sources.push(vulnerability.cve_id);
+    }
+    
+    if (sources.length > 0) {
+        sources.forEach(source => {
+            const span = document.createElement('span');
+            span.className = 'inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800';
+            span.innerHTML = `<i class="fas fa-link mr-1"></i>${source}`;
+            riskSourcesContainer.appendChild(span);
+        });
+    } else {
+        riskSourcesContainer.innerHTML = '<span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800"><i class="fas fa-question-circle mr-1"></i>Нет данных</span>';
+    }
+}
+
 // Закрытие модальных окон по ESC
 document.addEventListener('keydown', function(event) {
     if (event.key === 'Escape') {
@@ -1373,8 +1740,42 @@ document.addEventListener('keydown', function(event) {
     }
 });
 
-// Инициализация при загрузке
+// Фильтрация уязвимостей
+function applyFilters() {
+    const status = document.getElementById('status-filter').value;
+    const severity = document.getElementById('severity-filter').value;
+    const search = document.getElementById('search-filter').value;
+    
+    // Формируем URL с параметрами
+    let url = window.location.pathname + '?page=1';
+    if (status && status !== 'all') url += '&status=' + status;
+    if (severity && severity !== 'all') url += '&severity=' + severity;
+    if (search) url += '&search=' + encodeURIComponent(search);
+    
+    window.location.href = url;
+}
+
+// Сброс фильтров
+function resetFilters() {
+    document.getElementById('status-filter').value = 'all';
+    document.getElementById('severity-filter').value = 'all';
+    document.getElementById('search-filter').value = '';
+    applyFilters();
+}
+
+// Обработчики событий для фильтров
 document.addEventListener('DOMContentLoaded', function() {
+    // Применяем фильтры при изменении
+    document.getElementById('status-filter').addEventListener('change', applyFilters);
+    document.getElementById('severity-filter').addEventListener('change', applyFilters);
+    
+    // Поиск по Enter
+    document.getElementById('search-filter').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            applyFilters();
+        }
+    });
+    
     console.log('Vulnerability Management System loaded');
 });
 </script>

@@ -23,7 +23,8 @@ class AnalyticsService:
             return self._cached_analytics
 
         try:
-            vulnerabilities = self.vuln_service.get_all_vulnerabilities()
+            # Используем неограниченный метод для получения всех уязвимостей
+            vulnerabilities = self.vuln_service.get_all_vulnerabilities_unlimited()
             operators = self.operator_service.get_all_operators()
 
             analytics_data = self._calculate_analytics(vulnerabilities, operators)
@@ -70,6 +71,34 @@ class AnalyticsService:
             category = vuln.category or 'other'
             category_counts[category] = category_counts.get(category, 0) + 1
 
+        # Статистика по CVSS (для графиков риска)
+        cvss_distribution = {'0-2': 0, '2-4': 0, '4-6': 0, '6-8': 0, '8-10': 0}
+        risk_levels = {'low': 0, 'medium': 0, 'high': 0, 'critical': 0}
+        
+        for vuln in vulnerabilities:
+            # Распределение по CVSS
+            try:
+                cvss_score = float(vuln.cvss_score) if vuln.cvss_score else 0.0
+                if 0 <= cvss_score < 2:
+                    cvss_distribution['0-2'] += 1
+                elif 2 <= cvss_score < 4:
+                    cvss_distribution['2-4'] += 1
+                elif 4 <= cvss_score < 6:
+                    cvss_distribution['4-6'] += 1
+                elif 6 <= cvss_score < 8:
+                    cvss_distribution['6-8'] += 1
+                elif 8 <= cvss_score <= 10:
+                    cvss_distribution['8-10'] += 1
+            except (ValueError, TypeError):
+                cvss_distribution['0-2'] += 1
+            
+            # Распределение по уровням риска
+            risk_level = vuln.risk_level or 'medium'
+            if risk_level in risk_levels:
+                risk_levels[risk_level] += 1
+            else:
+                risk_levels['medium'] += 1
+
         # Статистика операторов
         operator_stats = []
         for operator in operators:
@@ -105,6 +134,8 @@ class AnalyticsService:
             'severity_counts': severity_counts,
             'status_counts': status_counts,
             'category_counts': category_counts,
+            'cvss_distribution': cvss_distribution,
+            'risk_levels': risk_levels,
             'operator_stats': operator_stats,
             'total_vulnerabilities': total_vulnerabilities,
             'active_operators': active_operators,
@@ -133,6 +164,8 @@ class AnalyticsService:
             'severity_counts': {'critical': 0, 'high': 0, 'medium': 0, 'low': 0},
             'status_counts': {'new': 0, 'in_progress': 0, 'completed': 0, 'approved': 0},
             'category_counts': {},
+            'cvss_distribution': {'0-2': 0, '2-4': 0, '4-6': 0, '6-8': 0, '8-10': 0},
+            'risk_levels': {'critical': 0, 'high': 0, 'medium': 0, 'low': 0},
             'operator_stats': [],
             'total_vulnerabilities': 0,
             'active_operators': 0,

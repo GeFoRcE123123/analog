@@ -2,6 +2,11 @@ from flask import Flask, render_template, request, jsonify, flash, redirect, url
 import json
 import time
 import logging
+from datetime import datetime
+from typing import Optional
+import os
+import tempfile
+from werkzeug.utils import secure_filename
 
 # Импорты сервисов
 from services.vulnerability_service import VulnerabilityService
@@ -20,6 +25,10 @@ from models.database import DatabaseManager
 from models.postgres_repositories import PostgresVulnerabilityRepository
 from flask import stream_with_context
 
+# Для импорта Excel
+import pandas as pd
+from models.entities import Vulnerability
+
 
 # Настройка логирования
 logger = logging.getLogger(__name__)
@@ -36,7 +45,7 @@ vulnerability_repo = PostgresVulnerabilityRepository(db)
 
 
 # Инициализация сервисов
-vuln_service = VulnerabilityService()
+vuln_service = VulnerabilityService(use_optimized=True)
 operator_service = OperatorService()
 export_service = ExportService()
 parser_service = ParserService()
@@ -44,13 +53,21 @@ data_manager = DataManager()
 assignment_manager = AssignmentManager(data_manager)
 async_parser = AsyncParser()
 
-# ... остальной код без изменений ...
-
-
 # === ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ===
 
-def get_vulnerabilities_with_operators():
-    """Получить уязвимости с информацией об операторах"""
+def get_vulnerabilities_with_operators(page: int = 1, per_page: int = 50,
+                                   status: Optional[str] = None, severity: Optional[str] = None,
+                                   search: Optional[str] = None):
+    """Получить уязвимости с операторами с пагинацией"""
+    vulnerabilities, total_count = vuln_service.get_paginated_vulnerabilities(
+        page=page, per_page=per_page,
+        status=status, severity=severity, search=search
+    )
+    operators = operator_service.get_all_operators()
+    return vulnerabilities, operators, total_count
+
+def get_vulnerabilities_with_operators_old():
+    """Получить уязвимости с операторами (старый API)"""
     vulnerabilities = vuln_service.get_all_vulnerabilities()
     operators = operator_service.get_all_operators()
     return vulnerabilities, operators
@@ -58,7 +75,7 @@ def get_vulnerabilities_with_operators():
 
 def get_dashboard_stats():
     """Получить статистику для дашборда"""
-    vulnerabilities, operators = get_vulnerabilities_with_operators()
+    vulnerabilities, operators = get_vulnerabilities_with_operators_old()
 
     return {
         'total_vulnerabilities': len(vulnerabilities),
@@ -73,39 +90,27 @@ def get_dashboard_stats():
 
 def get_analytics_data():
     """Получить данные для аналитики"""
-    vulnerabilities, operators = get_vulnerabilities_with_operators()
-
-    # Статистика по уровням риска
-    severity_counts = {
-        'high': len([v for v in vulnerabilities if v.severity == 'high']),
-        'medium': len([v for v in vulnerabilities if v.severity == 'medium']),
-        'low': len([v for v in vulnerabilities if v.severity == 'low'])
-    }
-
-    # Статистика по статусам
-    status_counts = {
-        'new': len([v for v in vulnerabilities if v.status == 'new']),
-        'in_progress': len([v for v in vulnerabilities if v.status == 'in_progress']),
-        'completed': len([v for v in vulnerabilities if v.status == 'completed']),
-        'approved': len([v for v in vulnerabilities if v.status == 'approved'])
-    }
-
-    # Общая статистика
-    total_vulnerabilities = len(vulnerabilities)
-    active_operators = len(operators)
-    completed_vulnerabilities = status_counts['completed'] + status_counts['approved']
-    avg_performance = sum(op.current_metric for op in operators) / len(operators) if operators else 0
-
-    return {
+    # Используем AnalyticsService для получения данных
+    analytics_data = analytics_service.get_analytics_data()
+    
+    # Получаем уязвимости и операторов для обратной совместимости
+    vulnerabilities, operators = get_vulnerabilities_with_operators_old()
+    
+    # Объединяем данные
+    result = {
         'vulnerabilities': vulnerabilities,
         'operators': operators,
-        'severity_counts': severity_counts,
-        'status_counts': status_counts,
-        'total_vulnerabilities': total_vulnerabilities,
-        'active_operators': active_operators,
-        'completed_vulnerabilities': completed_vulnerabilities,
-        'avg_performance': avg_performance
+        'severity_counts': analytics_data.get('severity_counts', {}),
+        'status_counts': analytics_data.get('status_counts', {}),
+        'total_vulnerabilities': analytics_data.get('total_vulnerabilities', 0),
+        'active_operators': analytics_data.get('active_operators', 0),
+        'completed_vulnerabilities': analytics_data.get('completed_vulnerabilities', 0),
+        'avg_performance': analytics_data.get('avg_performance', 0),
+        'cvss_distribution': analytics_data.get('cvss_distribution', {}),
+        'risk_levels': analytics_data.get('risk_levels', {})
     }
+    
+    return result
 
 
 def serialize_vulnerability(vuln):
@@ -132,10 +137,10 @@ def serialize_vulnerability(vuln):
 
 
 
-@app.route('/')
+@app.route('/dashboard')
 def dashboard():
     """Главная страница - дашборд"""
-    vulnerabilities, operators = get_vulnerabilities_with_operators()
+    vulnerabilities, operators = get_vulnerabilities_with_operators_old()
     stats = get_dashboard_stats()
 
     return render_template('dashboard.html',
@@ -146,17 +151,38 @@ def dashboard():
 
 @app.route('/vulnerabilities')
 def vulnerabilities_list():
-    """Страница со всеми уязвимостями"""
-    vulnerabilities, operators = get_vulnerabilities_with_operators()
+    """Страница со всеми уязвимостями с пагинацией"""
+    # Получаем параметры пагинации и фильтрации
+    page = int(request.args.get('page', 1))
+    per_page = int(request.args.get('per_page', 50))
+    status = request.args.get('status', None)
+    severity = request.args.get('severity', None)
+    search = request.args.get('search', None)
+    
+    vulnerabilities, operators, total_count = get_vulnerabilities_with_operators(
+        page=page, per_page=per_page,
+        status=status, severity=severity, search=search
+    )
+    
+    # Вычисляем пагинацию
+    total_pages = (total_count + per_page - 1) // per_page
+    
     return render_template('vulnerabilities_list.html',
                            vulnerabilities=vulnerabilities,
-                           operators=operators)
+                           operators=operators,
+                           current_page=page,
+                           total_pages=total_pages,
+                           total_count=total_count,
+                           per_page=per_page,
+                           status=status,
+                           severity=severity,
+                           search=search)
 
 
 @app.route('/operators')
 def operators_page():
     """Страница операторов"""
-    vulnerabilities, operators = get_vulnerabilities_with_operators()
+    vulnerabilities, operators = get_vulnerabilities_with_operators_old()
     return render_template('operators.html',
                            vulnerabilities=vulnerabilities,
                            operators=operators)
@@ -179,6 +205,12 @@ def review_vulnerabilities():
     """Страница проверки уязвимостей"""
     operators = operator_service.get_all_operators()
     return render_template('review.html', operators=operators)
+
+
+@app.route('/import-excel')
+def import_excel_page():
+    """Страница импорта уязвимостей из Excel"""
+    return render_template('import_excel.html')
 
 
 # === API МАРШРУТЫ ДЛЯ ПАРСИНГА С ПРОГРЕСС-БАРОМ ===
@@ -338,29 +370,203 @@ def parsers_page():
 
 @app.route('/api/parsers/status', methods=['GET'])
 def get_parsers_status():
-    """Собранный статус доступных парсеров и интеграций"""
+    """Собранный статус доступных парсеров и интеграций с реальной статистикой из БД"""
     try:
-        # OSV Parser
+        # Подключение к БД для статистики  
+        # Используем существующее подключение
+        conn = db
+        
+        # OSV Parser - реальная статистика
         osv_status = parser_service.get_parsing_status()
+        
+        # Подсчет OSV уязвимостей в БД
+        with conn.cursor() as cur:
+                # OSV уязвимости (источники: osv.dev, BIT-*, CGA-*, GHSA-*, etc.)
+                cur.execute("""
+                    SELECT COUNT(*) FROM vulnerabilities 
+                    WHERE source_identifier IN ('osv.dev', 'osv') 
+                       OR title LIKE 'BIT-%' OR title LIKE 'CGA-%' 
+                       OR title LIKE 'GHSA-%' OR title LIKE 'BELL-%'
+                """)
+                osv_count = cur.fetchone()[0] if cur.rowcount > 0 else 0
+                
+                # NVD уязвимости (CVE с source_identifier)
+                cur.execute("""
+                    SELECT COUNT(*), 
+                           MAX(published) as last_sync,
+                           COUNT(CASE WHEN published > NOW() - INTERVAL '7 days' THEN 1 END) as recent_week
+                    FROM vulnerabilities 
+                    WHERE cve_id IS NOT NULL 
+                      AND source_identifier IS NOT NULL
+                      AND source_identifier != 'redhat'
+                      AND source_identifier != 'ubuntu'
+                      AND source_identifier != 'debian'
+                """)
+                nvd_row = cur.fetchone()
+                nvd_count = nvd_row[0] if nvd_row else 0
+                nvd_last_sync = nvd_row[1].strftime('%Y-%m-%d %H:%M:%S') if nvd_row and nvd_row[1] else None
+                nvd_recent_week = nvd_row[2] if nvd_row else 0
+                
+                # Red Hat уязвимости
+                cur.execute("""
+                    SELECT COUNT(*),
+                           MAX(published) as last_import,
+                           COUNT(CASE WHEN severity IN ('critical', 'important') THEN 1 END) as high_severity
+                    FROM vulnerabilities 
+                    WHERE source_identifier = 'redhat'
+                """)
+                redhat_row = cur.fetchone()
+                redhat_count = redhat_row[0] if redhat_row else 0
+                redhat_last_import = redhat_row[1].strftime('%Y-%m-%d %H:%M:%S') if redhat_row and redhat_row[1] else None
+                redhat_high_severity = redhat_row[2] if redhat_row else 0
+                
+                # Ubuntu уязвимости
+                cur.execute("""
+                    SELECT COUNT(*),
+                           MAX(published) as last_import
+                    FROM vulnerabilities 
+                    WHERE source_identifier = 'ubuntu'
+                """)
+                ubuntu_row = cur.fetchone()
+                ubuntu_count = ubuntu_row[0] if ubuntu_row else 0
+                ubuntu_last_import = ubuntu_row[1].strftime('%Y-%m-%d %H:%M:%S') if ubuntu_row and ubuntu_row[1] else None
+                
+                # Debian уязвимости
+                cur.execute("""
+                    SELECT COUNT(*),
+                           MAX(published) as last_import
+                    FROM vulnerabilities 
+                    WHERE source_identifier = 'debian'
+                """)
+                debian_row = cur.fetchone()
+                debian_count = debian_row[0] if debian_row else 0
+                debian_last_import = debian_row[1].strftime('%Y-%m-%d %H:%M:%S') if debian_row and debian_row[1] else None
+                
+                # AI уязвимости
+                cur.execute("""
+                    SELECT COUNT(*),
+                           AVG(ai_confidence) as avg_confidence,
+                           COUNT(CASE WHEN ai_confidence >= 0.7 THEN 1 END) as high_confidence
+                    FROM vulnerabilities 
+                    WHERE is_ai_related = TRUE
+                """)
+                ai_row = cur.fetchone()
+                ai_count = ai_row[0] if ai_row else 0
+                ai_avg_confidence = float(ai_row[1]) if ai_row and ai_row[1] else 0.0
+                ai_high_confidence = ai_row[2] if ai_row else 0
+                
+                # Всего уязвимостей
+                cur.execute("SELECT COUNT(*) FROM vulnerabilities")
+                total_vulns = cur.fetchone()[0] if cur.rowcount > 0 else 0
+
+        # Обновляем статусы с реальными данными
+        osv_status.update({
+            'total_in_db': osv_count,
+            'percentage': round((osv_count / total_vulns * 100) if total_vulns > 0 else 0, 1)
+        })
 
         # NVD Integration
         try:
             nvd_status = nvd_integration.get_sync_status()
             nvd_connection = nvd_integration.validate_connection()
+            nvd_status.update({
+                'total_in_db': nvd_count,
+                'last_sync': nvd_last_sync,
+                'recent_week': nvd_recent_week,
+                'percentage': round((nvd_count / total_vulns * 100) if total_vulns > 0 else 0, 1)
+            })
         except Exception as e:
-            nvd_status = {'status': 'error', 'error': str(e)}
+            nvd_status = {
+                'status': 'error', 
+                'error': str(e),
+                'total_in_db': nvd_count,
+                'last_sync': nvd_last_sync,
+                'recent_week': nvd_recent_week
+            }
             nvd_connection = {'status': 'error', 'message': str(e)}
 
-        # Red Hat Importer: базовая заглушка (нет истории в сервисе)
+        # Red Hat Importer
         redhat_status = {
             'available': True,
-            'last_run': None,
-            'notes': 'Импорт доступен через /api/redhat/import'
+            'total_in_db': redhat_count,
+            'last_import': redhat_last_import,
+            'high_severity_count': redhat_high_severity,
+            'percentage': round((redhat_count / total_vulns * 100) if total_vulns > 0 else 0, 1),
+            'notes': f'В БД: {redhat_count} CVE ({redhat_high_severity} critical/important)'
         }
+        
+        # Ubuntu Security
+        ubuntu_status = {
+            'available': True,
+            'type': 'API',
+            'total_in_db': ubuntu_count,
+            'last_import': ubuntu_last_import,
+            'percentage': round((ubuntu_count / total_vulns * 100) if total_vulns > 0 else 0, 1),
+            'notes': f'В БД: {ubuntu_count} уязвимостей'
+        }
+        
+        # Debian Security Tracker
+        debian_status = {
+            'available': True,
+            'type': 'API',
+            'total_in_db': debian_count,
+            'last_import': debian_last_import,
+            'percentage': round((debian_count / total_vulns * 100) if total_vulns > 0 else 0, 1),
+            'notes': f'В БД: {debian_count} уязвимостей'
+        }
+        
+        # AI Tagger Service
+        ai_tagger_status = {
+            'available': True,
+            'type': 'Service',
+            'ai_vulnerabilities': ai_count,
+            'avg_confidence': round(ai_avg_confidence * 100, 1),
+            'high_confidence_count': ai_high_confidence,
+            'percentage': round((ai_count / total_vulns * 100) if total_vulns > 0 else 0, 1),
+            'notes': f'Найдено {ai_count} AI-уязвимостей (средняя уверенность: {round(ai_avg_confidence * 100, 1)}%)'
+        }
+        
+        # Universal Vendor Parser
+        try:
+            from services.universal_vendor_parser import universal_vendor_parser
+            vendor_sources_count = len(universal_vendor_parser.sources)
+            vendor_total = ubuntu_count + debian_count
+            vendor_status = {
+                'available': True,
+                'type': 'Multi-source',
+                'sources_count': vendor_sources_count,
+                'total_parsed': vendor_total,
+                'breakdown': {
+                    'ubuntu': ubuntu_count,
+                    'debian': debian_count
+                },
+                'notes': f'{vendor_sources_count} источников, спарсено {vendor_total} уязвимостей'
+            }
+        except Exception as e:
+            vendor_status = {
+                'available': False,
+                'type': 'Multi-source',
+                'notes': f'Ошибка: {str(e)}'
+            }
 
         # Scheduler
         scheduler_status = {
-            'is_running': scheduler.is_running
+            'is_running': scheduler.is_running,
+            'status': 'active' if scheduler.is_running else 'stopped'
+        }
+        
+        # Общая статистика
+        stats_summary = {
+            'total_vulnerabilities': total_vulns,
+            'by_source': {
+                'osv': osv_count,
+                'nvd': nvd_count,
+                'redhat': redhat_count,
+                'ubuntu': ubuntu_count,
+                'debian': debian_count
+            },
+            'ai_related': ai_count,
+            'last_updated': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         }
 
         return jsonify({
@@ -372,10 +578,18 @@ def get_parsers_status():
                     'connection_status': nvd_connection
                 },
                 'redhat': redhat_status,
+                'ubuntu': ubuntu_status,
+                'debian': debian_status,
+                'ai_tagger': ai_tagger_status,
+                'vendor_parser': vendor_status,
                 'scheduler': scheduler_status
-            }
+            },
+            'summary': stats_summary
         })
     except Exception as e:
+        logger.error(f"Parsers status error: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
@@ -523,6 +737,135 @@ def get_current_analytics():
 
 # === СТАРЫЕ API МАРШРУТЫ (для обратной совместимости) ===
 
+# === EXCEL ИМПОРТ/ЭКСПОРТ ===
+
+@app.route('/api/excel/import/preview', methods=['POST'])
+def preview_excel_import():
+    """Предварительный просмотр Excel файла для импорта"""
+    try:
+        if 'file' not in request.files:
+            return jsonify({'success': False, 'error': 'Файл не найден'})
+        
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'success': False, 'error': 'Файл не выбран'})
+        
+        # Сохраняем файл временно
+        temp_dir = tempfile.mkdtemp()
+        filename = file.filename or 'import.xlsx'
+        filepath = os.path.join(temp_dir, secure_filename(filename))
+        file.save(filepath)
+        
+        # Читаем Excel файл
+        df = pd.read_excel(filepath)
+        
+        # Получаем информацию о колонках
+        columns = list(df.columns)
+        row_count = len(df)
+        sample_data = df.head(5).to_dict('records')
+        
+        # Удаляем временный файл
+        os.remove(filepath)
+        os.rmdir(temp_dir)
+        
+        return jsonify({
+            'success': True,
+            'columns': columns,
+            'row_count': row_count,
+            'sample_data': sample_data
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+
+@app.route('/api/excel/import', methods=['POST'])
+def import_excel_vulnerabilities():
+    """Импорт уязвимостей из Excel файла"""
+    try:
+        required_columns = ['title', 'description', 'severity']
+        
+        if 'file' not in request.files:
+            return jsonify({'success': False, 'error': 'Файл не найден'})
+        
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'success': False, 'error': 'Файл не выбран'})
+        
+        # Сохраняем файл временно
+        temp_dir = tempfile.mkdtemp()
+        filename = file.filename or 'import.xlsx'
+        filepath = os.path.join(temp_dir, secure_filename(filename))
+        file.save(filepath)
+        
+        # Читаем Excel файл
+        df = pd.read_excel(filepath)
+        
+        # Проверяем обязательные колонки
+        missing_columns = [col for col in required_columns if col not in df.columns]
+        if missing_columns:
+            os.remove(filepath)
+            os.rmdir(temp_dir)
+            return jsonify({
+                'success': False, 
+                'error': f'Отсутствуют обязательные колонки: {", ".join(missing_columns)}',
+                'missing_columns': missing_columns,
+                'available_columns': list(df.columns)
+            })
+        
+        # Импортируем данные
+        imported_count = 0
+        errors = []
+        
+        for index, row in df.iterrows():
+            try:
+                # Обрабатываем cvss_score безопасно
+                cvss_score_val = row.get('cvss_score')
+                if cvss_score_val is not None:
+                    try:
+                        cvss_score = float(str(cvss_score_val))
+                    except (ValueError, TypeError):
+                        cvss_score = 0.0
+                else:
+                    cvss_score = 0.0
+                
+                # Создаем уязвимость
+                vulnerability = Vulnerability(
+                    id=0,  # Будет присвоен при сохранении
+                    title=str(row['title']),
+                    description=str(row['description']) if 'description' in row else '',
+                    severity=str(row['severity']) if 'severity' in row else 'medium',
+                    status=str(row.get('status', 'new')),
+                    cvss_score=cvss_score,
+                    risk_level=str(row.get('risk_level', 'medium')),
+                    category=str(row.get('category', 'web'))
+                )
+                
+                # Добавляем уязвимость
+                if vuln_service.add_vulnerability(vulnerability):
+                    imported_count += 1
+                else:
+                    errors.append(f"Строка {int(index) + 1}: Ошибка добавления уязвимости")
+                    
+            except Exception as e:
+                errors.append(f"Строка {int(index) + 1}: {str(e)}")
+        
+        # Удаляем временный файл
+        os.remove(filepath)
+        os.rmdir(temp_dir)
+        
+        return jsonify({
+            'success': True,
+            'imported_count': imported_count,
+            'errors': errors,
+            'total_rows': len(df)
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+
+# === СТАРЫЕ API МАРШРУТЫ (для обратной совместимости) ===
+
 @app.route('/assign-operator', methods=['POST'])
 def assign_operator_old():
     """Старый endpoint для назначения оператора (обратная совместимость)"""
@@ -571,11 +914,40 @@ def get_operator_api(operator_id):
         })
     return jsonify({'success': False, 'message': 'Оператор не найден'})
 
+@app.route('/get-operator/<string:operator_name>')
+def get_operator_by_name_api(operator_name):
+    """API для получения данных оператора по имени"""
+    # Получаем всех операторов и ищем по имени
+    operators = operator_service.get_all_operators()
+    operator = next((op for op in operators if op.name == operator_name), None)
+    
+    if operator:
+        return jsonify({
+            'success': True,
+            'operator': {
+                'id': operator.id,
+                'name': operator.name,
+                'email': operator.email,
+                'current_metric': operator.current_metric,
+                'experience_level': operator.experience_level
+            }
+        })
+    return jsonify({'success': False, 'message': f'Оператор {operator_name} не найден'})
+
 @app.route('/get-vulnerability/<int:vuln_id>', methods=['GET'])
 def get_vulnerability(vuln_id):
     """Получить данные уязвимости для редактирования"""
     vulnerability = vuln_service.get_vulnerability_by_id(vuln_id)
     if vulnerability:
+        # Получаем информацию об операторе, если назначен
+        operator_name = None
+        operator_id = None
+        if vulnerability.assigned_operator:
+            operator = operator_service.get_operator_by_id(vulnerability.assigned_operator)
+            if operator:
+                operator_name = operator.name
+                operator_id = operator.id
+        
         return jsonify({
             'success': True,
             'vulnerability': {
@@ -588,7 +960,9 @@ def get_vulnerability(vuln_id):
                 'risk_level': vulnerability.risk_level,
                 'category': vulnerability.category,
                 'modifications': vulnerability.modifications,
-                'approved': vulnerability.approved
+                'approved': vulnerability.approved,
+                'assigned_operator': operator_name,
+                'assigned_operator_id': operator_id
             }
         })
     return jsonify({'success': False})
@@ -734,6 +1108,219 @@ def get_all_operators_api():
         return jsonify({'success': False, 'message': 'Ошибка загрузки операторов'})
 
 
+@app.route('/api/ai-tagger/analyze', methods=['POST'])
+def ai_tagger_analyze():
+    """Анализ уязвимости на AI-тематику"""
+    try:
+        from services.ai_tagger_service import ai_tagger
+        
+        data = request.get_json()
+        
+        result = ai_tagger.analyze_vulnerability(
+            title=data.get('title', ''),
+            description=data.get('description', ''),
+            cve_id=data.get('cve_id', ''),
+            affected_software=data.get('affected_software', []),
+            references=data.get('references', [])
+        )
+        
+        return jsonify({
+            'success': True,
+            'result': {
+                'is_ai_related': result.is_ai_related,
+                'confidence': result.confidence,
+                'matched_keywords': result.matched_keywords,
+                'matched_categories': result.matched_categories,
+                'suggested_tags': result.suggested_tags,
+                'risk_multiplier': result.risk_multiplier
+            }
+        })
+    except Exception as e:
+        logger.error(f"AI tagger error: {e}")
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@app.route('/api/ai-tagger/scan-all', methods=['POST'])
+def ai_tagger_scan_all():
+    """Сканирование всех уязвимостей на AI-тематику"""
+    try:
+        from services.ai_tagger_service import ai_tagger
+        import psycopg
+        from config import Config
+        
+        logger.info("🔍 Запуск сканирования AI-уязвимостей...")
+        
+        db_config = Config.DATABASE_CONFIG
+        conn = psycopg.connect(
+            host=db_config.host,
+            port=db_config.port,
+            dbname=db_config.database,
+            user=db_config.username,
+            password=db_config.password
+        )
+        
+        # Получаем все уязвимости
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT id, title, description, cve_id
+                FROM vulnerabilities
+                WHERE is_ai_related IS NULL OR is_ai_related = FALSE
+                LIMIT 100
+            """)
+            rows = cur.fetchall()
+        
+        updated_count = 0
+        ai_found_count = 0
+        
+        for row in rows:
+            vuln_id, title, description, cve_id = row
+            
+            result = ai_tagger.analyze_vulnerability(
+                title=title or '',
+                description=description or '',
+                cve_id=cve_id or ''
+            )
+            
+            if result.is_ai_related:
+                # Обновляем запись
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        UPDATE vulnerabilities
+                        SET is_ai_related = %s,
+                            ai_confidence = %s
+                        WHERE id = %s
+                    """, (True, result.confidence, vuln_id))
+                    conn.commit()
+                
+                updated_count += 1
+                ai_found_count += 1
+                logger.info(f"✅ AI-уязвимость: {cve_id} (confidence: {result.confidence:.2f})")
+        
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'scanned': len(rows),
+            'ai_found': ai_found_count,
+            'updated': updated_count
+        })
+        
+    except Exception as e:
+        logger.error(f"AI scan error: {e}")
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@app.route('/api/vendors/parse', methods=['POST'])
+def vendors_parse():
+    """Парсинг уязвимостей от вендоров"""
+    try:
+        from services.universal_vendor_parser import universal_vendor_parser
+        
+        data = request.get_json()
+        sources = data.get('sources', ['ubuntu', 'debian'])  # По умолчанию только API-источники
+        limit = data.get('limit', 50)
+        
+        logger.info(f"🌐 Парсинг вендоров: {sources}")
+        
+        results = universal_vendor_parser.parse_all_sources(sources, limit_per_source=limit)
+        
+        # Сохраняем спарсенные уязвимости в БД
+        saved_count = universal_vendor_parser.save_parsed_vulnerabilities(results)
+        results['total_saved'] = saved_count
+        
+        return jsonify({
+            'success': True,
+            'total_parsed': results['total_parsed'],
+            'total_saved': saved_count,
+            'by_source': {k: v['parsed'] for k, v in results['by_source'].items()},
+            'errors': results['errors']
+        })
+        
+    except Exception as e:
+        logger.error(f"Vendors parse error: {e}")
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@app.route('/api/html-parser/parse', methods=['POST'])
+def html_parser_parse():
+    """Парсинг уязвимостей с использованием HTML-ориентированного парсера"""
+    try:
+        from services.html_vulnerability_parser import html_vulnerability_parser
+        
+        data = request.get_json()
+        sources = data.get('sources', ['ubuntu', 'debian'])  # По умолчанию только основные источники
+        limit = data.get('limit', 50)
+        cve_list = data.get('cve_list', None)  # Опциональный список конкретных CVE
+        
+        logger.info(f"🔍 HTML-парсинг уязвимостей: {sources}")
+        
+        all_vulnerabilities = []
+        errors = []
+        
+        # Парсим каждый источник
+        for source_name in sources:
+            try:
+                vulnerabilities = html_vulnerability_parser.parse_source(
+                    source_name, 
+                    cve_list=cve_list, 
+                    limit=limit
+                )
+                all_vulnerabilities.extend(vulnerabilities)
+                logger.info(f"✅ {source_name}: обработано {len(vulnerabilities)} уязвимостей")
+            except Exception as e:
+                error_msg = f"Ошибка при парсинге {source_name}: {str(e)}"
+                errors.append(error_msg)
+                logger.error(error_msg)
+        
+        # Сохраняем спарсенные уязвимости в БД
+        saved_count = html_vulnerability_parser.save_vulnerabilities(all_vulnerabilities)
+        
+        # Группируем по источникам для отчета
+        by_source = {}
+        for vuln in all_vulnerabilities:
+            source = vuln.get('source', 'unknown')
+            if source not in by_source:
+                by_source[source] = 0
+            by_source[source] += 1
+        
+        return jsonify({
+            'success': True,
+            'total_parsed': len(all_vulnerabilities),
+            'total_saved': saved_count,
+            'by_source': by_source,
+            'errors': errors
+        })
+        
+    except Exception as e:
+        logger.error(f"HTML parser error: {e}")
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@app.route('/api/vendors/sources', methods=['GET'])
+def vendors_sources():
+    """Список доступных источников"""
+    try:
+        from services.universal_vendor_parser import universal_vendor_parser
+        
+        sources = []
+        for name, config in universal_vendor_parser.sources.items():
+            sources.append({
+                'name': name,
+                'type': config['type'],
+                'url': config['url']
+            })
+        
+        return jsonify({
+            'success': True,
+            'sources': sources,
+            'total': len(sources)
+        })
+        
+    except Exception as e:
+        logger.error(f"Vendors sources error: {e}")
+        return jsonify({'success': False, 'message': str(e)})
+
+
 @app.route('/update-metric', methods=['POST'])
 def update_metric():
     """Обновить метрику оператора"""
@@ -854,6 +1441,15 @@ def get_vulnerability_api(vuln_id):
     """API для получения данных уязвимости для редактирования"""
     vulnerability = vuln_service.get_vulnerability_by_id(vuln_id)
     if vulnerability:
+        # Получаем информацию об операторе, если назначен
+        operator_name = None
+        operator_id = None
+        if vulnerability.assigned_operator:
+            operator = operator_service.get_operator_by_id(vulnerability.assigned_operator)
+            if operator:
+                operator_name = operator.name
+                operator_id = operator.id
+        
         return jsonify({
             'success': True,
             'vulnerability': {
@@ -866,7 +1462,9 @@ def get_vulnerability_api(vuln_id):
                 'risk_level': vulnerability.risk_level,
                 'category': vulnerability.category,
                 'modifications': vulnerability.modifications,
-                'approved': vulnerability.approved
+                'approved': vulnerability.approved,
+                'assigned_operator': operator_name,
+                'assigned_operator_id': operator_id
             }
         })
     return jsonify({'success': False, 'message': 'Уязвимость не найдена'})

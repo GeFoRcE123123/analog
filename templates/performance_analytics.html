@@ -135,6 +135,27 @@
             </div>
         </div>
 
+        <!-- График распределения по CVSS -->
+        <div class="bg-white rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
+            <div class="p-6 border-b border-gray-100">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-xl font-bold text-gray-800 flex items-center">
+                        <i class="fas fa-chart-bar text-orange-500 mr-3"></i>
+                        Распределение по CVSS
+                    </h3>
+                    <span class="bg-orange-100 text-orange-600 text-xs font-medium px-3 py-1 rounded-full">CVSS</span>
+                </div>
+            </div>
+            <div class="p-6">
+                <div class="chart-container" style="position: relative; height: 300px; width: 100%">
+                    <canvas id="cvssChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Третья строка графиков -->
+    <div class="grid grid-cols-1 xl:grid-cols-2 gap-8">
         <!-- График эффективности операторов -->
         <div class="bg-white rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
             <div class="p-6 border-b border-gray-100">
@@ -149,6 +170,24 @@
             <div class="p-6">
                 <div class="chart-container" style="position: relative; height: 300px; width: 100%">
                     <canvas id="efficiencyChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- График уровней риска -->
+        <div class="bg-white rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
+            <div class="p-6 border-b border-gray-100">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-xl font-bold text-gray-800 flex items-center">
+                        <i class="fas fa-exclamation-triangle text-red-500 mr-3"></i>
+                        Уровни риска
+                    </h3>
+                    <span class="bg-red-100 text-red-600 text-xs font-medium px-3 py-1 rounded-full">Risk</span>
+                </div>
+            </div>
+            <div class="p-6">
+                <div class="chart-container" style="position: relative; height: 300px; width: 100%">
+                    <canvas id="riskLevelChart"></canvas>
                 </div>
             </div>
         </div>
@@ -183,6 +222,16 @@
     </a>
 </div>
 
+<!-- Скрытое хранилище данных для JavaScript -->
+<div id="analytics-data" style="display: none;">
+    <span id="operators-data">{{ operators|map(attribute="name")|list|tojson }}</span>
+    <span id="performance-data">{{ operators|map(attribute="current_metric")|list|tojson }}</span>
+    <span id="severity-data">{{ severity_counts|tojson }}</span>
+    <span id="status-data">{{ status_counts|tojson }}</span>
+    <span id="cvss-data">{{ cvss_distribution|tojson }}</span>
+    <span id="risk-level-data">{{ risk_levels|tojson }}</span>
+</div>
+
 <!-- Подключаем Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
@@ -199,23 +248,21 @@ window.addEventListener('load', function() {
 });
 
 function initializeCharts() {
-    // Данные из Flask контекста
-    const operators = JSON.parse('{{ operators|map(attribute="name")|list|tojson }}');
-    const performanceData = JSON.parse('{{ operators|map(attribute="current_metric")|list|tojson }}');
-
-    // Данные для графиков риска и статусов
-    const severityData = {
-        high: {{ severity_counts.high|default(0) }},
-        medium: {{ severity_counts.medium|default(0) }},
-        low: {{ severity_counts.low|default(0) }}
-    };
-
-    const statusData = {
-        new: {{ status_counts.new|default(0) }},
-        in_progress: {{ status_counts.in_progress|default(0) }},
-        completed: {{ status_counts.completed|default(0) }},
-        approved: {{ status_counts.approved|default(0) }}
-    };
+    // Данные из скрытых HTML элементов
+    const operatorsData = document.getElementById('operators-data').textContent;
+    const performanceDataStr = document.getElementById('performance-data').textContent;
+    const severityDataStr = document.getElementById('severity-data').textContent;
+    const statusDataStr = document.getElementById('status-data').textContent;
+    const cvssDataStr = document.getElementById('cvss-data').textContent;
+    const riskLevelDataStr = document.getElementById('risk-level-data').textContent;
+    
+    // Парсим данные
+    const operators = JSON.parse(operatorsData);
+    const performanceData = JSON.parse(performanceDataStr);
+    const severityData = JSON.parse(severityDataStr);
+    const statusData = JSON.parse(statusDataStr);
+    const cvssData = JSON.parse(cvssDataStr);
+    const riskLevelData = JSON.parse(riskLevelDataStr);
 
     // Расчет эффективности (упрощенная формула)
     const efficiencyData = performanceData.map(metric => {
@@ -421,7 +468,146 @@ function initializeCharts() {
         });
     }
 
-    // 4. График эффективности операторов (Line)
+    // 4. График распределения по CVSS (Bar)
+    const cvssCtx = document.getElementById('cvssChart');
+    if (cvssCtx) {
+        new Chart(cvssCtx, {
+            type: 'bar',
+            data: {
+                labels: ['0-2', '2-4', '4-6', '6-8', '8-10'],
+                datasets: [{
+                    label: 'Количество уязвимостей',
+                    data: [cvssData['0-2'], cvssData['2-4'], cvssData['4-6'], cvssData['6-8'], cvssData['8-10']],
+                    backgroundColor: [
+                        chartStyles.colors.green,
+                        chartStyles.colors.yellow,
+                        chartStyles.colors.orange,
+                        chartStyles.colors.red,
+                        chartStyles.colors.redLight
+                    ],
+                    borderColor: [
+                        chartStyles.colors.green,
+                        chartStyles.colors.yellow,
+                        chartStyles.colors.orange,
+                        chartStyles.colors.red,
+                        chartStyles.colors.redLight
+                    ],
+                    borderWidth: 1,
+                    borderRadius: 6,
+                    borderSkipped: false,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                        titleFont: {
+                            family: chartStyles.fontFamily,
+                            size: 12
+                        },
+                        bodyFont: {
+                            family: chartStyles.fontFamily,
+                            size: 14
+                        },
+                        padding: 12,
+                        cornerRadius: 8
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.1)'
+                        },
+                        ticks: {
+                            font: {
+                                family: chartStyles.fontFamily,
+                                size: 11
+                            },
+                            color: '#6B7280'
+                        }
+                    },
+                    x: {
+                        grid: {
+                            display: false
+                        },
+                        ticks: {
+                            font: {
+                                family: chartStyles.fontFamily,
+                                size: 11
+                            },
+                            color: '#6B7280'
+                        }
+                    }
+                },
+                animation: {
+                    duration: 2000,
+                    easing: 'easeOutQuart'
+                }
+            }
+        });
+    }
+
+    // 5. График уровней риска (Doughnut)
+    const riskLevelCtx = document.getElementById('riskLevelChart');
+    if (riskLevelCtx) {
+        new Chart(riskLevelCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Критический', 'Высокий', 'Средний', 'Низкий'],
+                datasets: [{
+                    data: [riskLevelData.critical, riskLevelData.high, riskLevelData.medium, riskLevelData.low],
+                    backgroundColor: [
+                        chartStyles.colors.red,
+                        chartStyles.colors.orange,
+                        chartStyles.colors.yellow,
+                        chartStyles.colors.green
+                    ],
+                    borderWidth: 0,
+                    hoverOffset: 15
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '65%',
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            font: {
+                                family: chartStyles.fontFamily,
+                                size: 12
+                            },
+                            padding: 20,
+                            usePointStyle: true,
+                            pointStyle: 'circle'
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                        titleFont: {
+                            family: chartStyles.fontFamily
+                        },
+                        bodyFont: {
+                            family: chartStyles.fontFamily
+                        }
+                    }
+                },
+                animation: {
+                    animateScale: true,
+                    animateRotate: true
+                }
+            }
+        });
+    }
+
+    // 6. График эффективности операторов (Line)
     const efficiencyCtx = document.getElementById('efficiencyChart');
     if (efficiencyCtx) {
         new Chart(efficiencyCtx, {
@@ -559,6 +745,34 @@ function updateAnalyticsCharts(analyticsData) {
     updateStatusChart(analyticsData.status_counts);
     updatePerformanceChart(analyticsData.operator_stats);
     updateEfficiencyChart(analyticsData.operator_stats);
+    
+    // Обновляем новые графики
+    if (analyticsData.cvss_distribution) {
+        const cvssCtx = document.getElementById('cvssChart');
+        if (cvssCtx && cvssCtx.chart) {
+            cvssCtx.chart.data.datasets[0].data = [
+                analyticsData.cvss_distribution['0-2'] || 0,
+                analyticsData.cvss_distribution['2-4'] || 0,
+                analyticsData.cvss_distribution['4-6'] || 0,
+                analyticsData.cvss_distribution['6-8'] || 0,
+                analyticsData.cvss_distribution['8-10'] || 0
+            ];
+            cvssCtx.chart.update();
+        }
+    }
+    
+    if (analyticsData.risk_levels) {
+        const riskLevelCtx = document.getElementById('riskLevelChart');
+        if (riskLevelCtx && riskLevelCtx.chart) {
+            riskLevelCtx.chart.data.datasets[0].data = [
+                analyticsData.risk_levels.critical || 0,
+                analyticsData.risk_levels.high || 0,
+                analyticsData.risk_levels.medium || 0,
+                analyticsData.risk_levels.low || 0
+            ];
+            riskLevelCtx.chart.update();
+        }
+    }
 
     // Обновляем метрики
     updateMetrics(analyticsData);
