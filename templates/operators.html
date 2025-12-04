@@ -64,12 +64,26 @@
                                 {{ vuln.title }}
                             </span>
                             <span class="px-1.5 py-0.5 rounded text-xs font-medium
-                                {% if vuln.severity == 'high' %}bg-red-100 text-red-800
-                                {% elif vuln.severity == 'medium' %}bg-yellow-100 text-yellow-800
-                                {% else %}bg-green-100 text-green-800{% endif %}">
-                                {% if vuln.severity == 'high' %}В
+                                {% if vuln.severity == 'critical' %}bg-red-600 text-white
+                                {% elif vuln.severity == 'high' %}bg-red-500 text-white
+                                {% elif vuln.severity == 'medium' %}bg-yellow-500 text-white
+                                {% else %}bg-green-500 text-white{% endif %}">
+                                {% if vuln.severity == 'critical' %}К
+                                {% elif vuln.severity == 'high' %}В
                                 {% elif vuln.severity == 'medium' %}С
                                 {% else %}Н{% endif %}
+                            </span>
+                            <span class="px-1.5 py-0.5 rounded text-xs font-medium
+                                {% if vuln.status == 'new' %}bg-blue-100 text-blue-800
+                                {% elif vuln.status == 'in_progress' %}bg-yellow-100 text-yellow-800
+                                {% elif vuln.status == 'completed' %}bg-green-100 text-green-800
+                                {% elif vuln.status == 'approved' %}bg-green-200 text-green-900
+                                {% else %}bg-gray-100 text-gray-800{% endif %}">
+                                {% if vuln.status == 'new' %}Н
+                                {% elif vuln.status == 'in_progress' %}Р
+                                {% elif vuln.status == 'completed' %}З
+                                {% elif vuln.status == 'approved' %}О
+                                {% else %}М{% endif %}
                             </span>
                         </div>
                         {% endfor %}

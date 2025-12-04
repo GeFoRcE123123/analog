@@ -54,15 +54,40 @@ class FastOSVParser:
 
         return session
 
-    def _request_with_delay(self, url, **kwargs):
-        """Добавляет случайные задержки между запросами"""
-        delay = random.uniform(1.0, 3.0)
-        time.sleep(delay)
-
+    def _request_with_delay(self, url, max_retries=5, **kwargs):
+        """Добавляет случайные задержки между запросами с экспоненциальной задержкой при 429"""
         if 'timeout' not in kwargs:
             kwargs['timeout'] = (10, 30)
-
-        return self.session.get(url, **kwargs)
+        
+        for attempt in range(max_retries):
+            # Базовая задержка между запросами
+            base_delay = random.uniform(2.0, 4.0)  # Увеличили базовую задержку
+            time.sleep(base_delay)
+            
+            try:
+                response = self.session.get(url, **kwargs)
+                
+                # Если получили 429, ждем экспоненциально больше
+                if response.status_code == 429:
+                    retry_after = int(response.headers.get('Retry-After', 60))
+                    wait_time = min(retry_after * (2 ** attempt), 300)  # Максимум 5 минут
+                    logger.warning(f"⏳ 429 Too Many Requests. Ждем {wait_time}с (попытка {attempt + 1}/{max_retries})")
+                    time.sleep(wait_time)
+                    continue
+                
+                response.raise_for_status()
+                return response
+                
+            except requests.exceptions.RequestException as e:
+                if attempt == max_retries - 1:
+                    logger.error(f"❌ Превышено количество попыток для {url}: {e}")
+                    raise
+                else:
+                    wait_time = (2 ** attempt) * random.uniform(3, 6)
+                    logger.warning(f"⚠️ Ошибка запроса (попытка {attempt + 1}/{max_retries}), ждем {wait_time:.1f}с")
+                    time.sleep(wait_time)
+        
+        raise Exception(f"Не удалось получить данные после {max_retries} попыток")
 
     def _load_ai_keywords(self) -> Dict[str, int]:
         """Расширенный список ключевых слов для AI/нейросетей"""
@@ -215,13 +240,13 @@ class FastOSVParser:
             return False
 
     def _parse_all_vulnerabilities(self, links: List[str]) -> List[Dict[str, Any]]:
-        """Параллельный парсинг ВСЕХ уязвимостей"""
+        """Последовательный парсинг для избежания rate limiting"""
         vulnerabilities = []
 
-        # Используем все доступные воркеры
-        max_concurrent = min(self.max_workers, len(links))
+        # УМЕНЬШАЕМ параллелизм для избежания 429 ошибок
+        max_concurrent = min(2, len(links))  # Максимум 2 потока одновременно
 
-        logger.info(f"⚡ Параллельная обработка {len(links)} уязвимостей с {max_concurrent} потоками")
+        logger.info(f"⚡ Обработка {len(links)} уязвимостей с {max_concurrent} потоками (rate-limited)")
 
         with ThreadPoolExecutor(max_workers=max_concurrent) as executor:
             # Запускаем ВСЕ задачи параллельно
