@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Мои назначенные уязвимости</h2>
+{% if vulnerabilities %}
+  <ul>
+  {% for vuln in vulnerabilities %}
+    <li>{{ vuln.title }} ({{ vuln.severity }})</li>
+  {% endfor %}
+  </ul>
+{% else %}
+  <p>У вас пока нет назначенных уязвимостей.</p>
+{% endif %}
+{% endblock %}

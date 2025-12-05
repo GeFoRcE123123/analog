@@ -223,6 +223,15 @@
 </div>
 
 <script>
+    window.appData = {
+  user: {
+    id: {{ session.get('user_id') | tojson }},
+    role: {{ session.get('role') | tojson }},
+    username: {{ session.get('username') | tojson }},
+    full_name: {{ session.get('full_name') | tojson }}
+  },
+  csrf_token: "{{ csrf_token() }}"  // если используете CSRF
+};
 // Функции для управления парсингом
 function startParsing() {
     const statusElement = document.getElementById('parsingStatus');
@@ -349,6 +358,29 @@ function updateVulnerabilitiesList(vulnerabilities) {
 // Запускаем при загрузке страницы
 document.addEventListener('DOMContentLoaded', function() {
     startLiveVulnerabilitiesUpdate();
+});
+
+    <script>
+document.addEventListener('DOMContentLoaded', function () {
+    // Проверяем статус парсинга при загрузке
+    fetch('/api/parsing-status')
+        .then(r => r.json())
+        .then(data => {
+            if (data.success && data.status.status === 'running') {
+                // Парсинг уже запущен — подключаем обновления
+                startLiveUpdates();
+            } else {
+                // Парсинг не запущен — скрываем прогресс-секции
+                document.getElementById('parsing-progress-section')?.classList.add('hidden');
+                document.getElementById('live-vulnerabilities-section')?.classList.add('hidden');
+            }
+        })
+        .catch(err => {
+            console.warn('Не удалось проверить статус парсинга:', err);
+            // На всякий случай скрываем секции
+            document.getElementById('parsing-progress-section')?.classList.add('hidden');
+            document.getElementById('live-vulnerabilities-section')?.classList.add('hidden');
+        });
 });
 </script>
 {% endblock %}

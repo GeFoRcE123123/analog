@@ -21,6 +21,7 @@ class Vulnerability:
     cvss_score: float = 0.0
     risk_level: str = 'medium'
     category: str = 'web'
+    cve_id: Optional[str] = None
 
     def mark_completed(self):
         self.status = 'completed'
