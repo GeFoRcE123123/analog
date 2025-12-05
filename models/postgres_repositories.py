@@ -294,7 +294,8 @@ class PostgresVulnerabilityRepository(VulnerabilityRepository):
                 modifications=db_row[9],
                 cvss_score=float(db_row[10]) if db_row[10] else 0.0,
                 risk_level=db_row[11],
-                category=db_row[12]
+                category=db_row[12],
+                cve_id=db_row[0]
             )
 
             # Добавляем NVD данные как атрибуты

@@ -28,6 +28,12 @@ from flask import stream_with_context
 # Для импорта Excel
 import pandas as pd
 from models.entities import Vulnerability
+from flask_wtf import CSRFProtect
+from services.forms import LoginForm
+
+
+
+
 # Настройка логирования
 logger = logging.getLogger(__name__)
 app = Flask(__name__)
@@ -36,7 +42,15 @@ app.secret_key = 'dev-secret-key'
 db_manager = DatabaseManager()
 db = db_manager.connection
 auth_service = AuthService()
+# Создайте экземпляр CSRFProtect
+csrf = CSRFProtect()
 
+# После создания app:
+app = Flask(__name__)
+app.secret_key = 'dev-secret-key'  # ← обязательно!
+
+# Инициализируйте CSRF
+csrf.init_app(app)
 # Проверка и создание таблиц авторизации
 result = db_manager.execute_query(
     "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'users')"
@@ -55,6 +69,7 @@ parser_service = ParserService()
 data_manager = DataManager()
 assignment_manager = AssignmentManager(data_manager)
 async_parser = AsyncParser()
+
 
 # === ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ===
 def get_vulnerabilities_with_operators(page: int = 1, per_page: int = 50,
@@ -123,8 +138,17 @@ def serialize_vulnerability(vuln):
     }
 
 # === ОСНОВНЫЕ МАРШРУТЫ ===
+
+@app.route('/')
+def index():
+    if 'user_id' in session:
+        return redirect(url_for('dashboard'))
+    return redirect(url_for('auth_login'))
+
 @app.route('/auth/login', methods=['GET', 'POST'])
 def auth_login():
+    form = LoginForm()
+
     if request.method == 'POST':
         email = request.form.get('email')
         password = request.form.get('password')
@@ -141,7 +165,7 @@ def auth_login():
             return redirect(url_for('dashboard'))
         else:
             flash('Неверный email или пароль', 'error')
-    return render_template('auth/login.html')
+    return render_template('auth/login.html', form=form)
 
 @app.route('/parsers')
 @login_required
@@ -153,13 +177,10 @@ def parsers_page():
         flash(f'Ошибка загрузки страницы парсеров: {str(e)}', 'error')
         return redirect(url_for('dashboard'))
 
-@app.route('/import-excel')
-@login_required
-@permission_required('upload_excel')
-def import_excel_page():
-    return render_template('import_excel.html')
+
 
 @app.route('/dashboard')
+@login_required
 def dashboard():
     """Главная страница - дашборд"""
     vulnerabilities, operators = get_vulnerabilities_with_operators_old()
@@ -168,6 +189,12 @@ def dashboard():
                            vulnerabilities=vulnerabilities,
                            operators=operators,
                            stats=stats)
+
+@app.route('/import-excel')
+@login_required
+@permission_required('upload_excel')
+def import_excel_page():
+    return render_template('import_excel.html')
 
 @app.route('/vulnerabilities')
 def vulnerabilities_list():
@@ -249,6 +276,12 @@ def review_vulnerabilities():
     """Страница проверки уязвимостей"""
     operators = operator_service.get_all_operators()
     return render_template('review.html', operators=operators)
+
+@app.route('/auth/logout')
+def auth_logout():
+    session.clear()  # или session.pop('user_id', None) — если хотите точечную очистку
+    flash('Вы успешно вышли из системы.', 'info')
+    return redirect(url_for('auth_login'))
 
 # === API МАРШРУТЫ ДЛЯ ПАРСИНГА С ПРОГРЕСС-БАРОМ ===
 @app.route('/api/start-parsing', methods=['POST'])
@@ -1081,6 +1114,20 @@ def html_parser_parse():
     except Exception as e:
         logger.error(f"HTML parser error: {e}")
         return jsonify({'success': False, 'message': str(e)})
+
+
+@app.route('/my_assignments')
+def my_assignments():
+    if 'user_id' not in session:
+        return redirect(url_for('auth_login'))
+
+    # Получаем ID текущего оператора (предполагается, что user_id == operator_id)
+    operator_id = session['user_id']
+
+    # Получаем уязвимости, назначенные этому оператору
+    assigned_vulns = vuln_service.get_vulnerabilities_by_operator(operator_id)
+
+    return render_template('my_assignments.html', vulnerabilities=assigned_vulns)
 
 @app.route('/api/vendors/sources', methods=['GET'])
 def vendors_sources():

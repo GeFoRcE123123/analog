@@ -213,6 +213,7 @@
         {% endwith %}
 
         <form method="POST" id="loginForm">
+            {{ form.csrf_token }}
             <div class="form-floating">
                 <i class="fas fa-envelope form-icon"></i>
                 <input type="email" class="form-control" id="email" name="email" placeholder="name@example.com" required autocomplete="username">

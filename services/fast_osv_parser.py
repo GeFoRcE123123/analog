@@ -545,6 +545,7 @@ def fast_parse_ai_vulnerabilities_with_status(progress_manager, on_vulnerability
                     category=analysis['category'],
                     created_date=datetime.now(),
                     status='new'
+
                 )
 
                 vulnerabilities.append(vulnerability)
