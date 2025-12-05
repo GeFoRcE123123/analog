@@ -50,11 +50,59 @@ class DatabaseManager:
             self.connection.rollback()
             raise e
 
+    # models/database.py → метод create_tables()
+
     def create_tables(self):
-        """Создать таблицы в БД"""
         try:
-            # Таблица операторов
-            operators_table = """
+            # Таблица пользователей
+            users_table = """
+            CREATE TABLE IF NOT EXISTS users (
+                id SERIAL PRIMARY KEY,
+                username VARCHAR(50) UNIQUE NOT NULL,
+                email VARCHAR(100) UNIQUE NOT NULL,
+                password_hash VARCHAR(255) NOT NULL,
+                role VARCHAR(20) CHECK (role IN ('admin', 'user')) DEFAULT 'user',
+                full_name VARCHAR(100),
+                department VARCHAR(100),
+                is_active BOOLEAN DEFAULT TRUE,
+                is_locked BOOLEAN DEFAULT FALSE,
+                locked_until TIMESTAMP,
+                failed_login_attempts INTEGER DEFAULT 0,
+                last_login TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            """
+
+            # Таблица назначений
+            assignments_table = """
+            CREATE TABLE IF NOT EXISTS user_vulnerability_assignments (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                vulnerability_id INTEGER REFERENCES vulnerabilities(id) ON DELETE CASCADE,
+                assigned_by INTEGER REFERENCES users(id),
+                assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                status VARCHAR(20) CHECK (status IN ('pending', 'in_progress', 'completed', 'rejected')) DEFAULT 'pending',
+                due_date TIMESTAMP,
+                completed_at TIMESTAMP,
+                notes TEXT
+            );
+            """
+
+            # Таблица аудита входа
+            login_attempts_table = """
+            CREATE TABLE IF NOT EXISTS login_attempts (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id),
+                ip_address INET,
+                user_agent TEXT,
+                success BOOLEAN,
+                attempted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            """
+
+            # И уже существующие таблицы
+            operators = """
             CREATE TABLE IF NOT EXISTS operators (
                 id SERIAL PRIMARY KEY,
                 name VARCHAR(200) NOT NULL,
@@ -62,11 +110,10 @@ class DatabaseManager:
                 experience_level DECIMAL(5,2) DEFAULT 50.0,
                 current_metric DECIMAL(5,2) DEFAULT 50.0,
                 last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
+            );
             """
 
-            # Таблица уязвимостей
-            vulnerabilities_table = """
+            vulnerabilities = """
             CREATE TABLE IF NOT EXISTS vulnerabilities (
                 id SERIAL PRIMARY KEY,
                 title VARCHAR(500) NOT NULL,
@@ -81,15 +128,29 @@ class DatabaseManager:
                 cvss_score DECIMAL(3,1) DEFAULT 0.0,
                 risk_level VARCHAR(50) DEFAULT 'medium',
                 category VARCHAR(100) DEFAULT 'web'
-            )
+            );
             """
 
-            self.execute_query(operators_table)
-            self.execute_query(vulnerabilities_table)
-            print("Tables created successfully")
+            # Выполняем в правильном порядке
+            self.execute_query(users_table)
+            self.execute_query(operators)
+            self.execute_query(vulnerabilities)
+            self.execute_query(assignments_table)
+            self.execute_query(login_attempts_table)
 
+            # Индексы
+            self.execute_query("CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)")
+            self.execute_query("CREATE INDEX IF NOT EXISTS idx_users_role ON users(role)")
+            self.execute_query(
+                "CREATE INDEX IF NOT EXISTS idx_assignments_user ON user_vulnerability_assignments(user_id)")
+            self.execute_query(
+                "CREATE INDEX IF NOT EXISTS idx_assignments_vuln ON user_vulnerability_assignments(vulnerability_id)")
+            self.execute_query("CREATE INDEX IF NOT EXISTS idx_login_attempts_user ON login_attempts(user_id)")
+            self.execute_query("CREATE INDEX IF NOT EXISTS idx_login_attempts_time ON login_attempts(attempted_at)")
+
+            print("✅ Все таблицы авторизации успешно созданы")
         except Exception as e:
-            print(f"Error creating tables: {e}")
+            print(f"❌ Ошибка создания таблиц: {e}")
             raise
 
     def seed_initial_data(self):
