@@ -631,6 +631,16 @@ class PostgresVulnerabilityRepository:
             self.connection.rollback()
             return False
 
+    def get_vulnerabilities_by_operator(self, operator_id: int) -> List[Vulnerability]:
+        """Получить уязвимости по ID оператора"""
+        query = """
+            SELECT * FROM vulnerabilities 
+            WHERE assigned_operator = %s 
+            ORDER BY created_date DESC
+        """
+        rows = self.db_manager.execute_query(query, (operator_id,))
+        return [self._row_to_vulnerability(row) for row in rows]
+
     def update(self, vulnerability: Vulnerability) -> bool:
         query = """
         UPDATE vulnerabilities 

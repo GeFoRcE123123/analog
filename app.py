@@ -182,13 +182,26 @@ def parsers_page():
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    """Главная страница - дашборд"""
+    # Получаем уязвимости и операторов
     vulnerabilities, operators = get_vulnerabilities_with_operators_old()
     stats = get_dashboard_stats()
+
+    # Если пользователь — обычный юзер, получаем его назначенные уязвимости
+    my_vulnerabilities = []
+    if session['role'] == 'user':
+        my_vulnerabilities = vuln_service.get_vulnerabilities_by_operator(session['user_id'])
+
     return render_template('dashboard.html',
                            vulnerabilities=vulnerabilities,
                            operators=operators,
-                           stats=stats)
+                           stats=stats,
+                           my_vulnerabilities=my_vulnerabilities)
+@app.route('/profile')
+@login_required
+def profile():
+    operator_id = session['user_id']
+    assigned_vulns = vuln_service.get_vulnerabilities_by_operator(operator_id)
+    return render_template('profile.html', vulnerabilities=assigned_vulns)
 
 @app.route('/import-excel')
 @login_required
@@ -923,19 +936,20 @@ def create_operator():
         flash(f'Ошибка при создании оператора: {str(e)}', 'error')
     return redirect(url_for('operators_page'))
 
+
 @app.route('/assign-vulnerabilities', methods=['POST'])
 def assign_vulnerabilities():
     data = request.get_json()
     operator_id = data.get('operator_id')
     vulnerability_ids = data.get('vulnerability_ids', [])
+
     print(f"Assigning vulnerabilities {vulnerability_ids} to operator {operator_id}")
     success = operator_service.assign_vulnerabilities(operator_id, vulnerability_ids)
+
     if success:
-        print(f"Successfully assigned {len(vulnerability_ids)} vulnerabilities to operator {operator_id}")
-        return jsonify({'success': True, 'assigned': len(vulnerability_ids)})
+        return jsonify({'success': True})
     else:
-        print(f"Failed to assign vulnerabilities to operator {operator_id}")
-        return jsonify({'success': False, 'message': 'Failed to assign vulnerabilities'})
+        return jsonify({'success': False, 'error': 'Ошибка назначения'})
 
 @app.route('/api/live-vulnerabilities')
 def live_vulnerabilities():
