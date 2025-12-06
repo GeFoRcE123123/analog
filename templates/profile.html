@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <div class="flex justify-between items-center mb-6">
+        <h1 class="text-2xl font-bold text-gray-800">Мой профиль</h1>
+        <a href="{{ url_for('dashboard') }}" class="text-blue-600 hover:text-blue-800 text-sm font-medium">
+            <i class="fas fa-arrow-left mr-1"></i> Назад на дашборд
+        </a>
+    </div>
+
+    <!-- Карточка профиля -->
+    <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
+        <div class="flex items-center space-x-4">
+            <div class="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                <i class="fas fa-user text-blue-600 text-xl"></i>
+            </div>
+            <div>
+                <h2 class="text-xl font-semibold text-gray-800">{{ session.full_name or session.username }}</h2>
+                <p class="text-gray-600">Роль: <span class="font-semibold {% if session.role == 'admin' %}text-red-600{% else %}text-green-600{% endif %}">
+                    {{ session.role|upper }}
+                </span></p>
+                <p class="text-gray-500">Email: {{ session.email }}</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Статистика -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <!-- Назначено уязвимостей -->
+        <div class="bg-gradient-to-r from-blue-500 to-indigo-600 rounded-xl shadow-lg p-6 text-white hover:shadow-xl transition-all duration-300 transform hover:scale-105">
+            <h3 class="text-lg font-semibold mb-2">Назначено</h3>
+            <p class="text-2xl font-bold">{{ vulnerabilities|length }}</p>
+            <p class="text-blue-100">уязвимостей</p>
+        </div>
+
+        <!-- В процессе -->
+        <div class="bg-gradient-to-r from-yellow-500 to-amber-600 rounded-xl shadow-lg p-6 text-white hover:shadow-xl transition-all duration-300 transform hover:scale-105">
+            <h3 class="text-lg font-semibold mb-2">В процессе</h3>
+            <p class="text-2xl font-bold">{{ vulnerabilities|selectattr('status', '==', 'in_progress')|list|length }}</p>
+            <p class="text-yellow-100">уязвимостей</p>
+        </div>
+
+        <!-- Завершено -->
+        <div class="bg-gradient-to-r from-green-500 to-emerald-600 rounded-xl shadow-lg p-6 text-white hover:shadow-xl transition-all duration-300 transform hover:scale-105">
+            <h3 class="text-lg font-semibold mb-2">Завершено</h3>
+            <p class="text-2xl font-bold">{{ vulnerabilities|selectattr('status', '==', 'completed')|list|length }}</p>
+            <p class="text-green-100">уязвимостей</p>
+        </div>
+    </div>
+
+    <!-- Список уязвимостей -->
+    <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h2 class="text-lg font-semibold text-gray-800">Мои уязвимости</h2>
+        </div>
+        <div class="p-6">
+            {% if vulnerabilities %}
+            <div class="space-y-4">
+                {% for vuln in vulnerabilities %}
+                <a href="{{ url_for('vulnerabilities_list') }}#vuln-{{ vuln.id }}"
+                   class="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition duration-300 transform hover:scale-102 group">
+                    <div class="flex items-center space-x-4">
+                        <div class="flex-shrink-0">
+                            <span class="px-2 py-1 text-xs font-semibold rounded-full
+                                {% if vuln.severity == 'critical' %}bg-red-600 text-white
+                                {% elif vuln.severity == 'high' %}bg-red-500 text-white
+                                {% elif vuln.severity == 'medium' %}bg-yellow-500 text-white
+                                {% else %}bg-green-500 text-white{% endif %}">
+                                {{ vuln.severity|upper }}
+                            </span>
+                        </div>
+                        <div>
+                            <h3 class="text-sm font-medium text-gray-900 group-hover:text-blue-600 transition duration-300">{{ vuln.title }}</h3>
+                            <p class="text-sm text-gray-500 truncate max-w-md">{{ vuln.description }}</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <span class="px-2 py-1 text-xs font-semibold rounded-full
+                            {% if vuln.status == 'new' %}bg-blue-100 text-blue-800
+                            {% elif vuln.status == 'in_progress' %}bg-yellow-100 text-yellow-800
+                            {% elif vuln.status == 'completed' %}bg-green-100 text-green-800
+                            {% elif vuln.status == 'approved' %}bg-green-200 text-green-900
+                            {% else %}bg-gray-100 text-gray-800{% endif %}">
+                            {{ vuln.status }}
+                        </span>
+                        <span class="text-sm text-gray-500">CVSS: {{ vuln.cvss_score }}</span>
+                        <i class="fas fa-chevron-right text-gray-400 group-hover:text-blue-600 transition duration-300"></i>
+                    </div>
+                </a>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="text-center py-8">
+                <i class="fas fa-folder-open text-gray-300 text-4xl mb-4"></i>
+                <p class="text-gray-500">У вас нет назначенных уязвимостей</p>
+                <span class="text-sm text-gray-400">Обратитесь к администратору для назначения</span>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

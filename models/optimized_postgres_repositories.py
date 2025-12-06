@@ -10,7 +10,7 @@ class OptimizedPostgresVulnerabilityRepository:
     
     def __init__(self):
         self.db_manager = optimized_db_manager
-    
+
     def get_by_id(self, vuln_id: int) -> Optional[Vulnerability]:
         # Проверяем кэш сначала
         cache_key = f"vuln:id:{vuln_id}"
@@ -61,6 +61,17 @@ class OptimizedPostgresVulnerabilityRepository:
         except Exception as e:
             logger.error(f"Error getting all vulnerabilities: {e}")
             return []
+
+    def get_vulnerabilities_by_operator(self, operator_id: int) -> List[Vulnerability]:
+        """Получить уязвимости по ID оператора"""
+        query = """
+            SELECT * FROM vulnerabilities 
+            WHERE assigned_operator = %s 
+            ORDER BY created_date DESC
+        """
+        rows = self.db_manager.execute_query(query, (operator_id,))
+        return [self._row_to_vulnerability(row) for row in rows]
+
 
     def get_all_unlimited(self) -> List[Vulnerability]:
         """Получить все уязвимости без ограничений (для аналитики)"""
