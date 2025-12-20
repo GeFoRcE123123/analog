@@ -1,4 +1,4 @@
-version: '3.8'
+# version больше не нужен в новых версиях docker compose
 
 services:
   postgres:

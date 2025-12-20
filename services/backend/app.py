@@ -1,9 +1,9 @@
 """
 Backend API сервис для Vulnerability Manager
 VM: 10.0.88.20
-Только API маршруты, без render_template
+API маршруты + рендеринг HTML страниц
 """
-from flask import Flask, request, jsonify, Response, session
+from flask import Flask, request, jsonify, Response, session, render_template, redirect, url_for, flash
 from flask_cors import CORS
 import json
 import time
@@ -32,17 +32,22 @@ from models.postgres_repositories import PostgresVulnerabilityRepository
 from models.legacy_repositories import LegacyVulnerabilityRepository
 from config import Config
 from flask import stream_with_context
+from utils.decorators import login_required, admin_required
+from flask_wtf import CSRFProtect
 
 # Настройка логирования
 logging.basicConfig(level=getattr(logging, Config.LOG_LEVEL))
 logger = logging.getLogger(__name__)
 
 # Создание Flask приложения
-app = Flask(__name__)
+app = Flask(__name__, template_folder='templates', static_folder='static')
 app.secret_key = Config.SECRET_KEY
 
 # CORS для работы с frontend
 CORS(app, origins=[Config.FRONTEND_URL], supports_credentials=True)
+
+# CSRF защита
+csrf = CSRFProtect(app)
 
 # Подключение к БД
 db_manager = DatabaseManager()
@@ -70,7 +75,8 @@ else:
 
 # Инициализация сервисов
 auth_service = AuthService()
-vuln_service = VulnerabilityService(use_optimized=True)
+# Используем стандартный репозиторий (не optimized), так как optimized_postgres_repositories требует psycopg2
+vuln_service = VulnerabilityService(use_optimized=False)
 operator_service = OperatorService()
 export_service = ExportService()
 data_manager = DataManager()
@@ -94,11 +100,15 @@ def get_vulnerabilities_with_operators(page: int = 1, per_page: int = 50,
     return vulnerabilities, operators, total_count
 
 
-def get_dashboard_stats():
-    """Получить статистику для дашборда"""
+def get_vulnerabilities_with_operators_old():
+    """Получить уязвимости с операторами (старый API)"""
     vulnerabilities = vuln_service.get_all_vulnerabilities()
     operators = operator_service.get_all_operators()
-    
+    return vulnerabilities, operators
+
+def get_dashboard_stats():
+    """Получить статистику для дашборда"""
+    vulnerabilities, operators = get_vulnerabilities_with_operators_old()
     return {
         'total_vulnerabilities': len(vulnerabilities),
         'high_risk': len([v for v in vulnerabilities if v.severity == 'high']),
@@ -107,6 +117,25 @@ def get_dashboard_stats():
         'active_operators': len(operators),
         'total_operators': len(operators)
     }
+
+def get_analytics_data():
+    """Получить данные для аналитики"""
+    from services.analytics_service import analytics_service
+    analytics_data = analytics_service.get_analytics_data()
+    vulnerabilities, operators = get_vulnerabilities_with_operators_old()
+    result = {
+        'vulnerabilities': vulnerabilities,
+        'operators': operators,
+        'severity_counts': analytics_data.get('severity_counts', {}),
+        'status_counts': analytics_data.get('status_counts', {}),
+        'total_vulnerabilities': analytics_data.get('total_vulnerabilities', 0),
+        'active_operators': analytics_data.get('active_operators', 0),
+        'completed_vulnerabilities': analytics_data.get('completed_vulnerabilities', 0),
+        'avg_performance': analytics_data.get('avg_performance', 0),
+        'cvss_distribution': analytics_data.get('cvss_distribution', {}),
+        'risk_levels': analytics_data.get('risk_levels', {})
+    }
+    return result
 
 
 def serialize_vulnerability(vuln):
@@ -126,6 +155,169 @@ def serialize_vulnerability(vuln):
         'category': vuln.category,
         'assigned_operator': operator_name
     }
+
+
+# === HTML МАРШРУТЫ ДЛЯ РЕНДЕРИНГА СТРАНИЦ ===
+
+@app.route('/')
+def index():
+    """Главная страница"""
+    if 'user_id' in session:
+        return redirect(url_for('dashboard'))
+    return redirect(url_for('auth_login'))
+
+@app.route('/auth/login', methods=['GET', 'POST'])
+def auth_login():
+    """Страница входа"""
+    from services.forms import LoginForm
+    form = LoginForm()
+    
+    if request.method == 'POST':
+        email = request.form.get('email')
+        password = request.form.get('password')
+        ip = request.remote_addr
+        user_agent = request.headers.get('User-Agent', '')
+        
+        user = auth_service.authenticate(email, password, ip, user_agent)
+        if user:
+            session['user_id'] = user['id']
+            session['role'] = user['role']
+            session['username'] = user['username']
+            session['email'] = user['email']
+            session['full_name'] = user.get('full_name') or user['username']
+            session.permanent = True
+            return redirect(url_for('dashboard'))
+        else:
+            flash('Неверный email или пароль', 'error')
+    
+    return render_template('auth/login.html', form=form)
+
+@app.route('/dashboard')
+@login_required
+def dashboard():
+    """Страница дашборда"""
+    vulnerabilities, operators = get_vulnerabilities_with_operators_old()
+    stats = get_dashboard_stats()
+    
+    my_vulnerabilities = []
+    if session.get('role') == 'user':
+        my_vulnerabilities = vuln_service.get_vulnerabilities_by_operator(session['user_id'])
+    
+    return render_template('dashboard.html',
+                           vulnerabilities=vulnerabilities,
+                           operators=operators,
+                           stats=stats,
+                           my_vulnerabilities=my_vulnerabilities)
+
+@app.route('/profile')
+@login_required
+def profile():
+    """Страница профиля"""
+    operator_id = session['user_id']
+    assigned_vulns = vuln_service.get_vulnerabilities_by_operator(operator_id)
+    return render_template('profile.html', vulnerabilities=assigned_vulns)
+
+@app.route('/vulnerabilities')
+@login_required
+def vulnerabilities_list():
+    """Страница со всеми уязвимостями"""
+    page = int(request.args.get('page', 1))
+    per_page = int(request.args.get('per_page', 50))
+    status = request.args.get('status', None)
+    severity = request.args.get('severity', None)
+    search = request.args.get('search', None)
+    
+    vulnerabilities, operators, total_count = get_vulnerabilities_with_operators(
+        page=page, per_page=per_page,
+        status=status, severity=severity, search=search
+    )
+    total_pages = (total_count + per_page - 1) // per_page
+    
+    return render_template('vulnerabilities_list.html',
+                           vulnerabilities=vulnerabilities,
+                           operators=operators,
+                           current_page=page,
+                           total_pages=total_pages,
+                           total_count=total_count,
+                           per_page=per_page,
+                           status=status,
+                           severity=severity,
+                           search=search)
+
+@app.route('/operators')
+@login_required
+@admin_required
+def operators_page():
+    """Страница операторов"""
+    vulnerabilities, operators = get_vulnerabilities_with_operators_old()
+    return render_template('operators.html',
+                           vulnerabilities=vulnerabilities,
+                           operators=operators)
+
+@app.route('/admin/users')
+@login_required
+@admin_required
+def admin_users():
+    """Страница управления пользователями"""
+    query = "SELECT id, username, email, role, is_active, created_at FROM users ORDER BY created_at DESC"
+    users = db_manager.execute_query(query)
+    users_list = []
+    for row in users:
+        users_list.append({
+            'id': row[0],
+            'username': row[1],
+            'email': row[2],
+            'role': row[3],
+            'is_active': row[4],
+            'created_at': row[5].strftime('%Y-%m-%d %H:%M') if row[5] else ''
+        })
+    return render_template('admin/users.html', users=users_list)
+
+@app.route('/performance')
+@login_required
+def performance_analytics():
+    """Страница аналитики"""
+    try:
+        analytics_data = get_analytics_data()
+        return render_template('performance_analytics.html', **analytics_data)
+    except Exception as e:
+        flash(f'Ошибка при загрузке аналитики: {str(e)}', 'error')
+        return redirect(url_for('dashboard'))
+
+@app.route('/review')
+@login_required
+@admin_required
+def review_vulnerabilities():
+    """Страница проверки уязвимостей"""
+    operators = operator_service.get_all_operators()
+    return render_template('review.html', operators=operators)
+
+@app.route('/import-excel')
+@login_required
+def import_excel_page():
+    """Страница импорта Excel"""
+    return render_template('import_excel.html')
+
+@app.route('/parsers')
+@login_required
+@admin_required
+def parsers_page():
+    """Страница парсеров"""
+    return render_template('parsers.html')
+
+@app.route('/my-assignments')
+@login_required
+def my_assignments():
+    """Мои назначения"""
+    assigned_vulns = vuln_service.get_vulnerabilities_by_operator(session['user_id'])
+    return render_template('my_assignments.html', vulnerabilities=assigned_vulns)
+
+@app.route('/auth/logout')
+def auth_logout():
+    """Выход из системы"""
+    session.clear()
+    flash('Вы успешно вышли из системы.', 'info')
+    return redirect(url_for('auth_login'))
 
 
 # === API МАРШРУТЫ ДЛЯ АВТОРИЗАЦИИ ===
