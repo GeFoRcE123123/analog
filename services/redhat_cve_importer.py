@@ -7,6 +7,7 @@ from config import Config
 from models.database import DatabaseManager
 from models.entities import Vulnerability
 from models.postgres_repositories import PostgresVulnerabilityRepository
+from models.legacy_repositories import LegacyVulnerabilityRepository
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
@@ -19,7 +20,11 @@ class RedHatCVEImporter:
     def __init__(self):
         self.base_url = "https://access.redhat.com/hydra/rest/securitydata"
         self.db_manager = DatabaseManager()
-        self.vuln_repo = PostgresVulnerabilityRepository(self.db_manager.connection)
+        # Используем legacy или modern репозиторий в зависимости от конфигурации
+        if Config.USE_LEGACY_SCHEMA:
+            self.vuln_repo = LegacyVulnerabilityRepository(self.db_manager.connection)
+        else:
+            self.vuln_repo = PostgresVulnerabilityRepository(self.db_manager.connection)
 
     def fetch_cves(self, page: int = 1, per_page: int = 100,
                    severity: Optional[str] = None,
@@ -176,8 +181,11 @@ class RedHatCVEImporter:
             # Создаем объект Vulnerability из NVD данных
             vulnerability = self._create_vulnerability_from_nvd(nvd_vuln)
 
-            # Сохраняем через стандартный метод add
-            return self.vuln_repo.add(vulnerability)
+            # Сохраняем через соответствующий метод (legacy или modern)
+            if Config.USE_LEGACY_SCHEMA:
+                return self.vuln_repo.save_vulnerability(vulnerability)
+            else:
+                return self.vuln_repo.add(vulnerability)
 
         except Exception as e:
             logger.error(f"Error saving NVD vulnerability {nvd_vuln.get('cve_id', 'unknown')}: {e}")
@@ -268,8 +276,11 @@ class RedHatCVEImporter:
         Проверить существует ли CVE в БД
         """
         try:
-            # Проверяем напрямую через SQL запрос
-            query = "SELECT 1 FROM vulnerabilities WHERE cve_id = %s LIMIT 1"
+            # Проверяем напрямую через SQL запрос (legacy или modern схема)
+            if Config.USE_LEGACY_SCHEMA:
+                query = "SELECT 1 FROM turn WHERE cve = %s LIMIT 1"
+            else:
+                query = "SELECT 1 FROM vulnerabilities WHERE cve_id = %s LIMIT 1"
             with self.db_manager.connection.cursor() as cursor:
                 cursor.execute(query, (cve_id,))
                 return cursor.fetchone() is not None
