@@ -13,7 +13,8 @@ import sys
 import os
 
 # Добавляем путь к корню проекта для импортов
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, project_root)
 
 from services.parsing_manager import AsyncParser, ParsingProgressManager
 from services.nvd_integration_service import NVDIntegrationService
@@ -21,9 +22,6 @@ from services.nvd_scheduler import NVDScheduler
 from services.redhat_cve_importer import RedHatCVEImporter
 from models.database import DatabaseManager
 from models.legacy_repositories import LegacyVulnerabilityRepository
-
-# Импортируем config из локальной директории
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from config import Config
 
 # Настройка логирования

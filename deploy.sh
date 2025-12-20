@@ -57,17 +57,23 @@ if [ "$DEPLOY_TARGET" == "backend" ] || [ "$DEPLOY_TARGET" == "all" ]; then
     echo "----------------------------------------"
     
     # Создаем временную директорию с нужными файлами
-    mkdir -p /tmp/backend_deploy
+    mkdir -p /tmp/backend_deploy/{models,services,utils}
     cp -r services/backend/* /tmp/backend_deploy/
-    cp -r models /tmp/backend_deploy/
-    cp -r services/vulnerability_service.py /tmp/backend_deploy/services/ 2>/dev/null || true
-    cp -r services/operator_service.py /tmp/backend_deploy/services/ 2>/dev/null || true
-    cp -r services/export_service.py /tmp/backend_deploy/services/ 2>/dev/null || true
-    cp -r services/assignment_manager.py /tmp/backend_deploy/services/ 2>/dev/null || true
-    cp -r services/data_manager.py /tmp/backend_deploy/services/ 2>/dev/null || true
-    cp -r services/analytics_service.py /tmp/backend_deploy/services/ 2>/dev/null || true
-    cp -r services/auth_service.py /tmp/backend_deploy/services/ 2>/dev/null || true
-    cp -r utils /tmp/backend_deploy/ 2>/dev/null || true
+    cp config.py /tmp/backend_deploy/  # Копируем основной config.py
+    cp -r models/* /tmp/backend_deploy/models/
+    # Копируем только нужные сервисы (без парсеров)
+    cp services/vulnerability_service.py /tmp/backend_deploy/services/ 2>/dev/null || true
+    cp services/operator_service.py /tmp/backend_deploy/services/ 2>/dev/null || true
+    cp services/export_service.py /tmp/backend_deploy/services/ 2>/dev/null || true
+    cp services/assignment_manager.py /tmp/backend_deploy/services/ 2>/dev/null || true
+    cp services/data_manager.py /tmp/backend_deploy/services/ 2>/dev/null || true
+    cp services/analytics_service.py /tmp/backend_deploy/services/ 2>/dev/null || true
+    cp services/auth_service.py /tmp/backend_deploy/services/ 2>/dev/null || true
+    cp services/forms.py /tmp/backend_deploy/services/ 2>/dev/null || true
+    # Копируем utils если есть
+    if [ -d "utils" ]; then
+        cp -r utils/* /tmp/backend_deploy/utils/ 2>/dev/null || true
+    fi
     
     copy_files "$BACKEND_IP" "/tmp/backend_deploy/" "~/vulnerability_manager/backend/"
     
@@ -102,15 +108,19 @@ if [ "$DEPLOY_TARGET" == "parsers" ] || [ "$DEPLOY_TARGET" == "all" ]; then
     echo "🤖 Развертывание Parsers на $PARSERS_IP"
     echo "----------------------------------------"
     
-    mkdir -p /tmp/parsers_deploy
+    mkdir -p /tmp/parsers_deploy/{models,services}
     cp -r services/parsers/* /tmp/parsers_deploy/
-    cp -r services/parsing_manager.py /tmp/parsers_deploy/services/ 2>/dev/null || true
-    cp -r services/nvd_integration_service.py /tmp/parsers_deploy/services/ 2>/dev/null || true
-    cp -r services/nvd_parser.py /tmp/parsers_deploy/services/ 2>/dev/null || true
-    cp -r services/nvd_scheduler.py /tmp/parsers_deploy/services/ 2>/dev/null || true
-    cp -r services/redhat_cve_importer.py /tmp/parsers_deploy/services/ 2>/dev/null || true
-    cp -r services/osv_parser.py /tmp/parsers_deploy/services/ 2>/dev/null || true
-    cp -r models /tmp/parsers_deploy/
+    cp config.py /tmp/parsers_deploy/  # Копируем основной config.py
+    # Копируем только парсеры
+    cp services/parsing_manager.py /tmp/parsers_deploy/services/ 2>/dev/null || true
+    cp services/nvd_integration_service.py /tmp/parsers_deploy/services/ 2>/dev/null || true
+    cp services/nvd_parser.py /tmp/parsers_deploy/services/ 2>/dev/null || true
+    cp services/nvd_scheduler.py /tmp/parsers_deploy/services/ 2>/dev/null || true
+    cp services/redhat_cve_importer.py /tmp/parsers_deploy/services/ 2>/dev/null || true
+    cp services/osv_parser.py /tmp/parsers_deploy/services/ 2>/dev/null || true
+    cp services/fast_osv_parser.py /tmp/parsers_deploy/services/ 2>/dev/null || true
+    # Копируем models
+    cp -r models/* /tmp/parsers_deploy/models/
     
     copy_files "$PARSERS_IP" "/tmp/parsers_deploy/" "~/vulnerability_manager/parsers/"
     
