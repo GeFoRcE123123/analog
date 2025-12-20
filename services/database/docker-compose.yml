@@ -19,17 +19,10 @@ services:
       -c listen_addresses='*'
       -c max_connections=200
       -c shared_buffers=256MB
-    networks:
-      - vuln_network
     restart: unless-stopped
+    # Используем стандартную Docker bridge сеть (не создаем кастомную)
+    # Это избежит конфликта с реальным шлюзом 10.0.88.1
 
 volumes:
   postgres_data:
-
-networks:
-  vuln_network:
-    driver: bridge
-    ipam:
-      config:
-        - subnet: 10.0.88.0/24
 

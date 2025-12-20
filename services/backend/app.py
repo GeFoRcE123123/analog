@@ -50,20 +50,16 @@ CORS(app, origins=[Config.FRONTEND_URL], supports_credentials=True)
 csrf = CSRFProtect(app)
 
 # Подключение к БД
+# DatabaseManager автоматически подключается при создании (singleton pattern)
 db_manager = DatabaseManager()
-db_manager.configure(
-    host=Config.DATABASE_CONFIG.host,
-    port=Config.DATABASE_CONFIG.port,
-    database=Config.DATABASE_CONFIG.database,
-    username=Config.DATABASE_CONFIG.username,
-    password=Config.DATABASE_CONFIG.password
-)
+db = db_manager.connection
 
-if not db_manager.connect():
+# Проверка подключения
+if db is None or db.closed:
     logger.error("Не удалось подключиться к базе данных")
     raise ConnectionError("Database connection failed")
-
-db = db_manager.connection
+    
+logger.info("✅ Подключение к базе данных установлено")
 
 # Создаем репозиторий
 if Config.USE_LEGACY_SCHEMA:
@@ -227,6 +223,13 @@ def vulnerabilities_list():
     severity = request.args.get('severity', None)
     search = request.args.get('search', None)
     
+    # Поддержка параметра filter для обратной совместимости
+    filter_param = request.args.get('filter', None)
+    if filter_param == 'high':
+        severity = 'high'
+    elif filter_param == 'new':
+        status = 'new'
+    
     vulnerabilities, operators, total_count = get_vulnerabilities_with_operators(
         page=page, per_page=per_page,
         status=status, severity=severity, search=search
@@ -311,6 +314,61 @@ def my_assignments():
     """Мои назначения"""
     assigned_vulns = vuln_service.get_vulnerabilities_by_operator(session['user_id'])
     return render_template('my_assignments.html', vulnerabilities=assigned_vulns)
+
+@app.route('/create-operator', methods=['POST'])
+@login_required
+@admin_required
+def create_operator():
+    """Создать оператора через форму"""
+    try:
+        name = request.form.get('name')
+        email = request.form.get('email')
+        experience_level = float(request.form.get('experience_level', 50.0))
+        
+        if not name or not email:
+            flash('Имя и email обязательны', 'error')
+            return redirect(url_for('operators_page'))
+        
+        new_operator = operator_service.create_operator(name, email, experience_level)
+        flash(f'Оператор {new_operator.name} успешно создан', 'success')
+    except Exception as e:
+        logger.error(f"Error creating operator: {e}")
+        flash(f'Ошибка при создании оператора: {str(e)}', 'error')
+    
+    return redirect(url_for('operators_page'))
+
+@app.route('/export/operator-vulnerabilities', methods=['POST'])
+@login_required
+@admin_required
+def export_operator_vulnerabilities():
+    """Экспорт всех операторов с уязвимостями"""
+    try:
+        operators = operator_service.get_all_operators()
+        filename = export_service.export_operator_vulnerabilities(operators)
+        flash(f'Отчет экспортирован: {filename}', 'success')
+    except Exception as e:
+        logger.error(f"Error exporting operator vulnerabilities: {e}")
+        flash(f'Ошибка при экспорте: {str(e)}', 'error')
+    
+    return redirect(url_for('operators_page'))
+
+@app.route('/export/operator/<int:operator_id>', methods=['POST'])
+@login_required
+@admin_required
+def export_single_operator(operator_id):
+    """Экспорт уязвимостей одного оператора"""
+    try:
+        operator = operator_service.get_operator_by_id(operator_id)
+        if operator:
+            filename = export_service.export_single_operator_vulnerabilities(operator)
+            flash(f'Уязвимости оператора {operator.name} экспортированы: {filename}', 'success')
+        else:
+            flash('Оператор не найден', 'error')
+    except Exception as e:
+        logger.error(f"Error exporting single operator: {e}")
+        flash(f'Ошибка при экспорте: {str(e)}', 'error')
+    
+    return redirect(url_for('operators_page'))
 
 @app.route('/auth/logout')
 def auth_logout():
@@ -598,7 +656,14 @@ def api_health():
     """Проверка здоровья сервиса"""
     try:
         # Проверка подключения к БД
-        db_status = db_manager.is_connected()
+        db_status = db is not None and not db.closed if db else False
+        if db_status:
+            # Проверяем реальное подключение через простой запрос
+            try:
+                db_manager.execute_query("SELECT 1")
+                db_status = True
+            except Exception:
+                db_status = False
         
         return jsonify({
             'status': 'healthy' if db_status else 'degraded',

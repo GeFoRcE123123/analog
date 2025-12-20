@@ -540,8 +540,8 @@
     });
     // Функция для обновления счетчиков на дашборде
     function updateDashboardCounters(vulnerabilities) {
-        // Обновляем общее количество уязвимостей
-        const totalVulns = document.querySelector('[href="/vulnerabilities"]');
+        // Обновляем общее количество уязвимостей - используем более гибкий селектор
+        const totalVulns = document.querySelector('a[href*="/vulnerabilities"]:not([href*="filter"])');
         if (totalVulns) {
             const countElement = totalVulns.querySelector('.text-2xl');
             if (countElement) {
@@ -550,7 +550,7 @@
         }
 
         // Обновляем новые уязвимости
-        const newVulns = document.querySelector('[href="/vulnerabilities?filter=new"]');
+        const newVulns = document.querySelector('a[href*="/vulnerabilities"][href*="filter=new"]');
         if (newVulns) {
             const countElement = newVulns.querySelector('.text-2xl');
             if (countElement) {
@@ -560,7 +560,7 @@
         }
 
         // Обновляем высокий риск
-        const highRisk = document.querySelector('[href="/vulnerabilities?filter=high"]');
+        const highRisk = document.querySelector('a[href*="/vulnerabilities"][href*="filter=high"]');
         if (highRisk) {
             const countElement = highRisk.querySelector('.text-2xl');
             if (countElement) {
