@@ -634,12 +634,21 @@ class PostgresVulnerabilityRepository:
     def get_vulnerabilities_by_operator(self, operator_id: int) -> List[Vulnerability]:
         """Получить уязвимости по ID оператора"""
         query = """
-            SELECT * FROM vulnerabilities 
+            SELECT id, title, description, severity, status, assigned_operator, 
+                   created_date, completed_date, approved, modifications, 
+                   cvss_score, risk_level, category
+            FROM vulnerabilities 
             WHERE assigned_operator = %s 
             ORDER BY created_date DESC
         """
-        rows = self.db_manager.execute_query(query, (operator_id,))
-        return [self._row_to_vulnerability(row) for row in rows]
+        try:
+            with self.connection.cursor() as cursor:
+                cursor.execute(query, (operator_id,))
+                rows = cursor.fetchall()
+                return [Vulnerability.from_db_row(row) for row in rows]
+        except Exception as e:
+            logger.error(f"Error getting vulnerabilities by operator {operator_id}: {e}")
+            return []
 
     def update(self, vulnerability: Vulnerability) -> bool:
         query = """
