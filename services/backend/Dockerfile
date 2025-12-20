@@ -18,6 +18,9 @@ RUN pip install gunicorn
 # Копируем код приложения
 COPY . .
 
+# Копируем templates и static из корня проекта (если есть)
+# Templates будут в services/backend/templates через копирование из корня
+
 # Создаем директории для логов
 RUN mkdir -p /app/logs
 

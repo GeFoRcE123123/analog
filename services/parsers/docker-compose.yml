@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   parsers:
     build:
@@ -11,16 +9,6 @@ services:
       - CHROMIUM_PATH=/usr/bin/chromium
     volumes:
       - ./logs:/app/logs
-    networks:
-      - vuln_network
     restart: unless-stopped
-    depends_on:
-      - database
-
-networks:
-  vuln_network:
-    driver: bridge
-    ipam:
-      config:
-        - subnet: 10.0.88.0/24
+    # Database находится на другой VM (10.0.88.11), поэтому нет зависимости
 

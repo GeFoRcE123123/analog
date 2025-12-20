@@ -141,7 +141,7 @@
 
                         <!-- Выпадающее меню -->
                         <div x-show="open" @click.away="open = false" class="absolute right-0 mt-2 w-56 bg-white rounded-md shadow-lg py-1 z-50">
-                            <a href="{{ url_for('admin_users') }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                            <a href="{{ url_for('profile') }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
                                 <i class="fas fa-user-circle mr-2 text-gray-500"></i>Мой профиль
                             </a>
                             <a href="{{ url_for('my_assignments') }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
@@ -232,6 +232,20 @@
 
     <!-- Alpine.js для выпадающего меню -->
     <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+
+    <!-- Скрипт для мобильного меню -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const mobileMenuButton = document.getElementById('mobile-menu-button');
+            const mobileMenu = document.getElementById('mobile-menu');
+            
+            if (mobileMenuButton && mobileMenu) {
+                mobileMenuButton.addEventListener('click', function() {
+                    mobileMenu.classList.toggle('hidden');
+                });
+            }
+        });
+    </script>
 
     <!-- Глобальные JS-функции (парсинг и уведомления) -->
     <script>
