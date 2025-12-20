@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vulnerability Management System</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Custom Styles -->
+    <style>
+        .nav-gradient {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .nav-shadow {
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        }
+        .nav-item {
+            position: relative;
+            transition: all 0.3s ease;
+        }
+        .nav-item::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 50%;
+            width: 0;
+            height: 2px;
+            background: white;
+            transition: all 0.3s ease;
+            transform: translateX(-50%);
+        }
+        .nav-item:hover::after {
+            width: 100%;
+        }
+        .logo-glow {
+            text-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
+        }
+        .notification-badge {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        .import-btn-glow {
+            animation: importGlow 3s infinite;
+        }
+        @keyframes importGlow {
+            0%, 100% {
+                box-shadow: 0 0 20px rgba(59, 130, 246, 0.5);
+            }
+            50% {
+                box-shadow: 0 0 30px rgba(59, 130, 246, 0.8), 0 0 40px rgba(59, 130, 246, 0.6);
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- Backend API URL -->
+    <script>
+        window.API_BASE_URL = 'http://10.0.88.20:5000';
+    </script>
+
+    <!-- Навигационная панель -->
+    <nav class="nav-gradient nav-shadow sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <!-- Логотип -->
+                <div class="flex items-center space-x-4">
+                    <div class="flex-shrink-0">
+                        <div class="flex items-center space-x-3">
+                            <i class="fas fa-shield-alt text-white text-2xl logo-glow"></i>
+                            <span class="text-white font-bold text-xl">Vulnerability Manager</span>
+                        </div>
+                    </div>
+
+                    <!-- Основные разделы -->
+                    <div class="hidden md:flex items-center space-x-1 ml-8">
+                        <a href="/dashboard.html" class="nav-item text-white px-4 py-2 rounded-lg font-medium flex items-center space-x-2">
+                            <i class="fas fa-chart-dashboard"></i>
+                            <span>Дашборд</span>
+                        </a>
+                        <a href="/vulnerabilities_list.html" class="nav-item text-white px-4 py-2 rounded-lg font-medium flex items-center space-x-2">
+                            <i class="fas fa-bug"></i>
+                            <span>Уязвимости</span>
+                        </a>
+                        <a href="/operators.html" class="nav-item text-white px-4 py-2 rounded-lg font-medium flex items-center space-x-2">
+                            <i class="fas fa-users"></i>
+                            <span>Операторы</span>
+                        </a>
+                        <a href="/performance_analytics.html" class="nav-item text-white px-4 py-2 rounded-lg font-medium flex items-center space-x-2">
+                            <i class="fas fa-chart-line"></i>
+                            <span>Аналитика</span>
+                        </a>
+                        <a href="/parsers.html" class="nav-item text-white px-4 py-2 rounded-lg font-medium flex items-center space-x-2">
+                            <i class="fas fa-cogs"></i>
+                            <span>Парсеры</span>
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Правая часть -->
+                <div class="flex items-center space-x-4">
+                    <button id="parsers-menu-button" class="bg-white text-blue-600 hover:bg-blue-50 font-bold py-2 px-4 rounded-lg transition duration-300 import-btn-glow flex items-center space-x-2">
+                        <i class="fas fa-download"></i>
+                        <span>Парсеры</span>
+                        <i class="fas fa-caret-down ml-1"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Основной контент -->
+    <main class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+        <div id="flash-messages"></div>
+        <div id="content">
+            <!-- Контент будет загружаться динамически -->
+        </div>
+    </main>
+
+    <!-- Alpine.js -->
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+
+    <!-- Глобальные JS функции -->
+    <script>
+        // API Base URL
+        const API_BASE = window.API_BASE_URL || 'http://10.0.88.20:5000';
+
+        // Функция для API вызовов
+        async function apiCall(endpoint, options = {}) {
+            const url = `${API_BASE}${endpoint}`;
+            const defaultOptions = {
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'include' // Для cookies/session
+            };
+            
+            const response = await fetch(url, { ...defaultOptions, ...options });
+            return response.json();
+        }
+
+        // Показать уведомление
+        function showNotification(message, type = 'info') {
+            const flashDiv = document.getElementById('flash-messages');
+            const notification = document.createElement('div');
+            notification.className = `p-4 rounded-lg mb-2 ${
+                type === 'error' ? 'bg-red-100 text-red-700 border border-red-300' :
+                type === 'success' ? 'bg-green-100 text-green-700 border border-green-300' :
+                'bg-blue-100 text-blue-700 border border-blue-300'
+            }`;
+            notification.textContent = message;
+            flashDiv.appendChild(notification);
+            setTimeout(() => notification.remove(), 5000);
+        }
+
+        // Парсер-меню
+        const parsersBtn = document.getElementById('parsers-menu-button');
+        if (parsersBtn) {
+            parsersBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                // Показать меню парсеров
+                window.location.href = '/parsers.html';
+            });
+        }
+
+        // Быстрые действия для парсеров
+        async function quickNvdIncremental() {
+            try {
+                const result = await apiCall('/api/nvd/sync/incremental', {
+                    method: 'POST',
+                    body: JSON.stringify({ days: 1 })
+                });
+                showNotification('NVD инкрементальная синхронизация запущена', 'success');
+            } catch (e) {
+                showNotification('Ошибка запуска NVD', 'error');
+            }
+        }
+
+        async function quickNvdFull() {
+            try {
+                const result = await apiCall('/api/nvd/sync/full', { method: 'POST' });
+                showNotification('NVD полная синхронизация запущена', 'success');
+            } catch (e) {
+                showNotification('Ошибка запуска NVD полной синхронизации', 'error');
+            }
+        }
+
+        async function quickRedHatRecent() {
+            try {
+                const result = await apiCall('/api/redhat/import', {
+                    method: 'POST',
+                    body: JSON.stringify({ recent_days: 7 })
+                });
+                showNotification('Red Hat импорт за последние 7 дней запущен', 'success');
+            } catch (e) {
+                showNotification('Ошибка запуска Red Hat импорта', 'error');
+            }
+        }
+
+        async function schedulerStartHourly() {
+            try {
+                const result = await apiCall('/api/nvd/scheduler/start', {
+                    method: 'POST',
+                    body: JSON.stringify({ mode: 'hourly' })
+                });
+                showNotification('Планировщик: запуск по часам', 'success');
+            } catch (e) {
+                showNotification('Ошибка запуска планировщика', 'error');
+            }
+        }
+
+        async function schedulerStartDaily() {
+            try {
+                const result = await apiCall('/api/nvd/scheduler/start', {
+                    method: 'POST',
+                    body: JSON.stringify({ mode: 'daily', hour: 2, minute: 0 })
+                });
+                showNotification('Планировщик: ежедневный запуск 02:00', 'success');
+            } catch (e) {
+                showNotification('Ошибка запуска планировщика', 'error');
+            }
+        }
+
+        async function schedulerStop() {
+            try {
+                const result = await apiCall('/api/nvd/scheduler/stop', { method: 'POST' });
+                showNotification('Планировщик остановлен', 'success');
+            } catch (e) {
+                showNotification('Ошибка остановки планировщика', 'error');
+            }
+        }
+
+        // Глобальная функция для парсинга OSV
+        window.startGlobalParsing = async function() {
+            try {
+                const result = await apiCall('/api/start-parsing', { method: 'POST' });
+                if (result.success) {
+                    showNotification('Парсинг OSV запущен', 'success');
+                    trackGlobalParsingProgress();
+                } else {
+                    showNotification('Ошибка запуска парсинга: ' + result.error, 'error');
+                }
+            } catch (e) {
+                showNotification('Ошибка запуска парсинга', 'error');
+            }
+        };
+
+        function trackGlobalParsingProgress() {
+            const eventSource = new EventSource(`${API_BASE}/api/parsing-progress`);
+            eventSource.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                // Обновление UI прогресса
+                if (data.status === 'completed' || data.status === 'error') {
+                    eventSource.close();
+                }
+            };
+        }
+    </script>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>
+

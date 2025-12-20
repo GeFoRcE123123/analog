@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: vulnerability_db
+    environment:
+      POSTGRES_DB: vuln_db
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: "123"
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    command: >
+      postgres
+      -c listen_addresses='*'
+      -c max_connections=200
+      -c shared_buffers=256MB
+    networks:
+      - vuln_network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
+networks:
+  vuln_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.0.88.0/24
+

@@ -47,3 +47,6 @@ class Config:
         "Microsoft": 99, "PHP": 68, "PostgreSQL": 99, "Redis": 99, "Ubuntu": 99,
         "Windows": 99, "Apache": 99, "Cisco": 99, "VMware": 99
     }
+
+    # Database schema mode: 'legacy' (turn, cvelist, etc) or 'modern' (vulnerabilities, operators)
+    USE_LEGACY_SCHEMA = True

@@ -24,6 +24,8 @@ from services.redhat_cve_importer import RedHatCVEImporter
 from models.database import DatabaseManager
 # Импорты репозиториев и БД
 from models.postgres_repositories import PostgresVulnerabilityRepository
+from models.legacy_repositories import LegacyVulnerabilityRepository
+from config import Config
 from flask import stream_with_context
 # Для импорта Excel
 import pandas as pd
@@ -59,8 +61,13 @@ if not result[0][0]:
     db_manager.create_tables()
     print("✅ Схема авторизации инициализирована")
 
-# Создаем репозиторий для NVD интеграции
-vulnerability_repo = PostgresVulnerabilityRepository(db)
+# Создаем репозиторий для NVD интеграции (legacy или modern схема)
+if Config.USE_LEGACY_SCHEMA:
+    vulnerability_repo = LegacyVulnerabilityRepository(db)
+    logger.info("Используется legacy схема БД (turn, cvelist, etc)")
+else:
+    vulnerability_repo = PostgresVulnerabilityRepository(db)
+    logger.info("Используется modern схема БД (vulnerabilities, operators)")
 # Инициализация сервисов
 vuln_service = VulnerabilityService(use_optimized=True)
 operator_service = OperatorService()
