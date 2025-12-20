@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vulnerability-frontend
+    ports:
+      - "80:80"
+    volumes:
+      - ./templates:/usr/share/nginx/html/templates:ro
+      - ./static:/usr/share/nginx/html/static:ro
+    networks:
+      - vuln_network
+    restart: unless-stopped
+    depends_on:
+      - backend
+
+networks:
+  vuln_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.0.88.0/24
+
