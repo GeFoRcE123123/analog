@@ -579,6 +579,7 @@ class PostgresVulnerabilityRepository:
             return None
 
     def add(self, vulnerability: Vulnerability) -> bool:
+        """Добавить уязвимость в БД с детальным логированием"""
         query = """
         INSERT INTO vulnerabilities 
         (title, description, severity, status, assigned_operator, created_date, 
@@ -590,7 +591,16 @@ class PostgresVulnerabilityRepository:
         RETURNING id
         """
         try:
+            # Детальное логирование перед вставкой
+            logger.info(f"💾 [REPO] Начинаем сохранение уязвимости: cve_id={vulnerability.cve_id}, title={vulnerability.title[:50]}")
+            logger.debug(f"   Connection: {self.connection}, closed: {self.connection.closed if hasattr(self.connection, 'closed') else 'N/A'}")
+            
+            # Проверка обязательных полей
+            if not vulnerability.cve_id:
+                logger.warning(f"   ⚠️  cve_id пустой! Это может вызвать проблемы с поиском")
+            
             with self.connection.cursor() as cursor:
+                logger.debug(f"   Cursor создан, выполняем INSERT...")
                 cursor.execute(query, (
                     vulnerability.title,
                     vulnerability.description,
@@ -621,14 +631,20 @@ class PostgresVulnerabilityRepository:
                     vulnerability.has_kev,
                     vulnerability.has_cert_alerts
                 ))
+                logger.debug(f"   INSERT выполнен, получаем ID...")
                 new_id = cursor.fetchone()[0]
                 vulnerability.id = new_id
+                logger.debug(f"   Получен ID: {new_id}, коммитим транзакцию...")
                 self.connection.commit()
-                logger.info(f"Vulnerability added: {vulnerability.title} (ID: {new_id})")
+                logger.info(f"✅ [REPO] Уязвимость сохранена: cve_id={vulnerability.cve_id}, ID={new_id}, title={vulnerability.title[:50]}")
                 return True
         except Exception as e:
-            logger.error(f"Error adding vulnerability '{vulnerability.title}': {e}")
-            self.connection.rollback()
+            logger.error(f"❌ [REPO] Ошибка сохранения уязвимости '{vulnerability.title}': {e}", exc_info=True)
+            try:
+                self.connection.rollback()
+                logger.debug(f"   Rollback выполнен")
+            except Exception as rollback_error:
+                logger.error(f"   Ошибка при rollback: {rollback_error}")
             return False
 
     def get_vulnerabilities_by_operator(self, operator_id: int) -> List[Vulnerability]:

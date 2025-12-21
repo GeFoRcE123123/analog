@@ -72,31 +72,108 @@
             margin-bottom: 1.5rem;
         }
 
-        .form-floating {
+        .form-group {
             position: relative;
-            margin-bottom: 1.25rem;
+            margin-bottom: 1.5rem;
         }
 
         .form-control {
             background-color: transparent;
             border: 2px solid var(--border-color);
             border-radius: 10px;
-            padding: 1rem 1rem 1rem 3rem; /* Отступ слева для иконки */
+            padding: 1.25rem 1rem 0.5rem 3rem;
             transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
             color: var(--text-color);
-            text-indent: 0.5rem; /* Сдвиг текста влево */
+            width: 100%;
+            font-size: 1rem;
+            height: 56px;
         }
 
         .form-control::placeholder {
+            color: transparent;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .form-control:focus::placeholder,
+        .form-control:not(:placeholder-shown)::placeholder {
             color: #9ca3af;
-            opacity: 1;
-            text-indent: 0.5rem; /* Сдвиг placeholder влево */
+            opacity: 0.6;
         }
 
         .form-control:focus {
             border-color: var(--accent-color);
             box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
             outline: none;
+            padding-top: 1.5rem;
+            padding-bottom: 0.25rem;
+        }
+
+        .form-label {
+            position: absolute;
+            left: 3rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #9ca3af;
+            font-size: 1rem;
+            pointer-events: none;
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            background: var(--card-bg);
+            padding: 0 0.25rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: calc(100% - 4rem);
+        }
+
+        .form-control:focus ~ .form-label,
+        .form-control:not(:placeholder-shown) ~ .form-label,
+        .form-control.has-value ~ .form-label,
+        .form-control:not(:focus):valid ~ .form-label {
+            top: 0.5rem;
+            transform: translateY(0);
+            font-size: 0.75rem;
+            color: var(--accent-color);
+            font-weight: 600;
+        }
+
+        .form-control:not(:focus):not(:placeholder-shown) ~ .form-label {
+            color: #6b7280;
+        }
+
+        .form-hint {
+            position: absolute;
+            left: 3rem;
+            bottom: -1.25rem;
+            font-size: 0.75rem;
+            color: #6b7280;
+            opacity: 0;
+            transform: translateY(-5px);
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            pointer-events: none;
+        }
+
+        .form-control:focus ~ .form-hint {
+            opacity: 1;
+            transform: translateY(0);
+            display: block;
+        }
+
+        /* Валидация */
+        .form-group.valid .form-label {
+            color: var(--success-color);
+        }
+
+        .form-group.invalid .form-control {
+            border-color: var(--error-color);
+        }
+
+        .form-group.invalid .form-label {
+            color: var(--error-color);
+        }
+
+        .form-group.invalid .form-icon {
+            color: var(--error-color);
         }
 
         .form-icon {
@@ -107,6 +184,16 @@
             color: #9ca3af;
             pointer-events: none;
             font-size: 1.1rem;
+            transition: color 0.3s ease;
+            z-index: 2;
+        }
+
+        .form-control:focus ~ .form-icon {
+            color: var(--accent-color);
+        }
+
+        .form-group:focus-within .form-icon {
+            color: var(--accent-color);
         }
 
         .btn-login {
@@ -148,17 +235,6 @@
             font-size: 0.875rem;
         }
 
-        .password-toggle {
-            position: absolute;
-            right: 1rem;
-            top: 50%;
-            transform: translateY(-50%);
-            background: none;
-            border: none;
-            color: #9ca3af;
-            cursor: pointer;
-            font-size: 1rem;
-        }
 
         @keyframes fadeInUp {
             from {
@@ -175,6 +251,32 @@
             animation: fadeInUp 0.6s ease-out;
         }
 
+        .password-toggle {
+            position: absolute;
+            right: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: #9ca3af;
+            cursor: pointer;
+            font-size: 1rem;
+            padding: 0.5rem;
+            transition: all 0.3s ease;
+            z-index: 3;
+            border-radius: 4px;
+        }
+
+        .password-toggle:hover {
+            color: var(--accent-color);
+            background-color: rgba(59, 130, 246, 0.1);
+        }
+
+        .password-toggle:focus {
+            outline: 2px solid var(--accent-color);
+            outline-offset: 2px;
+        }
+
         /* Адаптивность */
         @media (max-width: 576px) {
             .login-card {
@@ -182,15 +284,46 @@
                 margin: 0.5rem;
             }
             .form-control {
-                padding: 0.75rem 0.75rem 0.75rem 2.5rem;
+                padding: 1rem 0.75rem 0.5rem 2.5rem;
+                height: 52px;
+            }
+            .form-control:focus {
+                padding-top: 1.25rem;
             }
             .form-icon {
                 left: 1rem;
                 font-size: 1rem;
             }
+            .form-label {
+                left: 2.5rem;
+            }
+            .form-hint {
+                left: 2.5rem;
+                font-size: 0.7rem;
+            }
             .btn-login {
                 padding: 0.75rem;
             }
+            .password-toggle {
+                right: 0.75rem;
+                padding: 0.4rem;
+            }
+        }
+
+        /* Анимация появления hint */
+        @keyframes slideInHint {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .form-control:focus ~ .form-hint {
+            animation: slideInHint 0.3s ease-out;
         }
     </style>
 </head>
@@ -214,23 +347,41 @@
 
         <form method="POST" id="loginForm">
             {{ form.csrf_token }}
-            <div class="form-floating">
+            <div class="form-group">
                 <i class="fas fa-envelope form-icon"></i>
-                <input type="email" class="form-control" id="email" name="email" placeholder="name@example.com" required autocomplete="username">
-                <label for="email">Email</label>
+                <input 
+                    type="email" 
+                    class="form-control" 
+                    id="email" 
+                    name="email" 
+                    placeholder="admin@example.com" 
+                    required 
+                    autocomplete="username"
+                >
+                <label for="email" class="form-label">Email адрес</label>
+                <span class="form-hint">Введите ваш email для входа</span>
             </div>
 
-            <div class="form-floating">
+            <div class="form-group">
                 <i class="fas fa-lock form-icon"></i>
-                <input type="password" class="form-control" id="password" name="password" placeholder="Пароль" required autocomplete="current-password">
-                <label for="password">Пароль</label>
-                <button type="button" class="password-toggle" id="togglePassword">
+                <input 
+                    type="password" 
+                    class="form-control" 
+                    id="password" 
+                    name="password" 
+                    placeholder="••••••••" 
+                    required 
+                    autocomplete="current-password"
+                >
+                <label for="password" class="form-label">Пароль</label>
+                <span class="form-hint">Введите ваш пароль</span>
+                <button type="button" class="password-toggle" id="togglePassword" aria-label="Показать пароль">
                     <i class="fas fa-eye"></i>
                 </button>
             </div>
 
             <button type="submit" class="btn btn-login">
-                <i class="fas fa-sign-in-alt me-2"></i>Войти
+                <i class="fas fa-sign-in-alt me-2"></i>Войти в систему
             </button>
         </form>
 
@@ -244,25 +395,96 @@
         document.getElementById('togglePassword').addEventListener('click', function () {
             const password = document.getElementById('password');
             const icon = this.querySelector('i');
-            if (password.type === 'password') {
-                password.type = 'text';
-                icon.classList.remove('fa-eye');
-                icon.classList.add('fa-eye-slash');
-            } else {
-                password.type = 'password';
-                icon.classList.remove('fa-eye-slash');
-                icon.classList.add('fa-eye');
+            const isPassword = password.type === 'password';
+            
+            password.type = isPassword ? 'text' : 'password';
+            icon.classList.toggle('fa-eye', !isPassword);
+            icon.classList.toggle('fa-eye-slash', isPassword);
+            
+            // Обновляем aria-label для доступности
+            this.setAttribute('aria-label', isPassword ? 'Скрыть пароль' : 'Показать пароль');
+        });
+
+        // Динамическое управление placeholder и label
+        document.querySelectorAll('.form-control').forEach(input => {
+            // Проверяем при загрузке страницы
+            if (input.value) {
+                input.classList.add('has-value');
+            }
+
+            // При вводе
+            input.addEventListener('input', function() {
+                if (this.value) {
+                    this.classList.add('has-value');
+                } else {
+                    this.classList.remove('has-value');
+                }
+            });
+
+            // При фокусе
+            input.addEventListener('focus', function() {
+                this.parentElement.classList.add('focused');
+                // Показываем hint
+                const hint = this.parentElement.querySelector('.form-hint');
+                if (hint) {
+                    hint.style.display = 'block';
+                }
+            });
+
+            // При потере фокуса
+            input.addEventListener('blur', function() {
+                this.parentElement.classList.remove('focused');
+                // Скрываем hint если поле пустое
+                if (!this.value) {
+                    const hint = this.parentElement.querySelector('.form-hint');
+                    if (hint) {
+                        setTimeout(() => {
+                            if (!this.parentElement.classList.contains('focused')) {
+                                hint.style.display = 'none';
+                            }
+                        }, 200);
+                    }
+                }
+            });
+
+            // Валидация в реальном времени
+            input.addEventListener('input', function() {
+                if (this.validity.valid) {
+                    this.parentElement.classList.remove('invalid');
+                    this.parentElement.classList.add('valid');
+                } else if (this.value) {
+                    this.parentElement.classList.remove('valid');
+                    this.parentElement.classList.add('invalid');
+                }
+            });
+        });
+
+        // Обработка отправки формы
+        document.getElementById('loginForm').addEventListener('submit', function(e) {
+            const email = document.getElementById('email');
+            const password = document.getElementById('password');
+            
+            // Добавляем классы для анимации
+            if (!email.value) {
+                email.parentElement.classList.add('invalid');
+                e.preventDefault();
+            }
+            if (!password.value) {
+                password.parentElement.classList.add('invalid');
+                e.preventDefault();
             }
         });
 
-        // Плавная анимация фокуса
-        document.querySelectorAll('.form-control').forEach(input => {
-            input.addEventListener('focus', () => {
-                input.parentElement.style.transform = 'scale(1.01)';
-            });
-            input.addEventListener('blur', () => {
-                input.parentElement.style.transform = 'scale(1)';
-            });
+        // Плавное появление формы при загрузке
+        window.addEventListener('load', function() {
+            document.querySelector('.login-card').style.opacity = '0';
+            document.querySelector('.login-card').style.transform = 'translateY(20px)';
+            
+            setTimeout(() => {
+                document.querySelector('.login-card').style.transition = 'all 0.6s ease-out';
+                document.querySelector('.login-card').style.opacity = '1';
+                document.querySelector('.login-card').style.transform = 'translateY(0)';
+            }, 100);
         });
     </script>
 

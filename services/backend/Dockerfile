@@ -31,6 +31,6 @@ ENV PYTHONUNBUFFERED=1
 # Открываем порт
 EXPOSE 5000
 
-# Запуск через gunicorn
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "4", "--timeout", "120", "--access-logfile", "-", "--error-logfile", "-", "app:app"]
+# Запуск через gunicorn с увеличенным таймаутом для длительных операций парсинга
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "4", "--timeout", "600", "--keep-alive", "120", "--access-logfile", "-", "--error-logfile", "-", "app:app"]
 

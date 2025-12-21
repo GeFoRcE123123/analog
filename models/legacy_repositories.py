@@ -21,49 +21,81 @@ class LegacyVulnerabilityRepository:
         """
         Сохранение уязвимости в таблицу turn и связанные таблицы
         """
+        cursor = None
         try:
-            with self.db.cursor() as cursor:
-                # Проверяем, существует ли уже запись с таким CVE
-                cve_id = getattr(vulnerability, 'cve_id', None) or vulnerability.title
-                
-                # 1. Сохраняем в таблицу turn
-                turn_id = self._save_to_turn(cursor, vulnerability)
-                if not turn_id:
-                    return False
+            cursor = self.db.cursor()
+            # Проверяем, существует ли уже запись с таким CVE
+            cve_id = getattr(vulnerability, 'cve_id', None) or vulnerability.title
+            
+            # 1. Сохраняем в таблицу turn
+            turn_id = self._save_to_turn(cursor, vulnerability)
+            if not turn_id:
+                logger.warning(f"⚠️ Не удалось сохранить в turn для {cve_id}")
+                self.db.rollback()
+                if cursor:
+                    cursor.close()
+                return False
 
-                # 2. Если есть CVE, сохраняем в cvelist
-                if cve_id and hasattr(vulnerability, 'descriptions'):
+            # 2. Если есть CVE, сохраняем в cvelist
+            if cve_id and cve_id != 'UNKNOWN':
+                try:
                     self._save_to_cvelist(cursor, cve_id, vulnerability)
+                except Exception as e:
+                    logger.warning(f"⚠️ Ошибка сохранения в cvelist для {cve_id}: {e}")
 
-                # 3. Если есть CWE (weaknesses), сохраняем в cwelist и map_table
-                if hasattr(vulnerability, 'weaknesses') and vulnerability.weaknesses:
+            # 3. Если есть CWE (weaknesses), сохраняем в cwelist и map_table
+            if hasattr(vulnerability, 'weaknesses') and vulnerability.weaknesses:
+                try:
                     self._save_cwe_data(cursor, cve_id, vulnerability)
+                except Exception as e:
+                    logger.warning(f"⚠️ Ошибка сохранения CWE для {cve_id}: {e}")
 
-                # 4. Сохраняем маппинг в map_table
+            # 4. Сохраняем маппинг в map_table
+            try:
                 self._save_to_map_table(cursor, cve_id, vulnerability)
+            except Exception as e:
+                logger.warning(f"⚠️ Ошибка сохранения в map_table для {cve_id}: {e}")
 
-                self.db.commit()
-                logger.info(f"✅ Уязвимость {cve_id} сохранена в legacy схему")
-                return True
+            # Коммитим транзакцию
+            self.db.commit()
+            logger.info(f"✅ Уязвимость {cve_id} сохранена в legacy схему (turn_id={turn_id})")
+            return True
 
         except Exception as e:
-            self.db.rollback()
-            logger.error(f"❌ Ошибка сохранения уязвимости: {e}")
+            if cursor:
+                self.db.rollback()
+            logger.error(f"❌ Ошибка сохранения уязвимости: {e}", exc_info=True)
             return False
+        finally:
+            if cursor:
+                cursor.close()
 
     def _save_to_turn(self, cursor, vulnerability: Vulnerability) -> Optional[int]:
         """Сохранение в таблицу turn"""
         try:
             cve_id = getattr(vulnerability, 'cve_id', None) or vulnerability.title
             
-            # Определяем source (NVD, RedHat, OSV и т.д.)
-            source = getattr(vulnerability, 'source_identifier', 'NVD')
-            if not source or source == 'redhat':
+            # Определяем source (NVD, RedHat, OSV, Debian, Ubuntu и т.д.)
+            source = getattr(vulnerability, 'source_identifier', None)
+            if not source:
+                # Если source_identifier не установлен, пытаемся определить из category
+                source = getattr(vulnerability, 'category', 'NVD')
+            
+            # Нормализация source
+            source_lower = source.lower() if source else ''
+            if 'redhat' in source_lower or source == 'redhat':
                 source = 'RedHat'
-            elif 'osv' in source.lower() or not hasattr(vulnerability, 'source_identifier'):
+            elif 'osv' in source_lower:
                 source = 'OSV'
-            else:
+            elif 'debian' in source_lower or source == 'Debian':
+                source = 'Debian'
+            elif 'ubuntu' in source_lower or source == 'Ubuntu':
+                source = 'Ubuntu'
+            elif not source or source == 'NVD':
                 source = 'NVD'
+            else:
+                # Сохраняем как есть, если это валидное значение
+                source = str(source)
 
             # Формируем link
             link = f"https://nvd.nist.gov/vuln/detail/{cve_id}" if cve_id.startswith('CVE-') else getattr(vulnerability, 'url', '')
@@ -144,7 +176,9 @@ class LegacyVulnerabilityRepository:
             return result[0] if result else None
 
         except Exception as e:
-            logger.error(f"Ошибка сохранения в turn: {e}")
+            logger.error(f"❌ Ошибка сохранения в turn для {cve_id}: {e}", exc_info=True)
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
             return None
 
     def _save_to_cvelist(self, cursor, cve_id: str, vulnerability: Vulnerability):
