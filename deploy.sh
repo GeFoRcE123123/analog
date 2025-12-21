@@ -167,6 +167,14 @@ if [ "$DEPLOY_TARGET" == "backend" ] || [ "$DEPLOY_TARGET" == "all" ]; then
     cp -r services/backend/* /tmp/backend_deploy/
     cp config.py /tmp/backend_deploy/  # Копируем основной config.py
     cp -r models/* /tmp/backend_deploy/models/
+    # Копируем unified_parser_service и его зависимости в services/
+    mkdir -p /tmp/backend_deploy/services
+    cp services/unified_parser_service.py /tmp/backend_deploy/services/ 2>/dev/null || true
+    # Копируем зависимости unified_parser_service
+    cp services/html_vulnerability_parser.py /tmp/backend_deploy/services/ 2>/dev/null || true
+    cp services/universal_vendor_parser.py /tmp/backend_deploy/services/ 2>/dev/null || true
+    cp services/redhat_cve_importer.py /tmp/backend_deploy/services/ 2>/dev/null || true
+    cp services/nvd_integration_service.py /tmp/backend_deploy/services/ 2>/dev/null || true
     # Удаляем файлы с psycopg2, которые не используются в backend
     rm -f /tmp/backend_deploy/models/optimized_database.py 2>/dev/null || true
     rm -f /tmp/backend_deploy/models/optimized_postgres_repositories.py 2>/dev/null || true

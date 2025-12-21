@@ -110,6 +110,11 @@
 
                         <!-- Только для админа -->
                         {% if session.role == 'admin' %}
+                        <a href="{{ url_for('parsers_page') }}"
+                           class="nav-item text-white px-4 py-2 rounded-lg font-medium flex items-center space-x-2 {% if request.path == '/parsers' %}bg-white bg-opacity-20{% endif %}">
+                            <i class="fas fa-rocket"></i>
+                            <span>Парсеры</span>
+                        </a>
                         <a href="{{ url_for('review_vulnerabilities') }}"
                            class="nav-item text-white px-4 py-2 rounded-lg font-medium flex items-center space-x-2 {% if request.path == '/review' %}bg-white bg-opacity-20{% endif %}">
                             <i class="fas fa-check-double"></i>
@@ -188,6 +193,9 @@
                 </a>
 
                 {% if session.role == 'admin' %}
+                <a href="{{ url_for('parsers_page') }}" class="text-white block px-3 py-2 rounded-lg font-medium flex items-center space-x-2">
+                    <i class="fas fa-rocket w-5"></i> Парсеры
+                </a>
                 <a href="{{ url_for('operators_page') }}" class="text-white block px-3 py-2 rounded-lg font-medium flex items-center space-x-2">
                     <i class="fas fa-users w-5"></i> Операторы
                 </a>
