@@ -31,6 +31,8 @@ class DatabaseManager:
                     user=self.db_config.username,
                     password=self.db_config.password
                 )
+                # ВАЖНО: Отключаем autocommit для ручного управления транзакциями
+                self.connection.autocommit = False
             else:
                 raise ValueError(f"Unsupported database type: {self.db_config.type}")
         except Exception as e:

@@ -83,6 +83,15 @@ class UnifiedParserService:
         except Exception as e:
             self.logger.warning(f"⚠️ OSV API парсер не доступен: {e}")
             self.osv_api_parser = None
+        
+        # Импорт парсеров вендоров
+        try:
+            from services.vendor_parsers import vendor_parsers
+            self.vendor_parsers = vendor_parsers
+            self.logger.info("✅ Vendor парсеры инициализированы")
+        except Exception as e:
+            self.logger.warning(f"⚠️ Vendor парсеры не доступны: {e}")
+            self.vendor_parsers = None
     
     def parse_all(
         self,
@@ -162,6 +171,13 @@ class UnifiedParserService:
                 results['by_source']['osv'] = osv_results
                 results['total_parsed'] += osv_results.get('parsed', 0)
                 results['total_saved'] += osv_results.get('saved', 0)
+            
+            # Vendor парсеры (дополнительные источники)
+            if enable_vendors and self.vendor_parsers and vendor_sources:
+                vendor_results = self._parse_vendor_parsers(vendor_sources, limit_per_source)
+                results['by_source'].update(vendor_results.get('by_source', {}))
+                results['total_parsed'] += vendor_results.get('total_parsed', 0)
+                results['total_saved'] += vendor_results.get('total_saved', 0)
             
             results['end_time'] = datetime.now().isoformat()
             results['success'] = True
@@ -315,6 +331,84 @@ class UnifiedParserService:
             self.logger.error(f"Ошибка OSV API парсинга: {e}", exc_info=True)
             return {'parsed': 0, 'saved': 0, 'error': str(e)}
     
+    def _parse_vendor_parsers(self, vendor_sources: List[str], limit: int) -> Dict[str, Any]:
+        """Парсинг vendor источников через vendor_parsers"""
+        if not self.vendor_parsers:
+            return {'total_parsed': 0, 'total_saved': 0, 'by_source': {}}
+        
+        # Маппинг названий источников на методы парсеров
+        parser_methods = {
+            'cxsecurity': 'parse_cxsecurity',
+            'cert': 'parse_cert',
+            'us-cert': 'parse_cert',
+            'cisco': 'parse_cisco',
+            'cybersecurity-help': 'parse_cybersecurity_help',
+            'fortiguard': 'parse_fortiguard',
+            'ibm': 'parse_ibm',
+            'juniper': 'parse_juniper',
+            'kaspersky-stat': 'parse_kaspersky_stat',
+            'kaspersky': 'parse_kaspersky',
+            'paloalto': 'parse_paloalto',
+            'postgresql': 'parse_postgresql',
+            'suse': 'parse_suse',
+            'zerodayinitiative': 'parse_zerodayinitiative',
+            'nvd-keywords': 'parse_nvd_by_keywords'
+        }
+        
+        results = {
+            'total_parsed': 0,
+            'total_saved': 0,
+            'by_source': {}
+        }
+        
+        for source in vendor_sources:
+            try:
+                method_name = parser_methods.get(source.lower())
+                if not method_name:
+                    self.logger.warning(f"⚠️ Неизвестный vendor источник: {source}")
+                    continue
+                
+                parser_method = getattr(self.vendor_parsers, method_name, None)
+                if not parser_method:
+                    self.logger.warning(f"⚠️ Метод {method_name} не найден в vendor_parsers")
+                    continue
+                
+                self.logger.info(f"🔍 Vendor парсинг {source} (лимит: {limit})")
+                
+                # Специальная обработка для NVD по ключевым словам
+                if method_name == 'parse_nvd_by_keywords':
+                    # Требуется список ключевых слов (можно получить из словаря или использовать дефолтные)
+                    keywords = []  # TODO: получить ключевые слова из БД или конфига
+                    if not keywords:
+                        self.logger.warning(f"⚠️ Для {source} нужны ключевые слова, пропускаем")
+                        continue
+                    parsed_vulns = parser_method(keywords, limit)
+                else:
+                    parsed_vulns = parser_method(limit)
+                
+                parsed_count = len(parsed_vulns)
+                results['by_source'][source] = {
+                    'parsed': parsed_count,
+                    'saved': 0
+                }
+                results['total_parsed'] += parsed_count
+                
+                # Сохранение в БД
+                if parsed_vulns:
+                    saved_count = self._save_html_vulnerabilities(parsed_vulns)
+                    results['by_source'][source]['saved'] = saved_count
+                    results['total_saved'] += saved_count
+                    self.logger.info(f"✅ {source}: спарсено={parsed_count}, сохранено={saved_count}")
+                else:
+                    self.logger.warning(f"⚠️ {source}: не получено уязвимостей")
+                
+            except Exception as e:
+                error_msg = str(e)
+                self.logger.error(f"❌ Ошибка vendor парсинга {source}: {error_msg}", exc_info=True)
+                results['by_source'][source] = {'parsed': 0, 'saved': 0, 'error': error_msg}
+        
+        return results
+    
     def _parse_redhat(self) -> Dict[str, Any]:
         """Импорт RedHat CVE"""
         if not self.redhat_importer:
@@ -455,40 +549,70 @@ class UnifiedParserService:
             if cve_ids_to_check and hasattr(self.vuln_repo, 'db'):
                 try:
                     cursor = self.vuln_repo.db.cursor()
+                    # Используем правильный синтаксис для PostgreSQL IN с параметрами
                     placeholders = ','.join(['%s'] * len(cve_ids_to_check))
-                    cursor.execute(f"SELECT DISTINCT cve FROM turn WHERE cve IN ({placeholders})", tuple(cve_ids_to_check))
-                    existing_cves = {row[0] for row in cursor.fetchall()}
+                    query = f"SELECT DISTINCT cve FROM turn WHERE cve IN ({placeholders})"
+                    self.logger.info(f"🔍 Проверка существующих CVE: запрос для {len(cve_ids_to_check)} CVE")
+                    self.logger.debug(f"   Первые 5 CVE для проверки: {cve_ids_to_check[:5]}")
+                    cursor.execute(query, tuple(cve_ids_to_check))
+                    existing_rows = cursor.fetchall()
+                    existing_cves = {row[0] for row in existing_rows if row[0]}
                     cursor.close()
+                    self.logger.info(f"📊 Найдено существующих CVE: {len(existing_cves)} из {len(cve_ids_to_check)}")
+                    if existing_cves:
+                        self.logger.info(f"   Существующие CVE (первые 5): {list(existing_cves)[:5]}")
+                    else:
+                        self.logger.info(f"   ✅ Все CVE новые, можно сохранять!")
                 except Exception as e:
-                    self.logger.warning(f"⚠️ Ошибка пакетной проверки существующих CVE: {e}, продолжаем")
+                    self.logger.error(f"❌ Ошибка пакетной проверки существующих CVE: {e}", exc_info=True)
+                    # В случае ошибки продолжаем без фильтрации (попытаемся сохранить все)
+                    existing_cves = set()  # Пустой set, чтобы попытаться сохранить все
             
             # Пакетное сохранение с многопоточностью
-            # Используем thread-safe set для отслеживания существующих CVE
-            existing_cves_set = existing_cves.copy()  # Копируем для thread-safety
-            
             def save_single_vuln(cve_id: str, vulnerability: Vulnerability) -> tuple:
                 """Сохранение одной уязвимости"""
                 try:
-                    # Пропускаем если уже существует (проверка выполняется до запуска потоков)
+                    # ВРЕМЕННО ОТКЛЮЧЕНО: Проверка существования
+                    # if cve_id in existing_cves:
+                    #     return (cve_id, 'skipped', 'Уже существует в БД')
+                    
+                    # Фильтр для ИИ уязвимостей (отдельная обработка)
+                    # ЗАКОММЕНТИРОВАНО: Логика ИИ уязвимостей
+                    # is_ai_related = getattr(vulnerability, 'is_ai_related', False)
+                    # if is_ai_related:
+                    #     # ИИ уязвимости обрабатываются отдельно
+                    #     return (cve_id, 'skipped', 'ИИ уязвимость - обрабатывается отдельно')
+                    
                     # Сохранение
+                    self.logger.info(f"💾 Сохраняем {cve_id}...")
+                    self.logger.debug(f"   Объект: title={vulnerability.title[:50]}, source_identifier={getattr(vulnerability, 'source_identifier', 'N/A')}")
+                    
                     if hasattr(self.vuln_repo, 'save_vulnerability'):
                         result = self.vuln_repo.save_vulnerability(vulnerability)
+                        self.logger.info(f"   save_vulnerability({cve_id}) вернул: {result}")
                     elif hasattr(self.vuln_repo, 'add'):
                         result = self.vuln_repo.add(vulnerability)
+                        self.logger.info(f"   add({cve_id}) вернул: {result}")
                     else:
+                        self.logger.error(f"   ❌ Репозиторий не имеет методов сохранения")
                         return (cve_id, 'error', 'Репозиторий не имеет методов сохранения')
                     
                     if result:
+                        self.logger.info(f"   ✅ Успешно сохранено: {cve_id}")
                         return (cve_id, 'saved', None)
                     else:
+                        # Детальная диагностика почему вернул False
+                        self.logger.error(f"   ❌ save_vulnerability вернул False для {cve_id}")
                         return (cve_id, 'error', 'Метод сохранения вернул False')
                 except Exception as save_error:
                     import traceback
                     error_msg = f"{str(save_error)}\n{traceback.format_exc()}"
+                    self.logger.error(f"   ❌ Исключение при сохранении {cve_id}: {error_msg}")
                     return (cve_id, 'error', error_msg)
             
-            # Фильтруем уязвимости, которые еще не существуют
-            new_vulnerabilities = [(cve_id, vuln) for cve_id, vuln in vulnerabilities_to_save if cve_id not in existing_cves]
+            # В РЕЖИМЕ ТЕСТИРОВАНИЯ: Сохраняем ВСЕ уязвимости без фильтрации
+            new_vulnerabilities = vulnerabilities_to_save
+            self.logger.info(f"📦 Сохраняем ВСЕ {len(new_vulnerabilities)} уязвимостей (режим тестирования)")
             
             # Многопоточное сохранение (до 10 потоков для сохранения в БД)
             max_save_workers = min(10, len(new_vulnerabilities))
@@ -536,16 +660,31 @@ class UnifiedParserService:
         return saved_count
     
     def _create_vulnerability_from_html_data(self, vuln_data: Dict[str, Any]) -> Vulnerability:
-        """Создание Vulnerability из HTML парсера данных"""
+        """Создание Vulnerability из парсера данных с полными данными из JSON"""
         from datetime import datetime
         
-        # Извлечение данных
+        # Извлечение основных данных
         cve_id = vuln_data.get('cve_id', 'UNKNOWN-CVE')
         title = vuln_data.get('title') or vuln_data.get('summary') or f"Уязвимость {cve_id}"
-        description = vuln_data.get('description') or vuln_data.get('summary') or ''
         
-        # CVSS и severity
-        cvss_score = float(vuln_data.get('cvss_score', 0.0))
+        # Полное описание (приоритет: description > details > summary)
+        description = vuln_data.get('description') or vuln_data.get('details') or vuln_data.get('summary') or ''
+        if not description:
+            description = f"Уязвимость {cve_id} из источника {vuln_data.get('source', 'unknown')}"
+        
+        # CVSS и severity - извлекаем из разных полей
+        cvss_score = 0.0
+        cvss_v3_data = vuln_data.get('cvss_v3') or vuln_data.get('cvss3')
+        
+        # Пробуем извлечь CVSS из разных мест
+        if vuln_data.get('cvss_score'):
+            cvss_score = float(vuln_data.get('cvss_score', 0.0))
+        elif cvss_v3_data and isinstance(cvss_v3_data, dict):
+            cvss_score = float(cvss_v3_data.get('baseScore', 0.0))
+        elif vuln_data.get('cvss3_score'):
+            cvss_score = float(vuln_data.get('cvss3_score', 0.0))
+        
+        # Определяем severity
         severity = vuln_data.get('severity', 'medium')
         if not severity or severity == 'unknown':
             if cvss_score >= 9.0:
@@ -559,17 +698,42 @@ class UnifiedParserService:
             else:
                 severity = 'medium'
         
-        # Дата
-        published_date = vuln_data.get('published_date') or vuln_data.get('date')
+        # Дата публикации - извлекаем из разных полей
+        published_date = vuln_data.get('published_date') or vuln_data.get('published') or vuln_data.get('date')
         if isinstance(published_date, str):
             try:
-                published = datetime.fromisoformat(published_date.replace('Z', '+00:00'))
+                # Пробуем разные форматы
+                if 'T' in published_date or '+' in published_date:
+                    published = datetime.fromisoformat(published_date.replace('Z', '+00:00'))
+                else:
+                    published = datetime.fromisoformat(published_date)
             except:
-                published = datetime.now()
+                try:
+                    published = datetime.strptime(published_date, '%Y-%m-%d')
+                except:
+                    published = datetime.now()
         elif isinstance(published_date, datetime):
             published = published_date
         else:
             published = datetime.now()
+        
+        # Дата последнего изменения
+        modified_date = vuln_data.get('modified_date') or vuln_data.get('modified')
+        if isinstance(modified_date, str):
+            try:
+                if 'T' in modified_date or '+' in modified_date:
+                    modified = datetime.fromisoformat(modified_date.replace('Z', '+00:00'))
+                else:
+                    modified = datetime.fromisoformat(modified_date)
+            except:
+                try:
+                    modified = datetime.strptime(modified_date, '%Y-%m-%d')
+                except:
+                    modified = published
+        elif isinstance(modified_date, datetime):
+            modified = modified_date
+        else:
+            modified = published
         
         # Источник
         source = vuln_data.get('source') or 'html_parser'
@@ -595,16 +759,41 @@ class UnifiedParserService:
         
         # Для legacy схемы нужно установить source_identifier для правильного сохранения в turn.source
         # Legacy репозиторий использует source_identifier для определения источника
-        if source.lower() == 'debian':
+        source_lower = source.lower()
+        if source_lower == 'debian':
             vulnerability.source_identifier = 'Debian'
-        elif source.lower() == 'ubuntu':
+        elif source_lower == 'ubuntu':
             vulnerability.source_identifier = 'Ubuntu'
-        elif source.lower() == 'redhat':
+        elif source_lower == 'redhat':
             vulnerability.source_identifier = 'RedHat'
-        elif source.lower() == 'osv':
+        elif source_lower == 'osv':
             vulnerability.source_identifier = 'OSV'
+        elif source_lower in ['cisco', 'cxsecurity', 'cert', 'us-cert', 'cybersecurity-help', 
+                               'fortiguard', 'ibm', 'juniper', 'kaspersky', 'paloalto', 
+                               'postgresql', 'suse', 'zerodayinitiative']:
+            # Vendor источники сохраняем с их именем
+            vulnerability.source_identifier = source.capitalize()
         else:
             vulnerability.source_identifier = 'NVD'  # По умолчанию
+        
+        # Сохраняем дополнительные данные как атрибуты
+        if vuln_data.get('url'):
+            setattr(vulnerability, 'url', str(vuln_data.get('url')))
+        
+        if vuln_data.get('affected_packages'):
+            setattr(vulnerability, 'affected_packages', vuln_data.get('affected_packages'))
+        
+        if vuln_data.get('references'):
+            setattr(vulnerability, 'references', vuln_data.get('references'))
+        
+        if vuln_data.get('cwe'):
+            setattr(vulnerability, 'cwe', str(vuln_data.get('cwe')))
+        
+        if cvss_v3_data:
+            setattr(vulnerability, 'cvss_v3', cvss_v3_data)
+        
+        if modified != published:
+            setattr(vulnerability, 'modified_date', modified)
         
         return vulnerability
     

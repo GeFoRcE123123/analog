@@ -260,6 +260,26 @@ if [ "$DEPLOY_TARGET" == "parsers" ] || [ "$DEPLOY_TARGET" == "all" ]; then
     echo "✅ Parsers развернуты"
 fi
 
+# ИИ-система интеграция (добавление новых файлов)
+echo ""
+echo "🤖 Развертывание ИИ-интеграции..."
+if [ -f "services/ai_integration_service.py" ]; then
+    echo "📦 Копирование ИИ-сервисов на Backend..."
+    copy_files "$BACKEND_IP" "services/ai_integration_service.py" "~/vulnerability_manager/services/" 2>/dev/null && \
+    copy_files "$BACKEND_IP" "services/adaptive_html_parser.py" "~/vulnerability_manager/services/" 2>/dev/null || true
+    
+    if [ -d "templates/ai" ]; then
+        echo "📦 Копирование ИИ-шаблонов на Frontend..."
+        copy_files "$FRONTEND_IP" "templates/ai" "~/vulnerability_manager/templates/" 2>/dev/null || true
+    fi
+    
+    echo "🔄 Перезапуск сервисов для применения изменений..."
+    run_docker_compose "$BACKEND_IP" "~/vulnerability_manager/services/backend" "restart" 2>/dev/null || true
+    run_docker_compose "$FRONTEND_IP" "~/vulnerability_manager/services/frontend" "restart" 2>/dev/null || true
+    
+    echo "✅ ИИ-интеграция развернута"
+fi
+
 echo ""
 echo "🎉 Развертывание завершено!"
 echo ""
@@ -268,4 +288,8 @@ echo "  Frontend:  http://$FRONTEND_IP"
 echo "  Backend:   http://$BACKEND_IP:5000/api/health"
 echo "  Database:  $DATABASE_IP:5432"
 echo "  Parsers:   $PARSERS_IP (проверить логи: docker logs vulnerability-parsers)"
+echo ""
+echo "🤖 ИИ-интерфейс:"
+echo "  Dashboard:   http://$FRONTEND_IP/ai/dashboard"
+echo "  Statistics:  http://$FRONTEND_IP/ai/statistics"
 

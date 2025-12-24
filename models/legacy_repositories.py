@@ -6,7 +6,7 @@ import logging
 import json
 import uuid
 from datetime import datetime
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional, Any, Tuple
 from models.entities import Vulnerability, Operator
 logger = logging.getLogger(__name__)
 
@@ -25,46 +25,72 @@ class LegacyVulnerabilityRepository:
         try:
             cursor = self.db.cursor()
             # Проверяем, существует ли уже запись с таким CVE
-            cve_id = getattr(vulnerability, 'cve_id', None) or vulnerability.title
+            cve_id = getattr(vulnerability, 'cve_id', None) or getattr(vulnerability, 'title', None) or 'UNKNOWN-CVE'
+            
+            # Валидация cve_id - должен быть не пустым и валидным
+            if not cve_id or cve_id == 'UNKNOWN-CVE' or len(cve_id.strip()) == 0:
+                logger.error(f"❌ [LEGACY_REPO] Невалидный cve_id: '{cve_id}' для уязвимости '{vulnerability.title[:50]}'")
+                return False
+            
+            # Очистка cve_id от лишних пробелов
+            cve_id = cve_id.strip()
+            
+            logger.info(f"💾 [LEGACY_REPO] Начинаем сохранение {cve_id}")
+            logger.debug(f"   cve_id={cve_id}, title={vulnerability.title[:50]}, source_identifier={getattr(vulnerability, 'source_identifier', 'N/A')}")
             
             # 1. Сохраняем в таблицу turn
             turn_id = self._save_to_turn(cursor, vulnerability)
             if not turn_id:
-                logger.warning(f"⚠️ Не удалось сохранить в turn для {cve_id}")
+                logger.error(f"❌ [LEGACY_REPO] _save_to_turn вернул None для {cve_id}")
                 self.db.rollback()
                 if cursor:
                     cursor.close()
                 return False
+            
+            logger.debug(f"   ✅ turn_id={turn_id}")
 
             # 2. Если есть CVE, сохраняем в cvelist
             if cve_id and cve_id != 'UNKNOWN':
                 try:
                     self._save_to_cvelist(cursor, cve_id, vulnerability)
+                    logger.debug(f"   ✅ [CVELIST] Сохранено для {cve_id}")
                 except Exception as e:
-                    logger.warning(f"⚠️ Ошибка сохранения в cvelist для {cve_id}: {e}")
+                    logger.error(f"❌ [CVELIST] Ошибка сохранения в cvelist для {cve_id}: {e}", exc_info=True)
+                    # Не прерываем транзакцию, но логируем ошибку
 
             # 3. Если есть CWE (weaknesses), сохраняем в cwelist и map_table
             if hasattr(vulnerability, 'weaknesses') and vulnerability.weaknesses:
                 try:
                     self._save_cwe_data(cursor, cve_id, vulnerability)
+                    logger.debug(f"   ✅ [CWE] Сохранено для {cve_id}")
                 except Exception as e:
-                    logger.warning(f"⚠️ Ошибка сохранения CWE для {cve_id}: {e}")
+                    logger.error(f"❌ [CWE] Ошибка сохранения CWE для {cve_id}: {e}", exc_info=True)
+                    # Не прерываем транзакцию, но логируем ошибку
 
             # 4. Сохраняем маппинг в map_table
             try:
                 self._save_to_map_table(cursor, cve_id, vulnerability)
+                logger.debug(f"   ✅ [MAP_TABLE] Сохранено для {cve_id}")
             except Exception as e:
-                logger.warning(f"⚠️ Ошибка сохранения в map_table для {cve_id}: {e}")
+                logger.error(f"❌ [MAP_TABLE] Ошибка сохранения в map_table для {cve_id}: {e}", exc_info=True)
+                # Не прерываем транзакцию, но логируем ошибку
 
             # Коммитим транзакцию
-            self.db.commit()
-            logger.info(f"✅ Уязвимость {cve_id} сохранена в legacy схему (turn_id={turn_id})")
-            return True
+            try:
+                self.db.commit()
+                logger.info(f"✅ [LEGACY_REPO] Уязвимость {cve_id} сохранена в legacy схему (turn_id={turn_id})")
+                return True
+            except Exception as commit_error:
+                logger.error(f"❌ [LEGACY_REPO] Ошибка коммита транзакции для {cve_id}: {commit_error}", exc_info=True)
+                self.db.rollback()
+                return False
 
         except Exception as e:
             if cursor:
                 self.db.rollback()
-            logger.error(f"❌ Ошибка сохранения уязвимости: {e}", exc_info=True)
+            logger.error(f"❌ [LEGACY_REPO] Ошибка сохранения уязвимости {cve_id}: {e}", exc_info=True)
+            import traceback
+            logger.error(f"   Traceback: {traceback.format_exc()}")
             return False
         finally:
             if cursor:
@@ -73,7 +99,14 @@ class LegacyVulnerabilityRepository:
     def _save_to_turn(self, cursor, vulnerability: Vulnerability) -> Optional[int]:
         """Сохранение в таблицу turn"""
         try:
-            cve_id = getattr(vulnerability, 'cve_id', None) or vulnerability.title
+            # cve_id уже валидирован в save_vulnerability, но проверяем на всякий случай
+            cve_id = getattr(vulnerability, 'cve_id', None) or getattr(vulnerability, 'title', None) or 'UNKNOWN-CVE'
+            
+            if not cve_id or cve_id == 'UNKNOWN-CVE' or len(cve_id.strip()) == 0:
+                logger.error(f"❌ [TURN] Невалидный cve_id в _save_to_turn: '{cve_id}'")
+                return None
+            
+            cve_id = cve_id.strip()
             
             # Определяем source (NVD, RedHat, OSV, Debian, Ubuntu и т.д.)
             source = getattr(vulnerability, 'source_identifier', None)
@@ -135,18 +168,23 @@ class LegacyVulnerabilityRepository:
                 'approved': vulnerability.approved,
                 'modifications': vulnerability.modifications
             }
-            if hasattr(vulnerability, 'is_ai_related'):
-                etc_data['is_ai_related'] = vulnerability.is_ai_related
+            # ЗАКОММЕНТИРОВАНО: Логика ИИ уязвимостей
+            # if hasattr(vulnerability, 'is_ai_related'):
+            #     etc_data['is_ai_related'] = vulnerability.is_ai_related
+            #     etc_data['ai_confidence'] = getattr(vulnerability, 'ai_confidence', 0.0)
             etc = json.dumps(etc_data, ensure_ascii=False)
 
             # Status (boolean)
             status = vulnerability.status not in ['completed', 'approved']
 
             # Проверяем, существует ли уже запись
+            logger.debug(f"   [TURN] Проверяем существование cve={cve_id}")
             cursor.execute("SELECT id FROM turn WHERE cve = %s", (cve_id,))
             existing = cursor.fetchone()
+            logger.debug(f"   [TURN] Результат проверки: existing={existing}")
 
             if existing:
+                logger.debug(f"   [TURN] Обновляем существующую запись для {cve_id}")
                 # Обновляем существующую запись
                 cursor.execute("""
                     UPDATE turn SET
@@ -161,24 +199,51 @@ class LegacyVulnerabilityRepository:
                 ))
             else:
                 # Вставляем новую запись
-                cursor.execute("""
-                    INSERT INTO turn (
-                        source, link, cve, joining_date, name, cvss,
+                logger.debug(f"   [TURN] Вставляем новую запись для {cve_id}, source={source}")
+                try:
+                    cursor.execute("""
+                        INSERT INTO turn (
+                            source, link, cve, joining_date, name, cvss,
+                            price_one, priority, start_date, end_date, etc, status
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        RETURNING id
+                    """, (
+                        source, link, cve_id, joining_date, name, cvss,
                         price_one, priority, start_date, end_date, etc, status
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    RETURNING id
-                """, (
-                    source, link, cve_id, joining_date, name, cvss,
-                    price_one, priority, start_date, end_date, etc, status
-                ))
+                    ))
+                except Exception as insert_error:
+                    # Если ошибка UNIQUE constraint, пытаемся обновить
+                    if 'unique' in str(insert_error).lower() or 'duplicate' in str(insert_error).lower():
+                        logger.warning(f"   ⚠️ [TURN] Дубликат CVE {cve_id}, обновляем существующую запись")
+                        cursor.execute("""
+                            UPDATE turn SET
+                                source = %s, link = %s, name = %s, cvss = %s,
+                                price_one = %s, priority = %s, joining_date = %s,
+                                start_date = %s, end_date = %s, etc = %s, status = %s
+                            WHERE cve = %s
+                            RETURNING id
+                        """, (
+                            source, link, name, cvss, price_one, priority,
+                            joining_date, start_date, end_date, etc, status, cve_id
+                        ))
+                    else:
+                        raise  # Пробрасываем другие ошибки
 
             result = cursor.fetchone()
-            return result[0] if result else None
+            turn_id = result[0] if result else None
+            
+            if turn_id:
+                logger.info(f"   ✅ [TURN] Сохранено в turn: cve={cve_id}, turn_id={turn_id}, source={source}")
+            else:
+                logger.error(f"   ❌ [TURN] INSERT/UPDATE не вернул ID для {cve_id}")
+                logger.error(f"   Параметры: source={source}, cve_id={cve_id}, name={name[:50]}")
+            
+            return turn_id
 
         except Exception as e:
-            logger.error(f"❌ Ошибка сохранения в turn для {cve_id}: {e}", exc_info=True)
+            logger.error(f"❌ [TURN] Ошибка сохранения в turn для {cve_id}: {e}", exc_info=True)
             import traceback
-            logger.error(f"Traceback: {traceback.format_exc()}")
+            logger.error(f"   Traceback: {traceback.format_exc()}")
             return None
 
     def _save_to_cvelist(self, cursor, cve_id: str, vulnerability: Vulnerability):
@@ -306,9 +371,35 @@ class LegacyVulnerabilityRepository:
         except Exception as e:
             logger.error(f"Ошибка сохранения в map_table: {e}")
 
-    def assign_operator(self, cve_id: str, operator_name: str) -> bool:
+    def assign_operator(self, vuln_id: int, operator_id: int) -> bool:
         """Назначение оператора на уязвимость (сохранение в actids)"""
         try:
+            # Получаем CVE по ID уязвимости
+            with self.db.cursor() as cursor:
+                cursor.execute("SELECT cve FROM turn WHERE id = %s", (vuln_id,))
+                row = cursor.fetchone()
+                if not row or not row[0]:
+                    logger.error(f"❌ [assign_operator] Уязвимость с ID {vuln_id} не найдена или не имеет CVE")
+                    return False
+                cve_id = row[0]
+            
+            # Получаем имя оператора по ID из таблицы users
+            operator_name = None
+            with self.db.cursor() as cursor:
+                cursor.execute("SELECT username, email FROM users WHERE id = %s", (operator_id,))
+                user_row = cursor.fetchone()
+                if user_row:
+                    operator_name = user_row[0] or user_row[1]
+                    logger.debug(f"🔍 [assign_operator] Найден оператор ID {operator_id}: {operator_name}")
+                else:
+                    logger.error(f"❌ [assign_operator] Оператор с ID {operator_id} не найден в users")
+                    return False
+            
+            if not operator_name:
+                logger.error(f"❌ [assign_operator] Не удалось получить имя оператора для ID {operator_id}")
+                return False
+            
+            # Сохраняем назначение в actids
             with self.db.cursor() as cursor:
                 uid = uuid.uuid4()
                 cursor.execute("""
@@ -317,11 +408,224 @@ class LegacyVulnerabilityRepository:
                     ON CONFLICT (cve, oper) DO UPDATE SET active = %s, uid = %s
                 """, (cve_id, uid, True, operator_name, True, uid))
                 self.db.commit()
+                logger.info(f"✅ [assign_operator] Уязвимость {vuln_id} (CVE: {cve_id}) назначена оператору {operator_name} (ID: {operator_id})")
                 return True
         except Exception as e:
-            logger.error(f"Ошибка назначения оператора: {e}")
+            logger.error(f"❌ [assign_operator] Ошибка назначения оператора: {e}", exc_info=True)
             self.db.rollback()
             return False
+
+    def unassign_operator(self, vuln_id: int) -> bool:
+        """Снять назначение оператора с уязвимости (удаление из actids)"""
+        try:
+            # Получаем CVE по ID уязвимости
+            with self.db.cursor() as cursor:
+                cursor.execute("SELECT cve FROM turn WHERE id = %s", (vuln_id,))
+                row = cursor.fetchone()
+                if not row or not row[0]:
+                    logger.error(f"❌ [unassign_operator] Уязвимость с ID {vuln_id} не найдена или не имеет CVE")
+                    return False
+                cve_id = row[0]
+            
+            # Удаляем назначение из actids (устанавливаем active = FALSE)
+            with self.db.cursor() as cursor:
+                cursor.execute("""
+                    UPDATE actids 
+                    SET active = FALSE 
+                    WHERE cve = %s
+                """, (cve_id,))
+                self.db.commit()
+                logger.info(f"✅ [unassign_operator] Назначение снято с уязвимости {vuln_id} (CVE: {cve_id})")
+                return True
+        except Exception as e:
+            logger.error(f"❌ [unassign_operator] Ошибка снятия назначения: {e}", exc_info=True)
+            self.db.rollback()
+            return False
+
+    def get_vulnerabilities_by_operator(self, operator_id: int) -> List[Vulnerability]:
+        """Получить все уязвимости, назначенные оператору"""
+        try:
+            from models.entities import Vulnerability
+            import json
+            
+            # Сначала получаем имя оператора по ID из таблицы users
+            operator_name = None
+            try:
+                with self.db.cursor() as cursor:
+                    # Пробуем получить из users (если есть поле username или email)
+                    cursor.execute("SELECT username, email FROM users WHERE id = %s", (operator_id,))
+                    user_row = cursor.fetchone()
+                    if user_row:
+                        operator_name = user_row[0] or user_row[1]
+                        logger.debug(f"🔍 [get_vulnerabilities_by_operator] Найден пользователь ID {operator_id}: {operator_name}")
+                    
+                    # Если не нашли в users, пробуем получить из operators по ID
+                    # Но в legacy схеме operators хранит только operator (имя) и level
+                    # Нужно проверить, есть ли связь через другую таблицу
+                    if not operator_name:
+                        # Пробуем найти оператора по ID через другие таблицы
+                        # В legacy схеме может не быть прямой связи operator_id -> operator_name
+                        # Возвращаем пустой список, если не можем найти оператора
+                        logger.warning(f"⚠️ [get_vulnerabilities_by_operator] Не удалось найти оператора по ID {operator_id}")
+                        return []
+            except Exception as e:
+                logger.error(f"❌ [get_vulnerabilities_by_operator] Ошибка получения имени оператора: {e}")
+                return []
+            
+            if not operator_name:
+                logger.warning(f"⚠️ [get_vulnerabilities_by_operator] Оператор с ID {operator_id} не найден")
+                return []
+            
+            # Получаем все CVE, назначенные этому оператору из actids
+            vulnerabilities = []
+            with self.db.cursor() as cursor:
+                cursor.execute("""
+                    SELECT DISTINCT cve FROM actids 
+                    WHERE oper = %s AND active = TRUE
+                """, (operator_name,))
+                cve_rows = cursor.fetchall()
+                cve_list = [row[0] for row in cve_rows]
+                
+                if not cve_list:
+                    logger.debug(f"🔍 [get_vulnerabilities_by_operator] Нет назначенных уязвимостей для оператора {operator_name}")
+                    return []
+                
+                logger.debug(f"🔍 [get_vulnerabilities_by_operator] Найдено {len(cve_list)} CVE для оператора {operator_name}")
+                
+                # Получаем уязвимости по CVE из таблицы turn
+                placeholders = ','.join(['%s'] * len(cve_list))
+                cursor.execute(f"""
+                    SELECT id, source, link, cve, joining_date, name, cvss, 
+                           price_one, priority, start_date, end_date, etc, status
+                    FROM turn
+                    WHERE cve IN ({placeholders})
+                    ORDER BY joining_date DESC
+                """, tuple(cve_list))
+                rows = cursor.fetchall()
+                
+                for row in rows:
+                    try:
+                        etc_data = json.loads(row[11]) if row[11] else {}
+                    except:
+                        etc_data = {}
+                    
+                    # Загружаем описание из cvelist
+                    description = ''
+                    try:
+                        cursor.execute("SELECT ff_eng, ff_rus FROM cvelist WHERE cve = %s", (row[3],))
+                        cve_row = cursor.fetchone()
+                        if cve_row:
+                            description = cve_row[0] or cve_row[1] or ''
+                    except:
+                        pass
+                    
+                    vuln = Vulnerability(
+                        id=row[0],
+                        title=row[5] or row[3] or 'Unknown',
+                        description=description,
+                        severity=self._cvss_to_severity(row[6] or 0.0),
+                        status='new' if row[12] else 'completed',
+                        assigned_operator=operator_id,  # Сохраняем operator_id
+                        created_date=row[4],
+                        completed_date=row[10],
+                        approved=etc_data.get('approved', False),
+                        modifications=etc_data.get('modifications', 0),
+                        cvss_score=float(row[6] or 0.0),
+                        risk_level=etc_data.get('risk_level', 'medium'),
+                        category=etc_data.get('category', row[1] or 'unknown'),
+                        cve_id=row[3]
+                    )
+                    vuln.source_identifier = row[1] or 'NVD'
+                    vulnerabilities.append(vuln)
+            
+            logger.info(f"✅ [get_vulnerabilities_by_operator] Возвращаем {len(vulnerabilities)} уязвимостей для оператора {operator_name} (ID: {operator_id})")
+            return vulnerabilities
+            
+        except Exception as e:
+            logger.error(f"❌ [get_vulnerabilities_by_operator] Ошибка получения уязвимостей для оператора {operator_id}: {e}", exc_info=True)
+            return []
+
+    def get_by_id(self, vuln_id: int) -> Optional[Vulnerability]:
+        """Получение уязвимости по ID из таблицы turn"""
+        try:
+            from models.entities import Vulnerability
+            import json
+            
+            with self.db.cursor() as cursor:
+                cursor.execute("""
+                    SELECT id, source, link, cve, joining_date, name, cvss, 
+                           price_one, priority, start_date, end_date, etc, status
+                    FROM turn WHERE id = %s
+                """, (vuln_id,))
+                row = cursor.fetchone()
+                
+                if not row:
+                    logger.debug(f"⚠️ [get_by_id] Уязвимость с ID {vuln_id} не найдена в turn")
+                    return None
+                
+                # Парсим etc данные
+                try:
+                    etc_data = json.loads(row[11]) if row[11] else {}
+                except:
+                    etc_data = {}
+                
+                # Загружаем описание из cvelist
+                description = ''
+                try:
+                    cursor.execute("SELECT ff_eng, ff_rus FROM cvelist WHERE cve = %s", (row[3],))
+                    cve_row = cursor.fetchone()
+                    if cve_row:
+                        description = cve_row[0] or cve_row[1] or ''
+                        logger.debug(f"✅ [get_by_id] Загружено описание для {row[3]}: {len(description)} символов")
+                    else:
+                        logger.debug(f"⚠️ [get_by_id] Описание для {row[3]} не найдено в cvelist")
+                except Exception as e:
+                    logger.debug(f"⚠️ [get_by_id] Ошибка загрузки описания для {row[3]}: {e}")
+                
+                # Загружаем назначенного оператора из actids
+                assigned_operator_id = None
+                try:
+                    cursor.execute("""
+                        SELECT oper FROM actids 
+                        WHERE cve = %s AND active = TRUE 
+                        LIMIT 1
+                    """, (row[3],))
+                    actids_row = cursor.fetchone()
+                    if actids_row:
+                        operator_name = actids_row[0]
+                        # Получаем operator_id по имени оператора из users
+                        cursor.execute("SELECT id FROM users WHERE username = %s OR email = %s LIMIT 1", (operator_name, operator_name))
+                        user_row = cursor.fetchone()
+                        if user_row:
+                            assigned_operator_id = user_row[0]
+                            logger.debug(f"🔍 [get_by_id] Найден назначенный оператор для CVE {row[3]}: {operator_name} (ID: {assigned_operator_id})")
+                except Exception as e:
+                    logger.debug(f"⚠️ [get_by_id] Ошибка загрузки оператора для {row[3]}: {e}")
+                
+                vulnerability = Vulnerability(
+                    id=row[0],
+                    title=row[5] or row[3] or 'Unknown',
+                    description=description,
+                    severity=self._cvss_to_severity(row[6] or 0.0),
+                    status='new' if row[12] else 'completed',
+                    assigned_operator=assigned_operator_id,
+                    created_date=row[4],
+                    completed_date=row[10],
+                    approved=etc_data.get('approved', False),
+                    modifications=etc_data.get('modifications', 0),
+                    cvss_score=float(row[6] or 0.0),
+                    risk_level=etc_data.get('risk_level', 'medium'),
+                    category=etc_data.get('category', row[1] or 'unknown'),
+                    cve_id=row[3]
+                )
+                vulnerability.source_identifier = row[1] or 'NVD'
+                
+                logger.info(f"✅ [get_by_id] Уязвимость ID {vuln_id} загружена: CVE={row[3]}, описание={len(description)} символов")
+                return vulnerability
+                
+        except Exception as e:
+            logger.error(f"❌ [get_by_id] Ошибка получения уязвимости по ID {vuln_id}: {e}", exc_info=True)
+            return None
 
     def get_by_cve_id(self, cve_id: str) -> Optional[Vulnerability]:
         """Получение уязвимости по CVE ID (совместимость с modern репозиторием)"""
@@ -499,6 +803,233 @@ class LegacyVulnerabilityRepository:
         vulnerability.has_cert_alerts = vuln_dict.get('has_cert_alerts', False)
         
         return vulnerability
+
+    def get_all(self) -> List[Vulnerability]:
+        """Получить все уязвимости из таблицы turn (для совместимости с VulnerabilityService)"""
+        return self.get_all_vulnerabilities()
+    
+    def get_all_vulnerabilities(self) -> List[Vulnerability]:
+        """Получить все уязвимости из таблицы turn (для совместимости)"""
+        try:
+            from models.entities import Vulnerability
+            import json
+            
+            vulnerabilities = []
+            with self.db.cursor() as cursor:
+                cursor.execute("""
+                    SELECT id, source, link, cve, joining_date, name, cvss, 
+                           price_one, priority, start_date, end_date, etc, status
+                    FROM turn
+                    ORDER BY joining_date DESC
+                    LIMIT 1000
+                """)
+                rows = cursor.fetchall()
+                
+                for row in rows:
+                    try:
+                        etc_data = json.loads(row[11]) if row[11] else {}
+                    except:
+                        etc_data = {}
+                    
+                    # Загружаем описание из cvelist
+                    description = ''
+                    try:
+                        cursor.execute("SELECT ff_eng, ff_rus FROM cvelist WHERE cve = %s", (row[3],))
+                        cve_row = cursor.fetchone()
+                        if cve_row:
+                            description = cve_row[0] or cve_row[1] or ''
+                    except:
+                        pass
+                    
+                    # Загружаем назначенного оператора из actids
+                    assigned_operator_id = None
+                    try:
+                        cursor.execute("""
+                            SELECT oper FROM actids 
+                            WHERE cve = %s AND active = TRUE 
+                            LIMIT 1
+                        """, (row[3],))
+                        actids_row = cursor.fetchone()
+                        if actids_row:
+                            operator_name = actids_row[0]
+                            # Получаем operator_id по имени оператора из users
+                            cursor.execute("SELECT id FROM users WHERE username = %s OR email = %s LIMIT 1", (operator_name, operator_name))
+                            user_row = cursor.fetchone()
+                            if user_row:
+                                assigned_operator_id = user_row[0]
+                    except Exception as e:
+                        logger.debug(f"⚠️ [get_all_vulnerabilities] Ошибка загрузки оператора для {row[3]}: {e}")
+                    
+                    vuln = Vulnerability(
+                        id=row[0],
+                        title=row[5] or row[3] or 'Unknown',
+                        description=description,
+                        severity=self._cvss_to_severity(row[6] or 0.0),
+                        status='new' if row[12] else 'completed',
+                        assigned_operator=assigned_operator_id,
+                        created_date=row[4],
+                        completed_date=row[10],
+                        approved=etc_data.get('approved', False),
+                        modifications=etc_data.get('modifications', 0),
+                        cvss_score=float(row[6] or 0.0),
+                        risk_level=etc_data.get('risk_level', 'medium'),
+                        category=etc_data.get('category', row[1] or 'unknown'),
+                        cve_id=row[3]
+                    )
+                    vuln.source_identifier = row[1] or 'NVD'
+                    vulnerabilities.append(vuln)
+            
+            return vulnerabilities
+        except Exception as e:
+            logger.error(f"Ошибка получения всех уязвимостей: {e}", exc_info=True)
+            return []
+
+    def get_paginated(self, page: int = 1, per_page: int = 50,
+                     status: Optional[str] = None, severity: Optional[str] = None,
+                     search: Optional[str] = None) -> Tuple[List[Vulnerability], int]:
+        """Получить уязвимости с пагинацией и фильтрацией"""
+        try:
+            from models.entities import Vulnerability
+            import json
+            
+            logger.debug(f"🔍 [get_paginated] Запрос: page={page}, per_page={per_page}, status={status}, severity={severity}, search={search}")
+            
+            # Построение WHERE условий
+            where_conditions = []
+            params = []
+            
+            if status:
+                # status в turn - это boolean, нужно конвертировать
+                if status == 'new':
+                    where_conditions.append("status = TRUE")
+                elif status == 'completed':
+                    where_conditions.append("status = FALSE")
+            
+            if severity:
+                # Определяем диапазон CVSS для severity
+                cvss_ranges = {
+                    'critical': (9.0, 10.0),
+                    'high': (7.0, 9.0),
+                    'medium': (4.0, 7.0),
+                    'low': (0.0, 4.0)
+                }
+                if severity in cvss_ranges:
+                    min_cvss, max_cvss = cvss_ranges[severity]
+                    where_conditions.append(f"cvss >= %s AND cvss < %s")
+                    params.extend([min_cvss, max_cvss])
+            
+            if search:
+                where_conditions.append("(cve ILIKE %s OR name ILIKE %s)")
+                search_pattern = f"%{search}%"
+                params.extend([search_pattern, search_pattern])
+            
+            where_clause = " AND ".join(where_conditions) if where_conditions else "1=1"
+            logger.debug(f"🔍 [get_paginated] WHERE clause: {where_clause}, params={params}")
+            
+            # Подсчет общего количества
+            count_query = f"SELECT COUNT(*) FROM turn WHERE {where_clause}"
+            logger.debug(f"🔍 [get_paginated] Count query: {count_query}")
+            
+            # Проверяем соединение
+            if self.db is None or self.db.closed:
+                logger.error("❌ [get_paginated] Соединение с БД закрыто или None")
+                return [], 0
+            
+            with self.db.cursor() as cursor:
+                cursor.execute(count_query, tuple(params))
+                total_count = cursor.fetchone()[0]
+                logger.info(f"📊 [get_paginated] Всего уязвимостей в БД: {total_count}")
+            
+            # Получение данных с пагинацией
+            offset = (page - 1) * per_page
+            query = f"""
+                SELECT id, source, link, cve, joining_date, name, cvss, 
+                       price_one, priority, start_date, end_date, etc, status
+                FROM turn
+                WHERE {where_clause}
+                ORDER BY joining_date DESC
+                LIMIT %s OFFSET %s
+            """
+            query_params = list(params) + [per_page, offset]
+            logger.debug(f"🔍 [get_paginated] Data query: {query[:100]}..., params={query_params}")
+            
+            vulnerabilities = []
+            with self.db.cursor() as cursor:
+                cursor.execute(query, tuple(query_params))
+                rows = cursor.fetchall()
+                logger.info(f"📊 [get_paginated] Получено строк из БД: {len(rows)}")
+                
+                for row in rows:
+                    try:
+                        etc_data = json.loads(row[11]) if row[11] else {}
+                    except:
+                        etc_data = {}
+                    
+                    # Загружаем описание из cvelist
+                    description = ''
+                    try:
+                        cursor.execute("SELECT ff_eng, ff_rus FROM cvelist WHERE cve = %s", (row[3],))
+                        cve_row = cursor.fetchone()
+                        if cve_row:
+                            description = cve_row[0] or cve_row[1] or ''
+                    except Exception as e:
+                        logger.debug(f"⚠️ [get_paginated] Ошибка загрузки описания для {row[3]}: {e}")
+                    
+                    # Загружаем назначенного оператора из actids
+                    assigned_operator_id = None
+                    try:
+                        cursor.execute("""
+                            SELECT oper FROM actids 
+                            WHERE cve = %s AND active = TRUE 
+                            LIMIT 1
+                        """, (row[3],))
+                        actids_row = cursor.fetchone()
+                        if actids_row:
+                            operator_name = actids_row[0]
+                            # Получаем operator_id по имени оператора из users
+                            cursor.execute("SELECT id FROM users WHERE username = %s OR email = %s LIMIT 1", (operator_name, operator_name))
+                            user_row = cursor.fetchone()
+                            if user_row:
+                                assigned_operator_id = user_row[0]
+                                logger.debug(f"🔍 [get_paginated] Найден назначенный оператор для CVE {row[3]}: {operator_name} (ID: {assigned_operator_id})")
+                    except Exception as e:
+                        logger.debug(f"⚠️ [get_paginated] Ошибка загрузки оператора для {row[3]}: {e}")
+                    
+                    vuln = Vulnerability(
+                        id=row[0],
+                        title=row[5] or row[3] or 'Unknown',
+                        description=description,
+                        severity=self._cvss_to_severity(row[6] or 0.0),
+                        status='new' if row[12] else 'completed',
+                        assigned_operator=assigned_operator_id,
+                        created_date=row[4],
+                        completed_date=row[10],
+                        approved=etc_data.get('approved', False),
+                        modifications=etc_data.get('modifications', 0),
+                        cvss_score=float(row[6] or 0.0),
+                        risk_level=etc_data.get('risk_level', 'medium'),
+                        category=etc_data.get('category', row[1] or 'unknown'),
+                        cve_id=row[3]
+                    )
+                    vuln.source_identifier = row[1] or 'NVD'
+                    vulnerabilities.append(vuln)
+            
+            logger.info(f"✅ [get_paginated] Возвращаем {len(vulnerabilities)} уязвимостей из {total_count}")
+            return vulnerabilities, total_count
+        except Exception as e:
+            logger.error(f"❌ [get_paginated] Ошибка получения уязвимостей с пагинацией: {e}", exc_info=True)
+            return [], 0
+
+    def _cvss_to_severity(self, cvss: float) -> str:
+        """Конвертация CVSS score в severity"""
+        if cvss >= 9.0:
+            return 'critical'
+        elif cvss >= 7.0:
+            return 'high'
+        elif cvss >= 4.0:
+            return 'medium'
+        else:
+            return 'low'
 
 
 class LegacyOperatorRepository:

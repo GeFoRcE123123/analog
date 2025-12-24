@@ -72,6 +72,11 @@ CREATE TABLE IF NOT EXISTS vulnerabilities (
     vendor_comments JSONB,
     is_ai_related BOOLEAN DEFAULT FALSE,
     ai_confidence DECIMAL(3,2) DEFAULT 0.0,
+    
+    -- ИИ-анализ результатов
+    ai_keywords_found TEXT[],
+    ai_categories TEXT[],
+    ai_reasoning TEXT,
     has_kev BOOLEAN DEFAULT FALSE,
     has_cert_alerts BOOLEAN DEFAULT FALSE
 );
@@ -151,6 +156,111 @@ CREATE TABLE IF NOT EXISTS actids (
     oper TEXT,
     PRIMARY KEY (cve, oper)
 );
+
+-- Таблица истории парсинга (parsing_history)
+CREATE TABLE IF NOT EXISTS parsing_history (
+    id SERIAL PRIMARY KEY,
+    scan_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    sources TEXT[],
+    total_parsed INTEGER DEFAULT 0,
+    total_saved INTEGER DEFAULT 0,
+    total_errors INTEGER DEFAULT 0,
+    by_source JSONB,
+    settings JSONB,
+    status VARCHAR(50) DEFAULT 'completed',
+    error_message TEXT,
+    duration_seconds INTEGER
+);
+
+CREATE INDEX IF NOT EXISTS idx_parsing_history_scan_date ON parsing_history(scan_date DESC);
+
+-- ============================================
+-- ТАБЛИЦЫ ДЛЯ ИИ-СИСТЕМЫ
+-- ============================================
+
+-- Результаты ИИ-анализа
+CREATE TABLE IF NOT EXISTS ai_analysis_results (
+    id SERIAL PRIMARY KEY,
+    vulnerability_id INTEGER REFERENCES turn(id),
+    is_ai_related BOOLEAN,
+    confidence FLOAT,
+    keywords_found TEXT[],
+    categories TEXT[],
+    reasoning TEXT,
+    analyzed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    model_version VARCHAR(50)
+);
+
+-- Ключевые слова для обучения
+CREATE TABLE IF NOT EXISTS ai_keywords (
+    id SERIAL PRIMARY KEY,
+    keyword TEXT UNIQUE NOT NULL,
+    category VARCHAR(50),
+    weight FLOAT DEFAULT 1.0,
+    source VARCHAR(50) DEFAULT 'manual', -- 'manual', 'learned', 'extracted'
+    usage_count INTEGER DEFAULT 0,
+    accuracy FLOAT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Данные для обучения модели
+CREATE TABLE IF NOT EXISTS ai_training_data (
+    id SERIAL PRIMARY KEY,
+    vulnerability_id INTEGER REFERENCES turn(id),
+    is_ai_related BOOLEAN NOT NULL,
+    confirmed_by INTEGER REFERENCES users(id),
+    confirmed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    context_text TEXT,
+    extracted_keywords TEXT[],
+    used_for_training BOOLEAN DEFAULT FALSE
+);
+
+-- Мониторинг сайтов
+CREATE TABLE IF NOT EXISTS ai_monitoring_sites (
+    id SERIAL PRIMARY KEY,
+    url TEXT NOT NULL,
+    site_name VARCHAR(255),
+    parser_config JSONB,
+    enabled BOOLEAN DEFAULT TRUE,
+    last_check TIMESTAMP,
+    check_interval INTEGER DEFAULT 3600, -- секунды
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Паспорта уязвимостей
+CREATE TABLE IF NOT EXISTS ai_vulnerability_passports (
+    id SERIAL PRIMARY KEY,
+    vulnerability_id INTEGER REFERENCES turn(id) UNIQUE,
+    passport_data JSONB NOT NULL,
+    generated_by_ai BOOLEAN DEFAULT TRUE,
+    model_version VARCHAR(50),
+    confidence FLOAT,
+    generated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Метрики модели
+CREATE TABLE IF NOT EXISTS ai_model_metrics (
+    id SERIAL PRIMARY KEY,
+    model_name VARCHAR(100),
+    model_version VARCHAR(50),
+    accuracy FLOAT,
+    precision FLOAT,
+    recall FLOAT,
+    f1_score FLOAT,
+    training_samples INTEGER,
+    trained_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Индексы для ИИ-таблиц
+CREATE INDEX IF NOT EXISTS idx_ai_analysis_vuln ON ai_analysis_results(vulnerability_id);
+CREATE INDEX IF NOT EXISTS idx_ai_analysis_ai_related ON ai_analysis_results(is_ai_related);
+CREATE INDEX IF NOT EXISTS idx_ai_keywords_category ON ai_keywords(category);
+CREATE INDEX IF NOT EXISTS idx_ai_training_vuln ON ai_training_data(vulnerability_id);
+CREATE INDEX IF NOT EXISTS idx_ai_training_used ON ai_training_data(used_for_training);
+CREATE INDEX IF NOT EXISTS idx_ai_monitoring_enabled ON ai_monitoring_sites(enabled);
+CREATE INDEX IF NOT EXISTS idx_ai_passports_vuln ON ai_vulnerability_passports(vulnerability_id);
 
 -- ============================================
 -- ИНДЕКСЫ

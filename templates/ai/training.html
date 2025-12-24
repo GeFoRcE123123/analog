@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Управление обучением ИИ{% endblock %}
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <h1 class="text-3xl font-bold mb-6">🎓 Управление обучением ИИ</h1>
+    <div class="bg-white rounded-lg shadow p-6 mb-6">
+        <h2 class="text-xl font-bold mb-4">Запуск обучения</h2>
+        <button onclick="startTraining()" class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg">
+            🚀 Запустить обучение
+        </button>
+    </div>
+    <div id="training-results" class="bg-white rounded-lg shadow p-6"></div>
+</div>
+<script>
+async function startTraining() {
+    const response = await fetch('/api/ai/train', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({training_data: []})
+    });
+    const result = await response.json();
+    document.getElementById('training-results').innerHTML = `<pre>${JSON.stringify(result, null, 2)}</pre>`;
+}
+</script>
+{% endblock %}
+

@@ -115,6 +115,12 @@
                             <i class="fas fa-rocket"></i>
                             <span>Парсеры</span>
                         </a>
+
+                        <a href="{{ url_for('ai_dashboard') }}"
+                           class="nav-item text-white px-4 py-2 rounded-lg font-medium flex items-center space-x-2 {% if request.path.startswith('/ai') %}bg-white bg-opacity-20{% endif %}">
+                            <i class="fas fa-brain"></i>
+                            <span>ИИ-Анализ</span>
+                        </a>
                         <a href="{{ url_for('review_vulnerabilities') }}"
                            class="nav-item text-white px-4 py-2 rounded-lg font-medium flex items-center space-x-2 {% if request.path == '/review' %}bg-white bg-opacity-20{% endif %}">
                             <i class="fas fa-check-double"></i>
