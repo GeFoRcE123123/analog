@@ -920,6 +920,19 @@ class PostgresOperatorRepository:
 
     def get_assigned_vulnerabilities(self, operator_id: int) -> List[Vulnerability]:
         """Получить уязвимости, назначенные оператору"""
+        from config import Config
+        
+        # Если используется legacy схема, загружаем из actids через turn
+        if Config.USE_LEGACY_SCHEMA:
+            try:
+                from models.legacy_repositories import LegacyVulnerabilityRepository
+                legacy_repo = LegacyVulnerabilityRepository(self.connection)
+                return legacy_repo.get_vulnerabilities_by_operator(operator_id)
+            except Exception as e:
+                logger.error(f"Error getting assigned vulnerabilities for operator {operator_id} (legacy): {e}")
+                return []
+        
+        # Стандартная схема - загружаем из таблицы vulnerabilities
         query = """
         SELECT id, title, description, severity, status, assigned_operator, 
                created_date, completed_date, approved, modifications, 

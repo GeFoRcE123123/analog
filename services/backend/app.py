@@ -72,7 +72,8 @@ else:
 # Инициализация сервисов
 auth_service = AuthService()
 # Используем стандартный репозиторий (не optimized), так как optimized_postgres_repositories требует psycopg2
-vuln_service = VulnerabilityService(use_optimized=False)
+# Передаем db соединение для использования LegacyVulnerabilityRepository
+vuln_service = VulnerabilityService(use_optimized=False, db_connection=db)
 operator_service = OperatorService()
 export_service = ExportService()
 data_manager = DataManager()
@@ -88,12 +89,46 @@ def get_vulnerabilities_with_operators(page: int = 1, per_page: int = 50,
                                        severity: Optional[str] = None,
                                        search: Optional[str] = None):
     """Получить уязвимости с операторами с пагинацией"""
-    vulnerabilities, total_count = vuln_service.get_paginated_vulnerabilities(
-        page=page, per_page=per_page,
-        status=status, severity=severity, search=search
-    )
-    operators = operator_service.get_all_operators()
-    return vulnerabilities, operators, total_count
+    try:
+        vulnerabilities, total_count = vuln_service.get_paginated_vulnerabilities(
+            page=page, per_page=per_page,
+            status=status, severity=severity, search=search
+        )
+        operators = operator_service.get_all_operators()
+        logger.info(f"📊 Получено уязвимостей: {len(vulnerabilities)} из {total_count} (страница {page})")
+        return vulnerabilities, operators, total_count
+    except Exception as e:
+        logger.error(f"❌ Ошибка получения уязвимостей: {e}", exc_info=True)
+        return [], [], 0
+
+
+def save_parsing_history(sources, total_parsed, total_saved, total_errors, by_source, settings, status='completed', error_message=None, duration_seconds=0):
+    """Сохранить историю парсинга в БД"""
+    try:
+        import json
+        query = """
+            INSERT INTO parsing_history (
+                sources, total_parsed, total_saved, total_errors, 
+                by_source, settings, status, error_message, duration_seconds
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """
+        db_manager.execute_query(
+            query,
+            (
+                sources,
+                total_parsed,
+                total_saved,
+                total_errors,
+                json.dumps(by_source),
+                json.dumps(settings),
+                status,
+                error_message,
+                duration_seconds
+            )
+        )
+        logger.info(f"✅ История парсинга сохранена: parsed={total_parsed}, saved={total_saved}")
+    except Exception as e:
+        logger.error(f"❌ Ошибка сохранения истории парсинга: {e}", exc_info=True)
 
 
 def get_vulnerabilities_with_operators_old():
@@ -209,9 +244,15 @@ def dashboard():
 @login_required
 def profile():
     """Страница профиля"""
-    operator_id = session['user_id']
-    assigned_vulns = vuln_service.get_vulnerabilities_by_operator(operator_id)
-    return render_template('profile.html', vulnerabilities=assigned_vulns)
+    try:
+        operator_id = session['user_id']
+        assigned_vulns = vuln_service.get_vulnerabilities_by_operator(operator_id)
+        logger.debug(f"📊 [profile] Получено {len(assigned_vulns)} уязвимостей для пользователя ID {operator_id}")
+        return render_template('profile.html', vulnerabilities=assigned_vulns)
+    except Exception as e:
+        logger.error(f"❌ [profile] Ошибка загрузки профиля: {e}", exc_info=True)
+        flash(f'Ошибка при загрузке профиля: {str(e)}', 'error')
+        return render_template('profile.html', vulnerabilities=[])
 
 @app.route('/vulnerabilities')
 @login_required
@@ -308,6 +349,40 @@ def parsers_page():
     """Страница парсеров"""
     return render_template('parsers.html')
 
+# === ИИ-ИНТЕГРАЦИЯ СТРАНИЦЫ ===
+
+@app.route('/ai/dashboard')
+@login_required
+def ai_dashboard():
+    """Главная страница ИИ-интерфейса"""
+    return render_template('ai/dashboard.html')
+
+@app.route('/ai/statistics')
+@login_required
+def ai_statistics():
+    """Страница статистики по ключевым словам"""
+    return render_template('ai/statistics.html')
+
+@app.route('/ai/training')
+@login_required
+@admin_required
+def ai_training():
+    """Страница управления обучением"""
+    return render_template('ai/training.html')
+
+@app.route('/ai/monitoring')
+@login_required
+@admin_required
+def ai_monitoring():
+    """Страница управления мониторингом сайтов"""
+    return render_template('ai/monitoring.html')
+
+@app.route('/ai/passports')
+@login_required
+def ai_passports():
+    """Страница просмотра паспортов уязвимостей"""
+    return render_template('ai/passports.html')
+
 @app.route('/my-assignments')
 @login_required
 def my_assignments():
@@ -316,6 +391,7 @@ def my_assignments():
     return render_template('my_assignments.html', vulnerabilities=assigned_vulns)
 
 @app.route('/create-operator', methods=['POST'])
+@csrf.exempt
 @login_required
 @admin_required
 def create_operator():
@@ -483,6 +559,45 @@ def api_vulnerabilities():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@app.route('/get-vulnerability/<int:vuln_id>', methods=['GET'])
+@login_required
+def get_vulnerability(vuln_id):
+    """Получить уязвимость по ID (для фронтенда)"""
+    try:
+        vulnerability = vuln_service.get_vulnerability_by_id(vuln_id)
+        if vulnerability:
+            operator_name = None
+            operator_id = None
+            if vulnerability.assigned_operator:
+                operator = operator_service.get_operator_by_id(vulnerability.assigned_operator)
+                if operator:
+                    operator_name = operator.name
+                    operator_id = operator.id
+            return jsonify({
+                'success': True,
+                'vulnerability': {
+                    'id': vulnerability.id,
+                    'title': vulnerability.title,
+                    'description': vulnerability.description,
+                    'severity': vulnerability.severity,
+                    'status': vulnerability.status,
+                    'cvss_score': vulnerability.cvss_score,
+                    'risk_level': vulnerability.risk_level,
+                    'category': vulnerability.category,
+                    'modifications': vulnerability.modifications,
+                    'approved': vulnerability.approved,
+                    'assigned_operator': operator_name,
+                    'assigned_operator_id': operator_id,
+                    'cve_id': getattr(vulnerability, 'cve_id', None),
+                    'created_date': vulnerability.created_date.isoformat() if vulnerability.created_date else None,
+                    'completed_date': vulnerability.completed_date.isoformat() if vulnerability.completed_date else None
+                }
+            })
+        return jsonify({'success': False, 'message': 'Уязвимость не найдена'}), 404
+    except Exception as e:
+        logger.error(f"Ошибка получения уязвимости {vuln_id}: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @app.route('/api/vulnerabilities/<int:vuln_id>', methods=['GET'])
 def api_get_vulnerability(vuln_id):
     """Получить уязвимость по ID"""
@@ -529,6 +644,7 @@ def api_operators():
 
 
 @app.route('/api/operators', methods=['POST'])
+@csrf.exempt
 def api_create_operator():
     """Создать оператора"""
     try:
@@ -556,6 +672,7 @@ def api_create_operator():
 # === API МАРШРУТЫ ДЛЯ НАЗНАЧЕНИЙ ===
 
 @app.route('/api/assign-operator', methods=['POST'])
+@csrf.exempt
 def api_assign_operator():
     """Назначить оператора уязвимости"""
     try:
@@ -566,13 +683,35 @@ def api_assign_operator():
         if not vuln_id or not operator_id:
             return jsonify({'success': False, 'message': 'Не указаны ID уязвимости или оператора'}), 400
         
-        result = assignment_manager.assign_operator_to_vulnerability(vuln_id, operator_id)
-        return jsonify(result)
+        # Используем VulnerabilityService для назначения (работает с legacy схемой)
+        success = vuln_service.assign_vulnerability(vuln_id, operator_id)
+        if success:
+            # Получаем обновленную уязвимость для ответа
+            vulnerability = vuln_service.get_vulnerability_by_id(vuln_id)
+            operator = operator_service.get_operator_by_id(operator_id)
+            
+            return jsonify({
+                'success': True,
+                'message': f'Уязвимость назначена оператору {operator.name if operator else "Unknown"}',
+                'vulnerability': {
+                    'id': vulnerability.id if vulnerability else vuln_id,
+                    'title': vulnerability.title if vulnerability else 'Unknown',
+                    'status': vulnerability.status if vulnerability else 'new'
+                },
+                'operator': {
+                    'id': operator.id if operator else operator_id,
+                    'name': operator.name if operator else 'Unknown'
+                }
+            })
+        else:
+            return jsonify({'success': False, 'message': 'Ошибка назначения оператора'}), 500
     except Exception as e:
+        logger.error(f"Ошибка назначения оператора: {e}", exc_info=True)
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @app.route('/api/assign-multiple', methods=['POST'])
+@csrf.exempt
 def api_assign_multiple():
     """Назначить несколько уязвимостей оператору"""
     try:
@@ -583,9 +722,70 @@ def api_assign_multiple():
         if not operator_id or not vulnerability_ids:
             return jsonify({'success': False, 'message': 'Не указаны ID оператора или уязвимостей'}), 400
         
-        result = assignment_manager.assign_multiple_vulnerabilities(operator_id, vulnerability_ids)
-        return jsonify(result)
+        # Используем VulnerabilityService для назначения каждой уязвимости (работает с legacy схемой)
+        assigned_count = 0
+        failed_assignments = []
+        
+        for vuln_id in vulnerability_ids:
+            success = vuln_service.assign_vulnerability(vuln_id, operator_id)
+            if success:
+                assigned_count += 1
+            else:
+                failed_assignments.append({'vuln_id': vuln_id, 'error': 'Ошибка назначения'})
+        
+        operator = operator_service.get_operator_by_id(operator_id)
+        
+        return jsonify({
+            'success': True,
+            'message': f'Назначено {assigned_count} из {len(vulnerability_ids)} уязвимостей',
+            'assigned_count': assigned_count,
+            'failed_assignments': failed_assignments,
+            'operator': {
+                'id': operator.id if operator else operator_id,
+                'name': operator.name if operator else 'Unknown'
+            }
+        })
     except Exception as e:
+        logger.error(f"Ошибка массового назначения: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/assign-vulnerabilities', methods=['POST'])
+@csrf.exempt
+def assign_vulnerabilities():
+    """Назначить несколько уязвимостей оператору (старый маршрут для совместимости)"""
+    try:
+        data = request.get_json()
+        operator_id = data.get('operator_id')
+        vulnerability_ids = data.get('vulnerability_ids', [])
+        
+        if not operator_id or not vulnerability_ids:
+            return jsonify({'success': False, 'message': 'Не указаны ID оператора или уязвимостей'}), 400
+        
+        # Используем VulnerabilityService для назначения каждой уязвимости (работает с legacy схемой)
+        assigned_count = 0
+        failed_assignments = []
+        
+        for vuln_id in vulnerability_ids:
+            success = vuln_service.assign_vulnerability(vuln_id, operator_id)
+            if success:
+                assigned_count += 1
+            else:
+                failed_assignments.append({'vuln_id': vuln_id, 'error': 'Ошибка назначения'})
+        
+        operator = operator_service.get_operator_by_id(operator_id)
+        
+        return jsonify({
+            'success': True,
+            'message': f'Назначено {assigned_count} из {len(vulnerability_ids)} уязвимостей',
+            'assigned_count': assigned_count,
+            'failed_assignments': failed_assignments,
+            'operator': {
+                'id': operator.id if operator else operator_id,
+                'name': operator.name if operator else 'Unknown'
+            }
+        })
+    except Exception as e:
+        logger.error(f"Ошибка массового назначения: {e}", exc_info=True)
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
@@ -650,11 +850,14 @@ def api_parsers_run_all():
         enable_nvd = data.get('enable_nvd', False)
         enable_redhat = data.get('enable_redhat', False)
         enable_osv = data.get('enable_osv', False)
+        enable_vendors = data.get('enable_vendors', False)
+        vendor_sources = data.get('vendor_sources', [])
         nvd_days = data.get('nvd_days', 7)
         
-        logger.info(f"🚀 [API] Запуск всех парсеров: sources={sources}, limit={limit_per_source}, nvd={enable_nvd}, redhat={enable_redhat}, osv={enable_osv}")
+        logger.info(f"🚀 [API] Запуск всех парсеров: sources={sources}, limit={limit_per_source}, nvd={enable_nvd}, redhat={enable_redhat}, osv={enable_osv}, vendors={enable_vendors}, vendor_sources={vendor_sources}")
         
         # Запуск парсинга
+        start_time = time.time()
         try:
             logger.info(f"   [API] Вызываем unified_parser_service.parse_all()...")
             results = unified_parser_service.parse_all(
@@ -663,17 +866,66 @@ def api_parsers_run_all():
                 enable_nvd=enable_nvd,
                 enable_redhat=enable_redhat,
                 enable_osv=enable_osv,
+                enable_vendors=enable_vendors,
+                vendor_sources=vendor_sources,
+                enable_osv=enable_osv,
                 nvd_days=nvd_days
             )
+            duration = int(time.time() - start_time)
             logger.info(f"   [API] Парсинг завершен: results={results}")
             logger.info(f"   [API] total_parsed={results.get('total_parsed', 0)}, total_saved={results.get('total_saved', 0)}")
+            
+            # Сохранение истории парсинга
+            try:
+                save_parsing_history(
+                    sources=sources,
+                    total_parsed=results.get('total_parsed', 0),
+                    total_saved=results.get('total_saved', 0),
+                    total_errors=len(results.get('errors', [])),
+                    by_source=results.get('by_source', {}),
+                    settings={
+                        'limit_per_source': limit_per_source,
+                        'enable_nvd': enable_nvd,
+                        'enable_redhat': enable_redhat,
+                        'enable_osv': enable_osv,
+                        'nvd_days': nvd_days
+                    },
+                    status='completed',
+                    duration_seconds=duration
+                )
+            except Exception as history_error:
+                logger.error(f"Ошибка сохранения истории парсинга: {history_error}", exc_info=True)
             
             return jsonify({
                 'success': True,
                 **results
             })
         except Exception as parse_error:
+            duration = int(time.time() - start_time)
             logger.error(f"   [API] Ошибка при вызове parse_all(): {parse_error}", exc_info=True)
+            
+            # Сохранение истории парсинга с ошибкой
+            try:
+                save_parsing_history(
+                    sources=sources,
+                    total_parsed=0,
+                    total_saved=0,
+                    total_errors=1,
+                    by_source={},
+                    settings={
+                        'limit_per_source': limit_per_source,
+                        'enable_nvd': enable_nvd,
+                        'enable_redhat': enable_redhat,
+                        'enable_osv': enable_osv,
+                        'nvd_days': nvd_days
+                    },
+                    status='failed',
+                    error_message=str(parse_error),
+                    duration_seconds=duration
+                )
+            except Exception as history_error:
+                logger.error(f"Ошибка сохранения истории парсинга: {history_error}", exc_info=True)
+            
             return jsonify({
                 'success': False,
                 'message': f'Ошибка парсинга: {str(parse_error)}',
@@ -697,7 +949,7 @@ def api_parsers_stats():
         vulnerabilities = vuln_service.get_all_vulnerabilities() if vuln_service else []
         
         for vuln in vulnerabilities:
-            source = getattr(vuln, 'category', None) or getattr(vuln, 'source', None) or 'unknown'
+            source = getattr(vuln, 'category', None) or getattr(vuln, 'source', None) or getattr(vuln, 'source_identifier', None) or 'unknown'
             if source not in by_source:
                 by_source[source] = {'in_db': 0, 'parsed': 0, 'saved': 0}
             by_source[source]['in_db'] = by_source[source].get('in_db', 0) + 1
@@ -715,6 +967,47 @@ def api_parsers_stats():
         
     except Exception as e:
         logger.error(f"Ошибка получения статистики: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/parsers/history', methods=['GET'])
+@csrf.exempt
+def api_parsers_history():
+    """Получить историю сканирования"""
+    try:
+        limit = int(request.args.get('limit', 10))
+        query = """
+            SELECT id, scan_date, sources, total_parsed, total_saved, 
+                   total_errors, by_source, settings, status, error_message, duration_seconds
+            FROM parsing_history
+            ORDER BY scan_date DESC
+            LIMIT %s
+        """
+        results = db_manager.execute_query(query, (limit,))
+        
+        history = []
+        for row in results:
+            import json
+            history.append({
+                'id': row[0],
+                'scan_date': row[1].isoformat() if row[1] else None,
+                'sources': row[2] if row[2] else [],
+                'total_parsed': row[3] or 0,
+                'total_saved': row[4] or 0,
+                'total_errors': row[5] or 0,
+                'by_source': row[6] if isinstance(row[6], dict) else (json.loads(row[6]) if row[6] else {}),
+                'settings': row[7] if isinstance(row[7], dict) else (json.loads(row[7]) if row[7] else {}),
+                'status': row[8] or 'completed',
+                'error_message': row[9],
+                'duration_seconds': row[10] or 0
+            })
+        
+        return jsonify({
+            'success': True,
+            'history': history
+        })
+    except Exception as e:
+        logger.error(f"Ошибка получения истории парсинга: {e}", exc_info=True)
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/html-parser/parse', methods=['POST'])
@@ -930,6 +1223,274 @@ def api_health():
             'error': str(e),
             'timestamp': datetime.now().isoformat()
         }), 500
+
+@app.route('/api/vulnerabilities/clear', methods=['POST'])
+@csrf.exempt
+@login_required
+@admin_required
+def api_clear_vulnerabilities():
+    """Очистка всех данных по уязвимостям из БД (только для админов)"""
+    try:
+        data = request.get_json() or {}
+        confirm = data.get('confirm', False)
+        
+        if not confirm:
+            return jsonify({
+                'success': False,
+                'message': 'Требуется подтверждение. Отправьте {"confirm": true}'
+            }), 400
+        
+        logger.warning(f"⚠️  [CLEAR] Пользователь {session.get('user_id')} запросил очистку всех уязвимостей")
+        
+        with db_manager.connection.cursor() as cursor:
+            # Подсчет записей
+            tables_to_check = ['turn', 'cvelist', 'cwelist', 'map_table', 'actids', 'parsing_history']
+            counts = {}
+            
+            for table in tables_to_check:
+                try:
+                    cursor.execute(f"SELECT COUNT(*) FROM {table}")
+                    counts[table] = cursor.fetchone()[0]
+                except:
+                    counts[table] = 0
+            
+            total_count = sum(counts.values())
+            
+            if total_count == 0:
+                return jsonify({
+                    'success': True,
+                    'message': 'База данных уже пуста',
+                    'deleted': counts
+                })
+            
+            # Очистка в правильном порядке
+            deleted = {}
+            
+            # 1. actids
+            cursor.execute("DELETE FROM actids")
+            deleted['actids'] = cursor.rowcount
+            
+            # 2. map_table
+            cursor.execute("DELETE FROM map_table")
+            deleted['map_table'] = cursor.rowcount
+            
+            # 3. cwelist
+            cursor.execute("DELETE FROM cwelist")
+            deleted['cwelist'] = cursor.rowcount
+            
+            # 4. cvelist
+            cursor.execute("DELETE FROM cvelist")
+            deleted['cvelist'] = cursor.rowcount
+            
+            # 5. turn
+            cursor.execute("DELETE FROM turn")
+            deleted['turn'] = cursor.rowcount
+            
+            # 6. parsing_history
+            cursor.execute("DELETE FROM parsing_history")
+            deleted['parsing_history'] = cursor.rowcount
+            
+            db_manager.connection.commit()
+            
+            logger.warning(f"✅ [CLEAR] Очищено {total_count} записей из БД пользователем {session.get('user_id')}")
+            
+            return jsonify({
+                'success': True,
+                'message': f'Успешно очищено {total_count} записей',
+                'deleted': deleted,
+                'total_deleted': total_count
+            })
+            
+    except Exception as e:
+        logger.error(f"❌ Ошибка очистки уязвимостей: {e}", exc_info=True)
+        if db_manager.connection:
+            db_manager.connection.rollback()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+# === ИИ-ИНТЕГРАЦИЯ API ===
+
+from services.ai_integration_service import ai_integration_service
+
+@app.route('/api/ai/analyze', methods=['POST'])
+@csrf.exempt
+@login_required
+def api_ai_analyze():
+    """Анализ уязвимости с помощью ИИ"""
+    try:
+        data = request.get_json()
+        vulnerability_data = data.get('vulnerability_data', {})
+        
+        if not vulnerability_data:
+            return jsonify({'error': 'vulnerability_data required'}), 400
+        
+        result = ai_integration_service.analyze_vulnerability(vulnerability_data)
+        return jsonify({'success': True, 'result': result})
+    except Exception as e:
+        logger.error(f"Ошибка ИИ-анализа: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/ai/classify/<int:vulnerability_id>', methods=['POST'])
+@csrf.exempt
+@login_required
+def api_ai_classify(vulnerability_id):
+    """Классификация уязвимости (ИИ или нет)"""
+    try:
+        result = ai_integration_service.classify_vulnerability(vulnerability_id)
+        if 'error' in result:
+            return jsonify({'success': False, 'error': result['error']}), 400
+        return jsonify({'success': True, 'result': result})
+    except Exception as e:
+        logger.error(f"Ошибка классификации: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/ai/batch-analyze', methods=['POST'])
+@csrf.exempt
+@login_required
+@admin_required
+def api_ai_batch_analyze():
+    """Пакетный анализ уязвимостей"""
+    try:
+        data = request.get_json()
+        vulnerability_ids = data.get('vulnerability_ids', [])
+        
+        if not vulnerability_ids:
+            return jsonify({'error': 'vulnerability_ids required'}), 400
+        
+        result = ai_integration_service.batch_analyze(vulnerability_ids)
+        return jsonify({'success': True, 'result': result})
+    except Exception as e:
+        logger.error(f"Ошибка пакетного анализа: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/ai/statistics', methods=['GET'])
+@csrf.exempt
+@login_required
+def api_ai_statistics():
+    """Статистика по ключевым словам"""
+    try:
+        stats = ai_integration_service.get_keywords_statistics()
+        return jsonify({'success': True, 'statistics': stats})
+    except Exception as e:
+        logger.error(f"Ошибка получения статистики: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/ai/keywords', methods=['GET'])
+@csrf.exempt
+@login_required
+def api_ai_keywords():
+    """Список ключевых слов"""
+    try:
+        stats = ai_integration_service.get_keywords_statistics()
+        return jsonify({
+            'success': True,
+            'keywords': stats.get('keywords', []),
+            'category_stats': stats.get('category_stats', {})
+        })
+    except Exception as e:
+        logger.error(f"Ошибка получения ключевых слов: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/ai/train', methods=['POST'])
+@csrf.exempt
+@login_required
+@admin_required
+def api_ai_train():
+    """Обучение модели на новых данных"""
+    try:
+        data = request.get_json()
+        training_data = data.get('training_data', [])
+        
+        if not training_data:
+            return jsonify({'error': 'training_data required'}), 400
+        
+        result = ai_integration_service.train_model(training_data)
+        return jsonify({'success': True, 'result': result})
+    except Exception as e:
+        logger.error(f"Ошибка обучения: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/ai/generate-passport/<int:vulnerability_id>', methods=['POST'])
+@csrf.exempt
+@login_required
+def api_ai_generate_passport(vulnerability_id):
+    """Создание паспорта уязвимости при помощи ИИ"""
+    try:
+        passport = ai_integration_service.generate_passport(vulnerability_id)
+        if 'error' in passport:
+            return jsonify({'success': False, 'error': passport['error']}), 400
+        return jsonify({'success': True, 'passport': passport})
+    except Exception as e:
+        logger.error(f"Ошибка генерации паспорта: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/ai/passport/<int:vulnerability_id>', methods=['GET'])
+@csrf.exempt
+@login_required
+def api_ai_get_passport(vulnerability_id):
+    """Получение паспорта уязвимости"""
+    try:
+        cursor = db_manager.connection.cursor()
+        cursor.execute("""
+            SELECT passport_data, generated_at, updated_at
+            FROM ai_vulnerability_passports
+            WHERE vulnerability_id = %s
+            ORDER BY generated_at DESC
+            LIMIT 1
+        """, (vulnerability_id,))
+        
+        row = cursor.fetchone()
+        cursor.close()
+        
+        if row:
+            import json
+            return jsonify({
+                'success': True,
+                'passport': json.loads(row[0]) if isinstance(row[0], str) else row[0],
+                'generated_at': str(row[1]),
+                'updated_at': str(row[2])
+            })
+        else:
+            return jsonify({'success': False, 'error': 'Паспорт не найден'}), 404
+    except Exception as e:
+        logger.error(f"Ошибка получения паспорта: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/ai/monitor-start', methods=['POST'])
+@csrf.exempt
+@login_required
+@admin_required
+def api_ai_monitor_start():
+    """Запуск мониторинга сайтов"""
+    try:
+        # TODO: Реализовать запуск мониторинга
+        return jsonify({'success': True, 'message': 'Мониторинг запущен'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/ai/monitor-stop', methods=['POST'])
+@csrf.exempt
+@login_required
+@admin_required
+def api_ai_monitor_stop():
+    """Остановка мониторинга"""
+    try:
+        return jsonify({'success': True, 'message': 'Мониторинг остановлен'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/ai/monitor-status', methods=['GET'])
+@csrf.exempt
+@login_required
+def api_ai_monitor_status():
+    """Статус мониторинга"""
+    try:
+        return jsonify({'success': True, 'status': 'stopped', 'sites': []})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 if __name__ == '__main__':

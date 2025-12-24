@@ -250,12 +250,17 @@ async function startAllParsers() {
     const btnText = document.getElementById('startBtnText');
     const progressDiv = document.getElementById('parsingProgress');
     const resultsDiv = document.getElementById('parsingResults');
+    const progressBar = document.getElementById('progressBar');
+    const progressText = document.getElementById('progressText');
     
     // Подготовка UI
     btn.disabled = true;
     btnText.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Парсинг выполняется...';
     progressDiv.classList.remove('hidden');
     resultsDiv.classList.add('hidden');
+    
+    // Сброс прогресса
+    updateProgress(0, 'Инициализация парсеров...');
     
     // Получение настроек
     const settings = getParserSettings();
@@ -264,6 +269,9 @@ async function startAllParsers() {
         // Создаем AbortController для таймаута
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 600000); // 10 минут таймаут
+        
+        // Обновляем прогресс во время запроса
+        updateProgress(10, 'Отправка запроса на сервер...');
         
         const response = await fetch('/api/parsers/run-all', {
             method: 'POST',
@@ -274,24 +282,37 @@ async function startAllParsers() {
         
         clearTimeout(timeoutId);
         
+        updateProgress(30, 'Получение ответа от сервера...');
+        
         if (!response.ok) {
             const errorText = await response.text();
             throw new Error(`HTTP ${response.status}: ${errorText}`);
         }
         
+        updateProgress(50, 'Обработка результатов...');
+        
         const data = await response.json();
         
+        updateProgress(80, 'Сохранение результатов...');
+        
         if (data.success) {
+            updateProgress(100, 'Парсинг завершен успешно!');
+            
+            // Небольшая задержка для отображения 100%
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
             // Отображение результатов
             showParsingResults(data);
             
             // Обновление статистики
             await refreshStats();
         } else {
+            updateProgress(0, 'Ошибка при парсинге');
             showError(data.message || 'Ошибка при запуске парсинга');
         }
     } catch (e) {
         console.error('Ошибка парсинга:', e);
+        updateProgress(0, 'Ошибка соединения');
         let errorMessage = 'Ошибка соединения с сервером';
         if (e.name === 'AbortError') {
             errorMessage = 'Превышено время ожидания ответа (10 минут). Парсинг может быть еще выполняется на сервере.';
@@ -303,7 +324,25 @@ async function startAllParsers() {
         parsingActive = false;
         btn.disabled = false;
         btnText.textContent = 'Запустить все парсеры';
-        progressDiv.classList.add('hidden');
+        // Не скрываем прогресс сразу, чтобы пользователь видел результат
+        setTimeout(() => {
+            progressDiv.classList.add('hidden');
+        }, 2000);
+    }
+}
+
+// Обновление прогресс-бара
+function updateProgress(percent, text) {
+    const progressBar = document.getElementById('progressBar');
+    const progressText = document.getElementById('progressText');
+    
+    if (progressBar) {
+        progressBar.style.width = `${Math.min(100, Math.max(0, percent))}%`;
+        progressBar.setAttribute('aria-valuenow', percent);
+    }
+    
+    if (progressText) {
+        progressText.textContent = text || `${percent}%`;
     }
 }
 
@@ -487,9 +526,37 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Первоначальная загрузка статистики
     refreshStats();
+    loadParsingHistory();
     
     // Автообновление статистики каждые 30 секунд
     setInterval(refreshStats, 30000);
 });
+
+// Загрузка истории сканирования
+async function loadParsingHistory() {
+    try {
+        const response = await fetch('/api/parsers/history?limit=1');
+        const data = await response.json();
+        
+        if (data.success && data.history && data.history.length > 0) {
+            // Показываем последнее сканирование
+            const lastScan = data.history[0];
+            showParsingResults({
+                success: true,
+                total_parsed: lastScan.total_parsed,
+                total_saved: lastScan.total_saved,
+                by_source: lastScan.by_source,
+                errors: lastScan.total_errors > 0 ? [`Ошибок: ${lastScan.total_errors}`] : []
+            });
+            
+            // Обновляем статистику
+            document.getElementById('statParsed').textContent = lastScan.total_parsed || 0;
+            document.getElementById('statSaved').textContent = lastScan.total_saved || 0;
+            document.getElementById('statErrors').textContent = lastScan.total_errors || 0;
+        }
+    } catch (e) {
+        console.error('Ошибка загрузки истории:', e);
+    }
+}
 </script>
 {% endblock %}
