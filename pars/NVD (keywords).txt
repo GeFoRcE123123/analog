@@ -1,0 +1,91 @@
+# парсинг с NVD по ключевым словам
+def NVD_pasr():
+    r_file = requests.get('https://nvd.nist.gov/feeds/json/cve/1.1/nvdcve-1.1-recent.json.zip', stream=True)
+    if r_file.status_code == 200:
+        with open('nvd.json.zip', 'wb') as f:
+            f.write(r_file.content)
+    else:
+        pass
+        Box = QMessageBox()
+        Box.setText("Файл недоступен")
+        Box.setStandardButtons(QMessageBox.Ok)
+        Box.setDefaultButton(QMessageBox.Ok)
+        ret = Box.exec_()  
+
+    archive = zipfile.ZipFile(join('nvd.json.zip'), 'r')
+    jsonfile = archive.open(archive.namelist()[0])
+    json_data = json.loads(jsonfile.read())
+
+
+    etc__ = []
+    identifiers__ = []
+    links__ = []
+    lst_CVSSS__ = []
+    etc = []
+    identifiers = []
+    links = []
+    lst_CVSSS = []
+
+    for item in json_data['CVE_Items']:
+    #       if index == limit:
+    #           break
+    #       index += 1
+            if item['cve']['CVE_data_meta']['ID'] != None:
+                identifiers__.append(item['cve']['CVE_data_meta']['ID'])
+                links__.append('https://nvd.nist.gov/vuln/detail/' + str(item['cve']['CVE_data_meta']['ID']))
+                
+                try:
+                    etc__.append(item['cve']['description']['description_data'][0]['value']) 
+                except KeyError:
+                    etc__.append('unknown')
+
+                   
+                try:
+                    lst_CVSSS__.append(float(item['impact']['baseMetricV3']['cvssV3']['baseScore']))
+                except KeyError:
+                    lst_CVSSS__.append(float(3))
+
+    sql_select_query = """SELECT word FROM dictionary"""
+    cursor.execute(sql_select_query)
+    records_word = cursor.fetchall()
+    records_cleaned = [re.sub(r"[^а-яА-ЯёЁa-zA-Z0-9-./#!@: ]", "", str(x)) for x in records_word]
+    records_word = list(set(records_cleaned)) #список слов
+    for index, x in enumerate(etc__):
+        for y in records_word:
+            if str(y).casefold() in str(x).casefold() != -1:
+                etc.append(x)
+                identifiers.append(identifiers__[index])
+                links.append(links__[index])
+                lst_CVSSS.append(lst_CVSSS__[index])
+
+    source_in = 'NVD'
+    for link_in,CVE_in,etc_in,CVSS_in in zip(links,identifiers,etc,lst_CVSSS):
+        while True:
+            #CVE_in = input('Введите идентификатор уязвимости: ')
+            sqlite_select_query = """SELECT * FROM turn WHERE cve = %s"""
+            cursor.execute(sqlite_select_query, (CVE_in, ))
+            record = cursor.fetchone()
+            if record is None:
+                #source_in = input('Источник предоставления уязвимости: ')
+                #link_in = input('Ссылка: ')
+                #CVSS_in = input('CVSS: ')
+                #etc_in = input('Примечание:')
+                joining_date_in = datetime.datetime.now()
+                records_to_insert = (CVE_in,source_in,link_in,CVSS_in,etc_in,joining_date_in)
+                a = """INSERT INTO turn
+                    (cve, source, link, CVSS, etc, joining_date)
+                    VALUES
+                    (%s,%s,%s,%s,%s,%s);"""
+                count = cursor.execute(a,records_to_insert)
+                sqlite_connection.commit()
+            else:
+                #time.sleep(1.1)
+                break
+    archive.close()
+    jsonfile.close()
+    Box = QMessageBox() # выводим сообщение о успешном добавлении
+    Box.setText("NVD успешно спарсено")
+    Box.setStandardButtons(QMessageBox.Ok)
+    Box.setDefaultButton(QMessageBox.Ok)
+    ret = Box.exec_()  
+    os.remove("nvd.json.zip")

@@ -70,7 +70,9 @@ class UnifiedParserService:
         
         try:
             from services.nvd_integration_service import NVDIntegrationService
-            self.nvd_service = NVDIntegrationService(self.vuln_repo)
+            # Используем API ключ из конфигурации
+            api_key = Config.NVD_API_KEY if Config.NVD_API_KEY else None
+            self.nvd_service = NVDIntegrationService(self.vuln_repo, api_key=api_key)
             self.logger.info("✅ NVD service инициализирован")
         except Exception as e:
             self.logger.warning(f"⚠️ NVD service не доступен: {e}")
@@ -92,6 +94,63 @@ class UnifiedParserService:
         except Exception as e:
             self.logger.warning(f"⚠️ Vendor парсеры не доступны: {e}")
             self.vendor_parsers = None
+        
+        # Инициализация CVE JSON 5.x адаптера
+        try:
+            from services.cve_json5_adapter import cve_json5_adapter
+            from services.cve_json_loader import cve_json_loader
+            self.cve_json5_adapter = cve_json5_adapter
+            self.cve_json_loader = cve_json_loader
+            self.logger.info("✅ CVE JSON 5.x адаптер инициализирован")
+        except Exception as e:
+            self.logger.warning(f"⚠️ CVE JSON 5.x адаптер не доступен: {e}")
+            self.cve_json5_adapter = None
+            self.cve_json_loader = None
+        
+        # Инициализация CVE.org интеграционного сервиса
+        try:
+            from services.cve_org_integration_service import CVEOrgIntegrationService
+            # Используем /tmp/cve_data для хранения репозитория
+            self.cve_org_service = CVEOrgIntegrationService(self.vuln_repo, storage_path="/tmp/cve_data")
+            self.logger.info("✅ CVE.org интеграционный сервис инициализирован")
+        except Exception as e:
+            self.logger.warning(f"⚠️ CVE.org сервис не доступен: {e}")
+            self.cve_org_service = None
+        
+        # Инициализация Legacy парсеров из папки pars/
+        self.legacy_parsers = {}
+        try:
+            from services.legacy_parsers import (
+                RedHatParser, DebianParser, CiscoParser, CertParser,
+                FortiGuardParser, IBMParser, PostgreSQLParser, SUSEParser,
+                PaloAltoParser, JuniperParser, CyberSecurityParser,
+                CXSecurityParser, KasperskyParser, KasperskyStatParser,
+                NVDKeywordsParser, ZeroDayInitiativeParser, CVEDetailsParser
+            )
+            
+            # Инициализируем все парсеры
+            self.legacy_parsers['redhat'] = RedHatParser(self.vuln_repo)
+            self.legacy_parsers['debian'] = DebianParser(self.vuln_repo)
+            self.legacy_parsers['cisco'] = CiscoParser(self.vuln_repo)
+            self.legacy_parsers['cert'] = CertParser(self.vuln_repo)
+            self.legacy_parsers['fortiguard'] = FortiGuardParser(self.vuln_repo)
+            self.legacy_parsers['ibm'] = IBMParser(self.vuln_repo)
+            self.legacy_parsers['postgresql'] = PostgreSQLParser(self.vuln_repo)
+            self.legacy_parsers['suse'] = SUSEParser(self.vuln_repo)
+            self.legacy_parsers['paloalto'] = PaloAltoParser(self.vuln_repo)
+            self.legacy_parsers['juniper'] = JuniperParser(self.vuln_repo)
+            self.legacy_parsers['cybersecurity'] = CyberSecurityParser(self.vuln_repo)
+            self.legacy_parsers['cxsecurity'] = CXSecurityParser(self.vuln_repo)
+            self.legacy_parsers['kaspersky'] = KasperskyParser(self.vuln_repo)
+            self.legacy_parsers['kaspersky_stat'] = KasperskyStatParser(self.vuln_repo)
+            self.legacy_parsers['nvd_keywords'] = NVDKeywordsParser(self.vuln_repo)
+            self.legacy_parsers['zerodayinitiative'] = ZeroDayInitiativeParser(self.vuln_repo)
+            self.legacy_parsers['cvedetails'] = CVEDetailsParser(self.vuln_repo)
+            
+            self.logger.info(f"✅ Legacy парсеры инициализированы: {list(self.legacy_parsers.keys())}")
+        except Exception as e:
+            self.logger.warning(f"⚠️ Legacy парсеры не доступны: {e}", exc_info=True)
+            self.legacy_parsers = {}
     
     def parse_all(
         self,
@@ -100,7 +159,12 @@ class UnifiedParserService:
         enable_nvd: bool = False,
         enable_redhat: bool = False,
         enable_osv: bool = False,
-        nvd_days: int = 1
+        enable_vendors: bool = False,
+        vendor_sources: Optional[List[str]] = None,
+        nvd_days: int = 1,
+        enable_cve_org: bool = False,
+        enable_legacy_parsers: bool = False,
+        legacy_parser_sources: Optional[List[str]] = None
     ) -> Dict[str, Any]:
         """
         Запуск всех парсеров и сохранение данных в БД
@@ -110,6 +174,9 @@ class UnifiedParserService:
             limit_per_source: Лимит уязвимостей на источник
             enable_nvd: Включить NVD парсинг
             enable_redhat: Включить RedHat импорт
+            enable_osv: Включить OSV API парсинг
+            enable_vendors: Включить vendor парсеры (Cisco, Fortiguard, etc.)
+            vendor_sources: Список vendor источников для парсинга
             nvd_days: Количество дней для NVD инкрементального парсинга
             
         Returns:
@@ -127,10 +194,11 @@ class UnifiedParserService:
             'total_parsed': 0,
             'total_saved': 0,
             'by_source': {},
-            'errors': []
+            'errors': [],
+            'progress_messages': []  # Детальные сообщения о прогрессе
         }
         
-        self.logger.info(f"🚀 [PARSE_ALL] Начало парсинга: sources={sources}, limit={limit_per_source}, nvd={enable_nvd}, redhat={enable_redhat}, osv={enable_osv}")
+        self.logger.info(f"🚀 [PARSE_ALL] Начало парсинга: sources={sources}, limit={limit_per_source}, nvd={enable_nvd}, redhat={enable_redhat}, osv={enable_osv}, vendors={enable_vendors}, vendor_sources={vendor_sources}")
         self.logger.info(f"   [PARSE_ALL] html_parser={self.html_parser}, type={type(self.html_parser)}")
         self.logger.info(f"   [PARSE_ALL] vendor_parser={self.vendor_parser}, type={type(self.vendor_parser)}")
         self.logger.info(f"   [PARSE_ALL] osv_api_parser={self.osv_api_parser}, type={type(self.osv_api_parser)}")
@@ -140,8 +208,21 @@ class UnifiedParserService:
             # HTML парсинг (используем для всех источников)
             if sources and len(sources) > 0:
                 self.logger.info(f"🔍 [PARSE_ALL] Начинаем HTML парсинг источников: {sources}, лимит: {limit_per_source}")
+                results['progress_messages'].append({
+                    'stage': 'start',
+                    'message': f'🚀 Начало парсинга источников: {", ".join(sources)}',
+                    'sources': sources,
+                    'limit': limit_per_source,
+                    'timestamp': datetime.now().isoformat()
+                })
+                
                 html_results = self._parse_html_sources(sources, limit_per_source)
                 self.logger.info(f"📊 [PARSE_ALL] HTML парсинг завершен: results={html_results}")
+                
+                # Добавляем прогресс-сообщения из HTML парсинга
+                if 'progress_messages' in html_results:
+                    results['progress_messages'].extend(html_results['progress_messages'])
+                
                 results['by_source'].update(html_results.get('by_source', {}))
                 results['total_parsed'] += html_results.get('total_parsed', 0)
                 results['total_saved'] += html_results.get('total_saved', 0)
@@ -179,6 +260,20 @@ class UnifiedParserService:
                 results['total_parsed'] += vendor_results.get('total_parsed', 0)
                 results['total_saved'] += vendor_results.get('total_saved', 0)
             
+            # CVE.org синхронизация (все ~380,000 CVE)
+            if enable_cve_org and self.cve_org_service:
+                cve_org_results = self._parse_cve_org()
+                results['by_source']['cve_org'] = cve_org_results
+                results['total_parsed'] += cve_org_results.get('parsed', 0)
+                results['total_saved'] += cve_org_results.get('saved', 0)
+            
+            # Legacy парсеры из папки pars/
+            if enable_legacy_parsers and self.legacy_parsers and legacy_parser_sources:
+                legacy_results = self._parse_legacy_parsers(legacy_parser_sources, limit_per_source)
+                results['by_source'].update(legacy_results.get('by_source', {}))
+                results['total_parsed'] += legacy_results.get('total_parsed', 0)
+                results['total_saved'] += legacy_results.get('total_saved', 0)
+            
             results['end_time'] = datetime.now().isoformat()
             results['success'] = True
             self.logger.info(f"✅ [PARSE_ALL] Парсинг завершен: спарсено={results['total_parsed']}, сохранено={results['total_saved']}, by_source={results.get('by_source', {})}")
@@ -197,56 +292,125 @@ class UnifiedParserService:
         return results
     
     def _parse_html_sources(self, sources: List[str], limit: int) -> Dict[str, Any]:
-        """Парсинг HTML источников"""
+        """Парсинг HTML источников с детальным логированием"""
         self.logger.info(f"🔍 [HTML] Проверка HTML парсера: html_parser={self.html_parser}, type={type(self.html_parser)}")
         print(f"[HTML] 🔍 Проверка HTML парсера: html_parser={self.html_parser}, type={type(self.html_parser)}")
         if not self.html_parser:
             error_msg = "❌ [HTML] HTML парсер не инициализирован! Проверьте импорт HTMLVulnerabilityParser"
             self.logger.error(error_msg)
             print(f"[HTML] {error_msg}")
-            return {'total_parsed': 0, 'total_saved': 0, 'by_source': {}}
+            return {'total_parsed': 0, 'total_saved': 0, 'by_source': {}, 'progress_messages': []}
         
         results = {
             'total_parsed': 0,
             'total_saved': 0,
-            'by_source': {}
+            'by_source': {},
+            'progress_messages': []  # Детальные сообщения о прогрессе
         }
         
-        for source in sources:
+        for source_idx, source in enumerate(sources, 1):
             try:
+                progress_msg = f"🌐 Парсинг источника {source} ({source_idx}/{len(sources)})..."
+                self.logger.info(f"🔍 [HTML] {progress_msg}")
+                results['progress_messages'].append({
+                    'stage': 'parsing',
+                    'source': source,
+                    'message': progress_msg,
+                    'timestamp': datetime.now().isoformat()
+                })
+                
                 self.logger.info(f"🔍 [HTML] Начинаем HTML парсинг источника: {source}, лимит: {limit}")
                 self.logger.debug(f"   [HTML] Вызываем html_parser.parse_source(source='{source}', limit={limit})")
                 
                 # Парсинг
                 parsed_vulns = self.html_parser.parse_source(source, limit=limit)
-                self.logger.info(f"✅ [HTML] Источник {source}: получено {len(parsed_vulns)} уязвимостей")
+                parsed_count = len(parsed_vulns)
+                
+                # Детальная информация о спарсенных уязвимостях
                 if parsed_vulns:
-                    self.logger.debug(f"   [HTML] Первые 3 CVE: {[v.get('cve_id', 'N/A') for v in parsed_vulns[:3]]}")
+                    cve_ids = [v.get('cve_id', 'N/A') for v in parsed_vulns[:5]]
+                    cvss_scores = [v.get('cvss_score', 0.0) for v in parsed_vulns if v.get('cvss_score', 0.0) > 0]
+                    avg_cvss = sum(cvss_scores) / len(cvss_scores) if cvss_scores else 0.0
+                    
+                    detail_msg = f"✅ {source}: получено {parsed_count} уязвимостей. CVE: {', '.join(cve_ids[:3])}"
+                    if cvss_scores:
+                        detail_msg += f". Средний CVSS: {avg_cvss:.1f}"
+                    
+                    self.logger.info(f"✅ [HTML] {detail_msg}")
+                    results['progress_messages'].append({
+                        'stage': 'parsed',
+                        'source': source,
+                        'message': detail_msg,
+                        'parsed_count': parsed_count,
+                        'cvss_found': len(cvss_scores),
+                        'avg_cvss': round(avg_cvss, 2),
+                        'timestamp': datetime.now().isoformat()
+                    })
                 else:
-                    self.logger.warning(f"   ⚠️  [HTML] Источник {source}: parse_source вернул пустой список!")
+                    warning_msg = f"⚠️ {source}: не получено уязвимостей"
+                    self.logger.warning(f"   ⚠️  [HTML] {warning_msg}")
+                    results['progress_messages'].append({
+                        'stage': 'error',
+                        'source': source,
+                        'message': warning_msg,
+                        'timestamp': datetime.now().isoformat()
+                    })
                 
                 results['by_source'][source] = {
-                    'parsed': len(parsed_vulns),
-                    'saved': 0
+                    'parsed': parsed_count,
+                    'saved': 0,
+                    'cvss_extracted': len([v for v in parsed_vulns if v.get('cvss_score', 0.0) > 0]),
+                    'cve_ids': [v.get('cve_id') for v in parsed_vulns[:10]]
                 }
-                results['total_parsed'] += len(parsed_vulns)
+                results['total_parsed'] += parsed_count
                 
                 # Сохранение в БД
                 if parsed_vulns:
-                    self.logger.info(f"💾 Сохранение {len(parsed_vulns)} уязвимостей из {source} в БД...")
+                    saving_msg = f"💾 Сохранение {parsed_count} уязвимостей из {source} в БД..."
+                    self.logger.info(f"💾 [HTML] {saving_msg}")
+                    results['progress_messages'].append({
+                        'stage': 'saving',
+                        'source': source,
+                        'message': saving_msg,
+                        'timestamp': datetime.now().isoformat()
+                    })
+                    
                     saved_count = self._save_html_vulnerabilities(parsed_vulns)
                     results['by_source'][source]['saved'] = saved_count
                     results['total_saved'] += saved_count
-                    self.logger.info(f"✅ Сохранено {saved_count} уязвимостей из {source} в БД")
+                    
+                    saved_msg = f"✅ {source}: сохранено {saved_count} из {parsed_count} уязвимостей в БД"
+                    self.logger.info(f"✅ [HTML] {saved_msg}")
+                    results['progress_messages'].append({
+                        'stage': 'saved',
+                        'source': source,
+                        'message': saved_msg,
+                        'saved_count': saved_count,
+                        'timestamp': datetime.now().isoformat()
+                    })
                 else:
-                    self.logger.warning(f"⚠️ Источник {source}: не получено уязвимостей для сохранения")
+                    warning_msg = f"⚠️ {source}: не получено уязвимостей для сохранения"
+                    self.logger.warning(f"⚠️ [HTML] {warning_msg}")
+                    results['progress_messages'].append({
+                        'stage': 'warning',
+                        'source': source,
+                        'message': warning_msg,
+                        'timestamp': datetime.now().isoformat()
+                    })
                 
             except Exception as e:
-                error_msg = str(e)
-                self.logger.error(f"❌ Ошибка парсинга {source}: {error_msg}", exc_info=True)
-                results['by_source'][source] = {'parsed': 0, 'saved': 0, 'error': error_msg}
+                error_msg = f"❌ Ошибка парсинга {source}: {str(e)}"
+                self.logger.error(f"❌ [HTML] {error_msg}", exc_info=True)
+                results['by_source'][source] = {'parsed': 0, 'saved': 0, 'error': str(e)}
                 results['errors'] = results.get('errors', [])
-                results['errors'].append(f"{source}: {error_msg}")
+                results['errors'].append(f"{source}: {str(e)}")
+                results['progress_messages'].append({
+                    'stage': 'error',
+                    'source': source,
+                    'message': error_msg,
+                    'error': str(e),
+                    'timestamp': datetime.now().isoformat()
+                })
         
         return results
     
@@ -304,6 +468,27 @@ class UnifiedParserService:
             self.logger.error(f"Ошибка NVD парсинга: {e}", exc_info=True)
             return {'parsed': 0, 'saved': 0, 'error': str(e)}
     
+    def _parse_cve_org(self) -> Dict[str, Any]:
+        """Парсинг всех CVE с cve.org (~380,000 CVE)"""
+        if not self.cve_org_service:
+            return {'parsed': 0, 'saved': 0, 'error': 'CVE.org service не доступен'}
+        
+        try:
+            self.logger.info("CVE.org инкрементальная синхронизация")
+            
+            # Инкрементальная синхронизация (обновляет репозиторий и обрабатывает изменения)
+            sync_result = self.cve_org_service.incremental_sync(days=1)
+            
+            return {
+                'parsed': sync_result.get('total_processed', 0),
+                'saved': sync_result.get('total_saved', 0),
+                'status': sync_result.get('status', 'unknown')
+            }
+            
+        except Exception as e:
+            self.logger.error(f"Ошибка CVE.org парсинга: {e}", exc_info=True)
+            return {'parsed': 0, 'saved': 0, 'error': str(e)}
+    
     def _parse_osv_api(self, limit: int = 50) -> Dict[str, Any]:
         """Парсинг уязвимостей из OSV.dev API"""
         if not self.osv_api_parser:
@@ -329,6 +514,74 @@ class UnifiedParserService:
             
         except Exception as e:
             self.logger.error(f"Ошибка OSV API парсинга: {e}", exc_info=True)
+            return {'parsed': 0, 'saved': 0, 'error': str(e)}
+    
+    def _parse_cve_json5(self, file_path: Optional[str] = None, cve_ids: Optional[List[str]] = None) -> Dict[str, Any]:
+        """
+        Парсинг CVE из официального JSON 5.x формата
+        
+        Args:
+            file_path: Путь к JSON файлу (опционально, для загрузки с диска)
+            cve_ids: Список конкретных CVE ID для поиска (опционально)
+            
+        Returns:
+            Dict с результатами парсинга
+        """
+        if not self.cve_json_loader or not self.cve_json5_adapter:
+            return {'parsed': 0, 'saved': 0, 'error': 'CVE JSON 5.x адаптер не доступен'}
+        
+        try:
+            self.logger.info("🔍 Парсинг CVE из официального JSON 5.x формата...")
+            
+            # Если указан файл, загружаем его
+            if file_path:
+                parsed_cves = self.cve_json_loader.load_and_parse_file(file_path)
+            else:
+                # TODO: Загрузка с официального API
+                self.logger.warning("⚠️ Загрузка с официального API не реализована. Используйте file_path")
+                return {'parsed': 0, 'saved': 0, 'error': 'Не указан file_path и загрузка с API не реализована'}
+            
+            if not parsed_cves:
+                return {'parsed': 0, 'saved': 0}
+            
+            # Фильтрация по CVE ID если указано
+            if cve_ids:
+                parsed_cves = [cve for cve in parsed_cves if cve.get('cve_id') in cve_ids]
+            
+            # Преобразование в объекты Vulnerability
+            vulnerabilities_to_save = []
+            for cve_data in parsed_cves:
+                try:
+                    vulnerability = self.cve_json5_adapter.to_vulnerability(cve_data)
+                    vulnerabilities_to_save.append((cve_data.get('cve_id'), vulnerability))
+                except Exception as e:
+                    self.logger.error(f"Ошибка преобразования CVE {cve_data.get('cve_id')}: {e}")
+            
+            # Сохранение в БД
+            saved_count = 0
+            for cve_id, vulnerability in vulnerabilities_to_save:
+                try:
+                    if hasattr(self.vuln_repo, 'save_vulnerability'):
+                        result = self.vuln_repo.save_vulnerability(vulnerability)
+                    elif hasattr(self.vuln_repo, 'add'):
+                        result = self.vuln_repo.add(vulnerability)
+                    else:
+                        result = False
+                    
+                    if result:
+                        saved_count += 1
+                except Exception as e:
+                    self.logger.error(f"Ошибка сохранения CVE {cve_id}: {e}")
+            
+            self.logger.info(f"✅ CVE JSON 5.x: спарсено={len(parsed_cves)}, сохранено={saved_count}")
+            
+            return {
+                'parsed': len(parsed_cves),
+                'saved': saved_count
+            }
+            
+        except Exception as e:
+            self.logger.error(f"Ошибка парсинга CVE JSON 5.x: {e}", exc_info=True)
             return {'parsed': 0, 'saved': 0, 'error': str(e)}
     
     def _parse_vendor_parsers(self, vendor_sources: List[str], limit: int) -> Dict[str, Any]:
@@ -406,6 +659,52 @@ class UnifiedParserService:
                 error_msg = str(e)
                 self.logger.error(f"❌ Ошибка vendor парсинга {source}: {error_msg}", exc_info=True)
                 results['by_source'][source] = {'parsed': 0, 'saved': 0, 'error': error_msg}
+        
+        return results
+    
+    def _parse_legacy_parsers(self, parser_sources: List[str], limit: int) -> Dict[str, Any]:
+        """
+        Парсинг через legacy парсеры из папки pars/
+        
+        Args:
+            parser_sources: Список парсеров для запуска
+            limit: Лимит уязвимостей на парсер
+            
+        Returns:
+            Dict с результатами парсинга
+        """
+        if not self.legacy_parsers:
+            return {'total_parsed': 0, 'total_saved': 0, 'by_source': {}}
+        
+        results = {
+            'total_parsed': 0,
+            'total_saved': 0,
+            'by_source': {}
+        }
+        
+        for parser_name in parser_sources:
+            if parser_name not in self.legacy_parsers:
+                self.logger.warning(f"⚠️ Legacy парсер '{parser_name}' не найден")
+                continue
+            
+            parser = self.legacy_parsers[parser_name]
+            self.logger.info(f"🔍 Запуск legacy парсера: {parser_name} (limit={limit})")
+            
+            try:
+                parser_results = parser.parse(limit=limit)
+                results['by_source'][parser_name] = parser_results
+                results['total_parsed'] += parser_results.get('parsed', 0)
+                results['total_saved'] += parser_results.get('saved', 0)
+                
+                self.logger.info(f"✅ {parser_name}: спарсено {parser_results.get('parsed', 0)}, сохранено {parser_results.get('saved', 0)}")
+            except Exception as e:
+                error_msg = f"Ошибка парсинга {parser_name}: {e}"
+                self.logger.error(error_msg, exc_info=True)
+                results['by_source'][parser_name] = {
+                    'parsed': 0,
+                    'saved': 0,
+                    'errors': [error_msg]
+                }
         
         return results
     

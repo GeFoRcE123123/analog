@@ -573,25 +573,51 @@ def get_vulnerability(vuln_id):
                 if operator:
                     operator_name = operator.name
                     operator_id = operator.id
+            import json
+            
+            # Подготовка данных уязвимости с новыми NVD полями
+            vuln_data = {
+                'id': vulnerability.id,
+                'title': vulnerability.title,
+                'description': vulnerability.description,
+                'severity': vulnerability.severity,
+                'status': vulnerability.status,
+                'cvss_score': vulnerability.cvss_score,
+                'risk_level': vulnerability.risk_level,
+                'category': vulnerability.category,
+                'modifications': vulnerability.modifications,
+                'approved': vulnerability.approved,
+                'assigned_operator': operator_name,
+                'assigned_operator_id': operator_id,
+                'cve_id': getattr(vulnerability, 'cve_id', None),
+                'created_date': vulnerability.created_date.isoformat() if vulnerability.created_date else None,
+                'completed_date': vulnerability.completed_date.isoformat() if vulnerability.completed_date else None,
+                # Новые NVD поля
+                'cvss_v2_vector': getattr(vulnerability, 'cvss_v2_vector', None),
+                'cvss_v3_vector': getattr(vulnerability, 'cvss_v3_vector', None),
+                'cvss_v4_vector': getattr(vulnerability, 'cvss_v4_vector', None),
+                'cvss_version': getattr(vulnerability, 'cvss_version', None),
+                'epss_score': float(getattr(vulnerability, 'epss_score', 0)) if getattr(vulnerability, 'epss_score', None) else None,
+                'epss_percentile': float(getattr(vulnerability, 'epss_percentile', 0)) if getattr(vulnerability, 'epss_percentile', None) else None,
+                'cwe_ids': getattr(vulnerability, 'cwe_ids', []),
+                'affected_products': getattr(vulnerability, 'affected_products', []),
+                'references': getattr(vulnerability, 'references', []),
+                'vendor_comments': getattr(vulnerability, 'vendor_comments', []),
+                'configurations': getattr(vulnerability, 'configurations', []),
+                'weaknesses': getattr(vulnerability, 'weaknesses', []),
+                'source_identifier': getattr(vulnerability, 'source_identifier', None),
+                'nvd_status': getattr(vulnerability, 'vuln_status', None),
+                'nvd_published': getattr(vulnerability, 'published', None).isoformat() if getattr(vulnerability, 'published', None) else None,
+                'nvd_last_modified': getattr(vulnerability, 'last_modified', None).isoformat() if getattr(vulnerability, 'last_modified', None) else None,
+                'nvd_descriptions': getattr(vulnerability, 'descriptions', []),
+                'metrics': getattr(vulnerability, 'metrics', {}),
+                'has_kev': getattr(vulnerability, 'has_kev', False),
+                'has_cert_alerts': getattr(vulnerability, 'has_cert_alerts', False)
+            }
+            
             return jsonify({
                 'success': True,
-                'vulnerability': {
-                    'id': vulnerability.id,
-                    'title': vulnerability.title,
-                    'description': vulnerability.description,
-                    'severity': vulnerability.severity,
-                    'status': vulnerability.status,
-                    'cvss_score': vulnerability.cvss_score,
-                    'risk_level': vulnerability.risk_level,
-                    'category': vulnerability.category,
-                    'modifications': vulnerability.modifications,
-                    'approved': vulnerability.approved,
-                    'assigned_operator': operator_name,
-                    'assigned_operator_id': operator_id,
-                    'cve_id': getattr(vulnerability, 'cve_id', None),
-                    'created_date': vulnerability.created_date.isoformat() if vulnerability.created_date else None,
-                    'completed_date': vulnerability.completed_date.isoformat() if vulnerability.completed_date else None
-                }
+                'vulnerability': vuln_data
             })
         return jsonify({'success': False, 'message': 'Уязвимость не найдена'}), 404
     except Exception as e:
@@ -868,7 +894,6 @@ def api_parsers_run_all():
                 enable_osv=enable_osv,
                 enable_vendors=enable_vendors,
                 vendor_sources=vendor_sources,
-                enable_osv=enable_osv,
                 nvd_days=nvd_days
             )
             duration = int(time.time() - start_time)
@@ -896,10 +921,17 @@ def api_parsers_run_all():
             except Exception as history_error:
                 logger.error(f"Ошибка сохранения истории парсинга: {history_error}", exc_info=True)
             
-            return jsonify({
+            # Добавляем детальную информацию о прогрессе в ответ
+            response_data = {
                 'success': True,
                 **results
-            })
+            }
+            
+            # Если есть progress_messages, добавляем их
+            if 'progress_messages' not in response_data:
+                response_data['progress_messages'] = []
+            
+            return jsonify(response_data)
         except Exception as parse_error:
             duration = int(time.time() - start_time)
             logger.error(f"   [API] Ошибка при вызове parse_all(): {parse_error}", exc_info=True)
@@ -1313,7 +1345,13 @@ def api_clear_vulnerabilities():
 
 # === ИИ-ИНТЕГРАЦИЯ API ===
 
-from services.ai_integration_service import ai_integration_service
+# Условный импорт ИИ-сервиса (может отсутствовать)
+try:
+    from services.ai_integration_service import ai_integration_service
+    AI_SERVICE_AVAILABLE = True
+except ImportError:
+    AI_SERVICE_AVAILABLE = False
+    logger.warning("⚠️ AI Integration Service не доступен (модуль не найден)")
 
 @app.route('/api/ai/analyze', methods=['POST'])
 @csrf.exempt
@@ -1327,6 +1365,8 @@ def api_ai_analyze():
         if not vulnerability_data:
             return jsonify({'error': 'vulnerability_data required'}), 400
         
+        if not AI_SERVICE_AVAILABLE:
+            return jsonify({"success": False, "error": "AI Integration Service недоступен"}), 503
         result = ai_integration_service.analyze_vulnerability(vulnerability_data)
         return jsonify({'success': True, 'result': result})
     except Exception as e:
@@ -1339,6 +1379,8 @@ def api_ai_analyze():
 def api_ai_classify(vulnerability_id):
     """Классификация уязвимости (ИИ или нет)"""
     try:
+        if not AI_SERVICE_AVAILABLE:
+            return jsonify({"success": False, "error": "AI Integration Service недоступен"}), 503
         result = ai_integration_service.classify_vulnerability(vulnerability_id)
         if 'error' in result:
             return jsonify({'success': False, 'error': result['error']}), 400
@@ -1354,11 +1396,27 @@ def api_ai_classify(vulnerability_id):
 def api_ai_batch_analyze():
     """Пакетный анализ уязвимостей"""
     try:
-        data = request.get_json()
+        data = request.get_json() or {}
         vulnerability_ids = data.get('vulnerability_ids', [])
         
+        # Проверка наличия и валидности списка ID
         if not vulnerability_ids:
-            return jsonify({'error': 'vulnerability_ids required'}), 400
+            return jsonify({
+                'success': False,
+                'error': 'vulnerability_ids required',
+                'message': 'Необходимо передать список ID уязвимостей для анализа'
+            }), 400
+        
+        # Проверка что это список
+        if not isinstance(vulnerability_ids, list):
+            return jsonify({
+                'success': False,
+                'error': 'vulnerability_ids must be a list',
+                'message': 'vulnerability_ids должен быть массивом'
+            }), 400
+        
+        if not AI_SERVICE_AVAILABLE:
+            return jsonify({"success": False, "error": "AI Integration Service недоступен"}), 503
         
         result = ai_integration_service.batch_analyze(vulnerability_ids)
         return jsonify({'success': True, 'result': result})
@@ -1371,6 +1429,8 @@ def api_ai_batch_analyze():
 @login_required
 def api_ai_statistics():
     """Статистика по ключевым словам"""
+    if not AI_SERVICE_AVAILABLE:
+        return jsonify({'success': False, 'error': 'AI Integration Service недоступен'}), 503
     try:
         stats = ai_integration_service.get_keywords_statistics()
         return jsonify({'success': True, 'statistics': stats})
@@ -1383,6 +1443,8 @@ def api_ai_statistics():
 @login_required
 def api_ai_keywords():
     """Список ключевых слов"""
+    if not AI_SERVICE_AVAILABLE:
+        return jsonify({'success': False, 'error': 'AI Integration Service недоступен'}), 503
     try:
         stats = ai_integration_service.get_keywords_statistics()
         return jsonify({
@@ -1407,6 +1469,8 @@ def api_ai_train():
         if not training_data:
             return jsonify({'error': 'training_data required'}), 400
         
+        if not AI_SERVICE_AVAILABLE:
+            return jsonify({"success": False, "error": "AI Integration Service недоступен"}), 503
         result = ai_integration_service.train_model(training_data)
         return jsonify({'success': True, 'result': result})
     except Exception as e:
@@ -1418,6 +1482,8 @@ def api_ai_train():
 @login_required
 def api_ai_generate_passport(vulnerability_id):
     """Создание паспорта уязвимости при помощи ИИ"""
+    if not AI_SERVICE_AVAILABLE:
+        return jsonify({'success': False, 'error': 'AI Integration Service недоступен'}), 503
     try:
         passport = ai_integration_service.generate_passport(vulnerability_id)
         if 'error' in passport:
@@ -1490,6 +1556,207 @@ def api_ai_monitor_status():
     try:
         return jsonify({'success': True, 'status': 'stopped', 'sites': []})
     except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# === API МАРШРУТЫ ДЛЯ МЕТОДОЛОГИЙ БЕЗОПАСНОСТИ ===
+
+# Условный импорт сервисов методологий
+try:
+    from services.security_methodology_service import security_methodology_service
+    from services.security_testing_service import security_testing_service
+    SECURITY_METHODOLOGIES_AVAILABLE = True
+except ImportError:
+    SECURITY_METHODOLOGIES_AVAILABLE = False
+    logger.warning("⚠️ Security Methodology Services не доступны (модули не найдены)")
+
+if SECURITY_METHODOLOGIES_AVAILABLE:
+    @app.route('/api/security/methodologies', methods=['GET'])
+    @csrf.exempt
+    @login_required
+    def api_security_methodologies():
+        """Получить список методологий"""
+        try:
+            methodologies = security_methodology_service.get_all_methodologies()
+            return jsonify({'success': True, 'methodologies': methodologies})
+        except Exception as e:
+            logger.error(f"Ошибка получения методологий: {e}", exc_info=True)
+            return jsonify({'success': False, 'error': str(e)}), 500
+    
+    @app.route('/api/security/methodologies/<int:methodology_id>', methods=['GET'])
+    @csrf.exempt
+    @login_required
+    def api_security_methodology_detail(methodology_id):
+        """Получить детали методологии"""
+        try:
+            methodology = security_methodology_service.get_methodology_by_id(methodology_id)
+            if not methodology:
+                return jsonify({'success': False, 'error': 'Методология не найдена'}), 404
+            
+            categories = security_methodology_service.get_categories(methodology_id)
+            statistics = security_methodology_service.get_methodology_statistics(methodology_id)
+            
+            return jsonify({
+                'success': True,
+                'methodology': methodology,
+                'categories': categories,
+                'statistics': statistics
+            })
+        except Exception as e:
+            logger.error(f"Ошибка получения методологии {methodology_id}: {e}", exc_info=True)
+            return jsonify({'success': False, 'error': str(e)}), 500
+    
+    @app.route('/api/security/methodologies/<int:methodology_id>/tests', methods=['GET'])
+    @csrf.exempt
+    @login_required
+    def api_security_methodology_tests(methodology_id):
+        """Получить тесты методологии"""
+        try:
+            tests = security_methodology_service.get_tests(methodology_id=methodology_id)
+            return jsonify({'success': True, 'tests': tests})
+        except Exception as e:
+            logger.error(f"Ошибка получения тестов методологии {methodology_id}: {e}", exc_info=True)
+            return jsonify({'success': False, 'error': str(e)}), 500
+    
+    @app.route('/api/security/projects', methods=['GET', 'POST'])
+    @csrf.exempt
+    @login_required
+    def api_security_projects():
+        """Получить список проектов или создать новый"""
+        if request.method == 'GET':
+            try:
+                status = request.args.get('status')
+                projects = security_testing_service.get_all_projects(status=status)
+                return jsonify({'success': True, 'projects': projects})
+            except Exception as e:
+                logger.error(f"Ошибка получения проектов: {e}", exc_info=True)
+                return jsonify({'success': False, 'error': str(e)}), 500
+        else:  # POST
+            try:
+                if 'user_id' not in session:
+                    return jsonify({'success': False, 'error': 'Не авторизован'}), 401
+                
+                data = request.get_json()
+                project_id = security_testing_service.create_project(data, session['user_id'])
+                
+                if project_id:
+                    return jsonify({'success': True, 'project_id': project_id})
+                else:
+                    return jsonify({'success': False, 'error': 'Ошибка создания проекта'}), 500
+            except Exception as e:
+                logger.error(f"Ошибка создания проекта: {e}", exc_info=True)
+                return jsonify({'success': False, 'error': str(e)}), 500
+    
+    @app.route('/api/security/projects/<int:project_id>', methods=['GET'])
+    @csrf.exempt
+    @login_required
+    def api_security_project_detail(project_id):
+        """Получить детали проекта"""
+        try:
+            project = security_testing_service.get_project(project_id)
+            if not project:
+                return jsonify({'success': False, 'error': 'Проект не найден'}), 404
+            
+            results = security_testing_service.get_project_results(project_id)
+            metrics = security_testing_service.calculate_project_metrics(project_id)
+            
+            return jsonify({
+                'success': True,
+                'project': project,
+                'results': results,
+                'metrics': metrics
+            })
+        except Exception as e:
+            logger.error(f"Ошибка получения проекта {project_id}: {e}", exc_info=True)
+            return jsonify({'success': False, 'error': str(e)}), 500
+    
+    @app.route('/api/security/projects/<int:project_id>/results', methods=['GET', 'POST'])
+    @csrf.exempt
+    @login_required
+    def api_security_project_results(project_id):
+        """Получить или сохранить результаты проекта"""
+        if request.method == 'GET':
+            try:
+                results = security_testing_service.get_project_results(project_id)
+                return jsonify({'success': True, 'results': results})
+            except Exception as e:
+                logger.error(f"Ошибка получения результатов проекта {project_id}: {e}", exc_info=True)
+                return jsonify({'success': False, 'error': str(e)}), 500
+        else:  # POST
+            try:
+                if 'user_id' not in session:
+                    return jsonify({'success': False, 'error': 'Не авторизован'}), 401
+                
+                data = request.get_json()
+                data['project_id'] = project_id
+                result_id = security_testing_service.save_test_result(data, session['user_id'])
+                
+                if result_id:
+                    # Пересчитываем метрики
+                    security_testing_service.calculate_project_metrics(project_id)
+                    return jsonify({'success': True, 'result_id': result_id})
+                else:
+                    return jsonify({'success': False, 'error': 'Ошибка сохранения результата'}), 500
+            except Exception as e:
+                logger.error(f"Ошибка сохранения результата: {e}", exc_info=True)
+                return jsonify({'success': False, 'error': str(e)}), 500
+    
+    @app.route('/api/security/projects/<int:project_id>/metrics', methods=['GET'])
+    @csrf.exempt
+    @login_required
+    def api_security_project_metrics(project_id):
+        """Получить метрики проекта"""
+        try:
+            metrics = security_testing_service.calculate_project_metrics(project_id)
+            return jsonify({'success': True, 'metrics': metrics})
+        except Exception as e:
+            logger.error(f"Ошибка получения метрик проекта {project_id}: {e}", exc_info=True)
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# === API МАРШРУТЫ ДЛЯ СТАТУСА СИНХРОНИЗАЦИИ CVE ===
+
+try:
+    from services.backend.cve_sync_status import get_sync_status, reset_sync_status
+    SYNC_STATUS_AVAILABLE = True
+except ImportError:
+    SYNC_STATUS_AVAILABLE = False
+    logger.warning("cve_sync_status модуль не доступен, статус синхронизации не будет работать")
+
+
+@app.route('/api/cve-sync/status', methods=['GET'])
+@login_required
+def get_cve_sync_status():
+    """Получить статус синхронизации CVE"""
+    try:
+        if SYNC_STATUS_AVAILABLE:
+            status = get_sync_status()
+            return jsonify({
+                'success': True,
+                'status': status.to_dict()
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Статус синхронизации не доступен'
+            })
+    except Exception as e:
+        logger.error(f"Ошибка получения статуса синхронизации: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/cve-sync/reset', methods=['POST'])
+@login_required
+def reset_cve_sync_status():
+    """Сбросить статус синхронизации CVE"""
+    try:
+        if SYNC_STATUS_AVAILABLE:
+            reset_sync_status()
+            return jsonify({'success': True, 'message': 'Статус синхронизации сброшен'})
+        else:
+            return jsonify({'success': False, 'message': 'Статус синхронизации не доступен'})
+    except Exception as e:
+        logger.error(f"Ошибка сброса статуса синхронизации: {e}", exc_info=True)
         return jsonify({'success': False, 'error': str(e)}), 500
 
 

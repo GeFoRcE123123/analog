@@ -1,0 +1,74 @@
+def cxsecurity():
+    #выгрузка с сайта cxsecurity
+    options = webdriver.ChromeOptions()
+    options.add_argument('headless')
+    options.add_argument('window-size=1920x1080')
+    options.add_argument("disable-gpu")
+    driver = webdriver.Chrome('chromedriver', chrome_options=options)
+
+    links = []
+    identifiers = []
+    lst_CVSSS = []
+    etc = []
+
+    for x in range(1,5,1):
+        url = 'https://cxsecurity.com/cvemap/' + str(x)
+        driver.get(url)
+        page = driver.page_source
+        soup = BeautifulSoup(page,'html.parser')
+
+        for quote in soup.find_all('h6'):
+            lines = quote.findNext('a').findNext('a').text
+            etc.append(lines)
+            lines1 = quote.findNext('a').text
+            identifiers.append(lines1)
+            links.append('https://cxsecurity.com/cveshow/' + str(lines1))
+            lst_CVSSS.append(float(5))
+
+    source_in = 'cxsecurity'
+
+    links_ = []
+    identifiers_ = []
+    lst_CVSSS_ = []
+    etc_ = []
+
+    sql_select_query = """SELECT word FROM dictionary"""
+    cursor.execute(sql_select_query)
+    records_word = cursor.fetchall()
+    records_cleaned = [re.sub(r"[^а-яА-ЯёЁa-zA-Z0-9-./#!@: ]", "", str(x)) for x in records_word]
+    records_word = list(set(records_cleaned)) #список слов
+    for index, x in enumerate(etc):
+        for y in records_word:
+            if str(y).casefold() in str(x).casefold() != -1:
+                etc_.append(x)
+                identifiers_.append(identifiers[index])
+                links_.append(links[index])
+                lst_CVSSS_.append(lst_CVSSS[index])
+
+    for link_in,CVE_in,etc_in,CVSS_in in zip(links_,identifiers_,etc_,lst_CVSSS_):
+        while True:
+            #CVE_in = input('Введите идентификатор уязвимости: ')
+            sqlite_select_query = """SELECT * FROM turn WHERE cve = %s"""
+            cursor.execute(sqlite_select_query, (CVE_in, ))
+            record = cursor.fetchone()
+            if record is None:
+                #source_in = input('Источник предоставления уязвимости: ')
+                #link_in = input('Ссылка: ')
+                #CVSS_in = input('CVSS: ')
+                #etc_in = input('Примечание:')
+                joining_date_in = datetime.datetime.now()
+                records_to_insert = (CVE_in,source_in,link_in,CVSS_in,etc_in,joining_date_in)
+                a = """INSERT INTO turn
+                    (cve, source, link, CVSS, etc, joining_date)
+                    VALUES
+                    (%s,%s,%s,%s,%s,%s);"""
+                count = cursor.execute(a,records_to_insert)
+                sqlite_connection.commit()
+            else:
+                #time.sleep(1.1)
+                break
+    Box = QMessageBox() # выводим сообщение о успешном добавлении
+    Box.setText("cxsecurity успешно спарсено")
+    Box.setStandardButtons(QMessageBox.Ok)
+    Box.setDefaultButton(QMessageBox.Ok)
+    ret = Box.exec_()   

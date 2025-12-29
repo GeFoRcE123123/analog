@@ -16,7 +16,28 @@ class NVDIntegrationService:
     """
 
     def __init__(self, vulnerability_repo: VulnerabilityRepository, api_key: str = None):
-        self.parser = MultiThreadedNVDParser(api_key=api_key)
+        # Используем переданный ключ или из конфигурации
+        if api_key is None:
+            try:
+                from config import Config
+                api_key = Config.NVD_API_KEY if Config.NVD_API_KEY else None
+            except:
+                api_key = None
+        
+        # Используем настройки из конфигурации для полной синхронизации
+        try:
+            from config import Config
+            requests_per_second = Config.NVD_FULL_SYNC_REQUESTS_PER_SECOND if Config.NVD_API_KEY else 5
+            max_workers = Config.NVD_FULL_SYNC_MAX_WORKERS
+        except:
+            requests_per_second = 50 if api_key else 5
+            max_workers = 20 if api_key else 10
+        
+        self.parser = MultiThreadedNVDParser(
+            api_key=api_key,
+            max_workers=max_workers,
+            requests_per_second=requests_per_second
+        )
         self.vulnerability_repo = vulnerability_repo
         self.logger = logging.getLogger(__name__)
 
@@ -90,9 +111,28 @@ class NVDIntegrationService:
     def incremental_sync(self, days: int = 1) -> Dict:
         """
         Инкрементальная синхронизация за последние N дней
+        Использует оптимизированные настройки для инкрементальной синхронизации
         """
         self.logger.info(f"Запуск инкрементальной синхронизации за {days} дней")
         print(f"=== ИНКРЕМЕНТАЛЬНАЯ СИНХРОНИЗАЦИЯ ЗА {days} ДНЕЙ ===")
+
+        # Временно создаем парсер с настройками для инкрементальной синхронизации
+        try:
+            from config import Config
+            api_key = Config.NVD_API_KEY if Config.NVD_API_KEY else None
+            requests_per_second = Config.NVD_INCREMENTAL_REQUESTS_PER_SECOND if api_key else 5
+            max_workers = Config.NVD_INCREMENTAL_MAX_WORKERS
+        except:
+            api_key = self.parser.api_key
+            requests_per_second = 50 if api_key else 5
+            max_workers = 10
+        
+        # Создаем временный парсер с оптимизированными настройками
+        incremental_parser = MultiThreadedNVDParser(
+            api_key=api_key,
+            max_workers=max_workers,
+            requests_per_second=requests_per_second
+        )
 
         start_time = datetime.now()
         stats = {
@@ -106,13 +146,15 @@ class NVDIntegrationService:
         }
 
         try:
-            # Получаем уязвимости за период
-            all_vulnerabilities, ai_vulnerabilities = self.parser.get_recent_vulnerabilities(days)
+            # Получаем уязвимости за период через оптимизированный парсер
+            all_vulnerabilities, ai_vulnerabilities = incremental_parser.get_recent_vulnerabilities(days)
 
             if not all_vulnerabilities:
                 stats.update({
                     'status': 'completed',
-                    'message': 'Новых уязвимостей не найдено'
+                    'message': 'Новых уязвимостей не найдено',
+                    'total_parsed': 0,
+                    'saved_count': 0
                 })
                 return stats
 
@@ -211,8 +253,14 @@ class NVDIntegrationService:
 
             for attempt in range(self.config['max_retries']):
                 try:
-                    # Конвертируем в словари для сохранения
-                    vuln_dicts = [asdict(vuln) for vuln in batch]
+                    # Конвертируем в словари для сохранения используя метод to_dict()
+                    vuln_dicts = []
+                    for vuln in batch:
+                        if hasattr(vuln, 'to_dict'):
+                            vuln_dicts.append(vuln.to_dict())
+                        else:
+                            # Если нет метода to_dict, используем asdict для dataclass
+                            vuln_dicts.append(asdict(vuln))
 
                     # РЕАЛЬНЫЙ ВЫЗОВ вместо заглушки
                     batch_saved = self.vulnerability_repo.bulk_save_nvd_vulnerabilities(vuln_dicts)
