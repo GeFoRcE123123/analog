@@ -97,7 +97,9 @@ def main():
         logger.info("Инициализация парсеров...")
         
         # NVD Integration Service
-        nvd_integration = NVDIntegrationService(vulnerability_repo)
+        # Используем API ключ из конфигурации
+        api_key = Config.NVD_API_KEY if Config.NVD_API_KEY else None
+        nvd_integration = NVDIntegrationService(vulnerability_repo, api_key=api_key)
         parsers['nvd'] = nvd_integration
         
         # NVD Scheduler

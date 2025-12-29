@@ -175,6 +175,7 @@ if [ "$DEPLOY_TARGET" == "backend" ] || [ "$DEPLOY_TARGET" == "all" ]; then
     cp services/universal_vendor_parser.py /tmp/backend_deploy/services/ 2>/dev/null || true
     cp services/redhat_cve_importer.py /tmp/backend_deploy/services/ 2>/dev/null || true
     cp services/nvd_integration_service.py /tmp/backend_deploy/services/ 2>/dev/null || true
+    cp services/vendor_parsers.py /tmp/backend_deploy/services/ 2>/dev/null || true
     # Удаляем файлы с psycopg2, которые не используются в backend
     rm -f /tmp/backend_deploy/models/optimized_database.py 2>/dev/null || true
     rm -f /tmp/backend_deploy/models/optimized_postgres_repositories.py 2>/dev/null || true
@@ -192,6 +193,13 @@ if [ "$DEPLOY_TARGET" == "backend" ] || [ "$DEPLOY_TARGET" == "all" ]; then
     cp services/analytics_service.py /tmp/backend_deploy/services/ 2>/dev/null || true
     cp services/auth_service.py /tmp/backend_deploy/services/ 2>/dev/null || true
     cp services/forms.py /tmp/backend_deploy/services/ 2>/dev/null || true
+    cp services/ai_integration_service.py /tmp/backend_deploy/services/ 2>/dev/null || true
+    # Копируем сервисы методологий безопасности
+    cp services/security_methodology_service.py /tmp/backend_deploy/services/ 2>/dev/null || true
+    cp services/security_testing_service.py /tmp/backend_deploy/services/ 2>/dev/null || true
+    # Копируем CVE JSON 5.x адаптеры
+    cp services/cve_json5_adapter.py /tmp/backend_deploy/services/ 2>/dev/null || true
+    cp services/cve_json_loader.py /tmp/backend_deploy/services/ 2>/dev/null || true
     # Копируем utils если есть
     if [ -d "utils" ]; then
         cp -r utils/* /tmp/backend_deploy/utils/ 2>/dev/null || true
@@ -264,9 +272,8 @@ fi
 echo ""
 echo "🤖 Развертывание ИИ-интеграции..."
 if [ -f "services/ai_integration_service.py" ]; then
-    echo "📦 Копирование ИИ-сервисов на Backend..."
-    copy_files "$BACKEND_IP" "services/ai_integration_service.py" "~/vulnerability_manager/services/" 2>/dev/null && \
-    copy_files "$BACKEND_IP" "services/adaptive_html_parser.py" "~/vulnerability_manager/services/" 2>/dev/null || true
+    echo "📦 ИИ-сервисы уже включены в Backend деплой (копируются в /tmp/backend_deploy/services/)"
+    # ai_integration_service.py уже скопирован выше в секции Backend
     
     if [ -d "templates/ai" ]; then
         echo "📦 Копирование ИИ-шаблонов на Frontend..."

@@ -161,7 +161,14 @@
                                         <i class="fas fa-bug text-white text-sm"></i>
                                     </div>
                                     <div>
-                                        <div class="text-sm font-semibold text-gray-900 group-hover:text-blue-700 transition-colors cursor-pointer" onclick="showVulnerabilityDetails({{ vulnerability.id }})">{{ vulnerability.title }}</div>
+                                        <div class="text-sm font-semibold text-gray-900 group-hover:text-blue-700 transition-colors cursor-pointer" onclick="showVulnerabilityDetails({{ vulnerability.id }})">
+                                            {% if vulnerability.cve_id %}
+                                                <span class="font-mono text-blue-600">{{ vulnerability.cve_id }}</span>
+                                                <span class="text-gray-600 ml-2">{{ vulnerability.title }}</span>
+                                            {% else %}
+                                                {{ vulnerability.title }}
+                                            {% endif %}
+                                        </div>
                                         <div class="text-xs text-gray-500">{{ vulnerability.category|title }}</div>
                                     </div>
                                 </div>
@@ -474,6 +481,93 @@
                                         <div class="text-xs text-green-600">Время исправления</div>
                                         <div class="font-bold text-green-700" id="view-fix-time">2-4 недели</div>
                                     </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- NVD Дополнительные данные (аккордеон) -->
+                <div class="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl border border-indigo-200 mt-4">
+                    <button onclick="toggleNVDInfo()" class="w-full px-6 py-4 text-left flex justify-between items-center hover:bg-indigo-100 transition-colors duration-200 rounded-xl">
+                        <h4 class="font-semibold text-indigo-900 flex items-center">
+                            <i class="fas fa-shield-alt text-indigo-500 mr-2"></i>
+                            NVD Дополнительные данные
+                        </h4>
+                        <i class="fas fa-chevron-down text-indigo-500 transition-transform duration-200" id="nvd-info-chevron"></i>
+                    </button>
+                    <div id="nvd-info-content" class="px-6 pb-4 hidden">
+                        <div class="bg-white rounded-lg p-4 border border-gray-200 space-y-4">
+                            <!-- CVSS векторы -->
+                            <div class="border-b pb-3">
+                                <h5 class="font-semibold text-gray-800 mb-2">CVSS Векторы</h5>
+                                <div class="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
+                                    <div>
+                                        <span class="text-gray-600">CVSS v2:</span>
+                                        <span id="view-cvss-v2-vector" class="font-mono text-xs ml-2 text-gray-800">-</span>
+                                    </div>
+                                    <div>
+                                        <span class="text-gray-600">CVSS v3:</span>
+                                        <span id="view-cvss-v3-vector" class="font-mono text-xs ml-2 text-gray-800">-</span>
+                                    </div>
+                                    <div>
+                                        <span class="text-gray-600">CVSS v4:</span>
+                                        <span id="view-cvss-v4-vector" class="font-mono text-xs ml-2 text-gray-800">-</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- EPSS -->
+                            <div class="border-b pb-3">
+                                <h5 class="font-semibold text-gray-800 mb-2">EPSS (Exploit Prediction Scoring System)</h5>
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <span class="text-gray-600">Score:</span>
+                                        <span id="view-epss-score" class="font-semibold ml-2">-</span>
+                                    </div>
+                                    <div>
+                                        <span class="text-gray-600">Percentile:</span>
+                                        <span id="view-epss-percentile" class="font-semibold ml-2">-</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- CWE -->
+                            <div class="border-b pb-3">
+                                <h5 class="font-semibold text-gray-800 mb-2">CWE (Common Weakness Enumeration)</h5>
+                                <div id="view-cwe-ids" class="flex flex-wrap gap-2">
+                                    <span class="text-gray-500 text-sm">Нет данных</span>
+                                </div>
+                            </div>
+
+                            <!-- Затронутые продукты -->
+                            <div class="border-b pb-3">
+                                <h5 class="font-semibold text-gray-800 mb-2">Затронутые продукты</h5>
+                                <div id="view-affected-products" class="space-y-1 max-h-32 overflow-y-auto">
+                                    <span class="text-gray-500 text-sm">Нет данных</span>
+                                </div>
+                            </div>
+
+                            <!-- Ссылки -->
+                            <div class="border-b pb-3">
+                                <h5 class="font-semibold text-gray-800 mb-2">Ссылки</h5>
+                                <div id="view-references" class="space-y-1 max-h-32 overflow-y-auto">
+                                    <span class="text-gray-500 text-sm">Нет данных</span>
+                                </div>
+                            </div>
+
+                            <!-- Флаги -->
+                            <div>
+                                <h5 class="font-semibold text-gray-800 mb-2">Флаги безопасности</h5>
+                                <div class="flex flex-wrap gap-2">
+                                    <span id="view-has-kev" class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 hidden">
+                                        <i class="fas fa-exclamation-triangle mr-1"></i>
+                                        CISA KEV
+                                    </span>
+                                    <span id="view-has-cert-alerts" class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800 hidden">
+                                        <i class="fas fa-bell mr-1"></i>
+                                        CERT Alerts
+                                    </span>
                                 </div>
                             </div>
                         </div>
@@ -956,8 +1050,10 @@ function populateViewModal(vuln) {
     document.getElementById('view-complexity').textContent = calculateComplexity(vuln);
     document.getElementById('view-fix-time').textContent = calculateFixTime(vuln);
     document.getElementById('view-timestamp').textContent = 'Загружено только что';
-    // Основная информация
-    document.getElementById('view-title').textContent = vuln.title || 'Нет названия';
+    // Основная информация - показываем CVE ID в заголовке, если есть
+    // В заголовке показываем CVE ID, если есть, иначе title (но не description)
+    const headerText = vuln.cve_id ? vuln.cve_id : (vuln.title && vuln.title.length < 200 ? vuln.title : (vuln.cve_id || 'Нет названия'));
+    document.getElementById('view-title').textContent = headerText;
     document.getElementById('view-description').textContent = vuln.description || 'Нет описания';
     document.getElementById('view-status').innerHTML = getStatusBadge(vuln.status || 'new');
     document.getElementById('view-severity').innerHTML = getSeverityBadge(vuln.severity || 'medium');
@@ -966,7 +1062,8 @@ function populateViewModal(vuln) {
     document.getElementById('view-cvss').textContent = vuln.cvss_score ? vuln.cvss_score.toFixed(1) : '0.0';
     document.getElementById('view-modifications').textContent = vuln.modifications || 0;
     document.getElementById('view-approved').textContent = vuln.approved ? '✅ Да' : '❌ Нет';
-    document.getElementById('view-id').textContent = vuln.id || 'N/A';
+    // В поле ID показываем только CVE ID или числовой ID, НЕ описание
+    document.getElementById('view-id').textContent = vuln.cve_id || ('ID: ' + vuln.id) || 'N/A';
 
     // Даты
     const now = new Date();
@@ -974,7 +1071,73 @@ function populateViewModal(vuln) {
         new Date(vuln.created_date).toLocaleString() : now.toLocaleString();
     document.getElementById('view-completed').textContent = vuln.completed_date ?
         new Date(vuln.completed_date).toLocaleString() : 'Не завершена';
-    document.getElementById('view-last-updated').textContent = now.toLocaleString();
+    document.getElementById('view-last-updated').textContent = vuln.nvd_last_modified ?
+        new Date(vuln.nvd_last_modified).toLocaleString() : now.toLocaleString();
+
+    // NVD дополнительные данные
+    // CVSS векторы
+    document.getElementById('view-cvss-v2-vector').textContent = vuln.cvss_v2_vector || '-';
+    document.getElementById('view-cvss-v3-vector').textContent = vuln.cvss_v3_vector || '-';
+    document.getElementById('view-cvss-v4-vector').textContent = vuln.cvss_v4_vector || '-';
+    
+    // EPSS
+    if (vuln.epss_score !== null && vuln.epss_score !== undefined) {
+        document.getElementById('view-epss-score').textContent = (vuln.epss_score * 100).toFixed(2) + '%';
+    } else {
+        document.getElementById('view-epss-score').textContent = '-';
+    }
+    if (vuln.epss_percentile !== null && vuln.epss_percentile !== undefined) {
+        document.getElementById('view-epss-percentile').textContent = vuln.epss_percentile.toFixed(2) + '%';
+    } else {
+        document.getElementById('view-epss-percentile').textContent = '-';
+    }
+    
+    // CWE IDs
+    const cweContainer = document.getElementById('view-cwe-ids');
+    if (vuln.cwe_ids && vuln.cwe_ids.length > 0) {
+        cweContainer.innerHTML = vuln.cwe_ids.map(cwe => 
+            `<span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800">${cwe}</span>`
+        ).join('');
+    } else {
+        cweContainer.innerHTML = '<span class="text-gray-500 text-sm">Нет данных</span>';
+    }
+    
+    // Затронутые продукты
+    const affectedContainer = document.getElementById('view-affected-products');
+    if (vuln.affected_products && vuln.affected_products.length > 0) {
+        affectedContainer.innerHTML = vuln.affected_products.map(product => {
+            const vendor = product.vendor || 'Unknown';
+            const productName = product.product || 'Unknown';
+            const versions = product.versions ? product.versions.map(v => v.version || v).join(', ') : 'N/A';
+            return `<div class="text-sm p-2 bg-gray-50 rounded"><strong>${vendor}/${productName}</strong> - ${versions}</div>`;
+        }).join('');
+    } else {
+        affectedContainer.innerHTML = '<span class="text-gray-500 text-sm">Нет данных</span>';
+    }
+    
+    // Ссылки
+    const referencesContainer = document.getElementById('view-references');
+    if (vuln.references && vuln.references.length > 0) {
+        referencesContainer.innerHTML = vuln.references.map(ref => {
+            const url = typeof ref === 'string' ? ref : (ref.url || '');
+            const name = (typeof ref === 'object' && ref.name) ? ref.name : url;
+            return `<a href="${url}" target="_blank" class="text-sm text-blue-600 hover:underline block">${name}</a>`;
+        }).join('');
+    } else {
+        referencesContainer.innerHTML = '<span class="text-gray-500 text-sm">Нет данных</span>';
+    }
+    
+    // Флаги
+    if (vuln.has_kev) {
+        document.getElementById('view-has-kev').classList.remove('hidden');
+    } else {
+        document.getElementById('view-has-kev').classList.add('hidden');
+    }
+    if (vuln.has_cert_alerts) {
+        document.getElementById('view-has-cert-alerts').classList.remove('hidden');
+    } else {
+        document.getElementById('view-has-cert-alerts').classList.add('hidden');
+    }
 
     // Назначение оператора - ВАЖНО: используем assigned_operator из данных уязвимости
     console.log('Assigned operator ID:', vuln.assigned_operator);
@@ -1215,6 +1378,13 @@ function toggleDescription() {
 function toggleAdditionalInfo() {
     const content = document.getElementById('additional-info-content');
     const chevron = document.getElementById('additional-info-chevron');
+    content.classList.toggle('hidden');
+    chevron.style.transform = content.classList.contains('hidden') ? 'rotate(0deg)' : 'rotate(180deg)';
+}
+
+function toggleNVDInfo() {
+    const content = document.getElementById('nvd-info-content');
+    const chevron = document.getElementById('nvd-info-chevron');
     content.classList.toggle('hidden');
     chevron.style.transform = content.classList.contains('hidden') ? 'rotate(0deg)' : 'rotate(180deg)';
 }

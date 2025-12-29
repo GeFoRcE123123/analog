@@ -58,3 +58,21 @@ class Config:
 
     # Database schema mode: 'legacy' (turn, cvelist, etc) or 'modern' (vulnerabilities, operators)
     USE_LEGACY_SCHEMA = True
+    
+    # NVD API Configuration
+    # Получить API ключ: https://nvd.nist.gov/developers/request-an-api-key
+    # Активировать: https://nvd.nist.gov/developers/confirm-api-key
+    # Активированный ключ: 6e96c1b9-a283-4ce3-b83e-bb162d9b4323
+    NVD_API_KEY = os.getenv("NVD_API_KEY", "6e96c1b9-a283-4ce3-b83e-bb162d9b4323")
+    
+    # Настройки для полной синхронизации (максимальная скорость)
+    NVD_FULL_SYNC_REQUESTS_PER_SECOND = 50 if NVD_API_KEY else 5  # Максимум с API ключом
+    NVD_FULL_SYNC_MAX_WORKERS = 20  # Больше потоков для полной синхронизации
+    
+    # Настройки для инкрементальной синхронизации (экономный режим)
+    NVD_INCREMENTAL_REQUESTS_PER_SECOND = 50 if NVD_API_KEY else 5
+    NVD_INCREMENTAL_MAX_WORKERS = 10  # Меньше потоков для инкрементальной
+    
+    # По умолчанию (для обратной совместимости)
+    NVD_REQUESTS_PER_SECOND = NVD_FULL_SYNC_REQUESTS_PER_SECOND
+    NVD_MAX_WORKERS = NVD_FULL_SYNC_MAX_WORKERS

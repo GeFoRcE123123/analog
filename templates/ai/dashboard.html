@@ -138,6 +138,14 @@ async function startAIAnalysis() {
 
         const vulnerabilityIds = vulnData.vulnerabilities.map(v => v.id);
         
+        // Проверка что есть уязвимости для анализа
+        if (!vulnerabilityIds || vulnerabilityIds.length === 0) {
+            alert('⚠️ Нет уязвимостей для анализа. Сначала запустите парсинг уязвимостей.');
+            button.disabled = false;
+            button.textContent = '🚀 Запустить ИИ-анализ';
+            return;
+        }
+        
         // Запускаем пакетный анализ
         const response = await fetch('/api/ai/batch-analyze', {
             method: 'POST',

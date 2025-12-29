@@ -97,12 +97,16 @@ class IntegratedParserService:
     def _parse_nvd(self, limit: int = 100) -> Dict[str, int]:
         """Парсинг из NVD с адаптацией"""
         try:
-            # Инициализируем NVD парсер
+            # Инициализируем NVD парсер с максимальными настройками для полной синхронизации
             if not self.nvd_parser:
+                from config import Config
+                api_key = Config.NVD_API_KEY if Config.NVD_API_KEY else None
+                requests_per_sec = Config.NVD_FULL_SYNC_REQUESTS_PER_SECOND if api_key else 5
+                max_workers = Config.NVD_FULL_SYNC_MAX_WORKERS if api_key else 10
                 self.nvd_parser = MultiThreadedNVDParser(
-                    api_key='',  # Пустая строка вместо None
-                    max_workers=5,
-                    requests_per_second=3
+                    api_key=api_key,
+                    max_workers=max_workers,
+                    requests_per_second=requests_per_sec
                 )
             
             # Получаем последние уязвимости
@@ -268,7 +272,15 @@ class IntegratedParserService:
         # NVD AI уязвимости
         try:
             if not self.nvd_parser:
-                self.nvd_parser = MultiThreadedNVDParser(max_workers=5)
+                from config import Config
+                api_key = Config.NVD_API_KEY if Config.NVD_API_KEY else None
+                requests_per_sec = Config.NVD_FULL_SYNC_REQUESTS_PER_SECOND if api_key else 5
+                max_workers = Config.NVD_FULL_SYNC_MAX_WORKERS if api_key else 10
+                self.nvd_parser = MultiThreadedNVDParser(
+                    api_key=api_key,
+                    max_workers=max_workers,
+                    requests_per_second=requests_per_sec
+                )
             
             all_vulns, ai_vulns = self.nvd_parser.get_recent_vulnerabilities(days=60)
             

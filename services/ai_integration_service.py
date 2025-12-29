@@ -1,16 +1,37 @@
 """
 Сервис интеграции с ИИ-системой парсинга и категоризации уязвимостей
-Интегрирует существующий AIAnalyzer и AITaggerService с Backend и Frontend
+Интегрирует внешнюю ИИ-систему на VM 10.0.88.25 с Backend и Frontend
 """
 import logging
 import requests
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 
-from services.parsers.ai_analyzer import ai_analyzer, AIClassification
-from services.ai_tagger_service import ai_tagger, AIDetectionResult
-from models.database import DatabaseManager
-from config import Config
+# Опциональные импорты локальных ИИ модулей (могут отсутствовать на Backend)
+try:
+    from services.parsers.ai_analyzer import ai_analyzer, AIClassification
+    LOCAL_AI_ANALYZER_AVAILABLE = True
+except ImportError:
+    LOCAL_AI_ANALYZER_AVAILABLE = False
+    ai_analyzer = None
+    AIClassification = None
+
+try:
+    from services.ai_tagger_service import ai_tagger, AIDetectionResult
+    LOCAL_AI_TAGGER_AVAILABLE = True
+except ImportError:
+    LOCAL_AI_TAGGER_AVAILABLE = False
+    ai_tagger = None
+    AIDetectionResult = None
+
+try:
+    from models.database import DatabaseManager
+    from config import Config
+    DATABASE_AVAILABLE = True
+except ImportError:
+    DATABASE_AVAILABLE = False
+    DatabaseManager = None
+    Config = None
 
 logger = logging.getLogger(__name__)
 
@@ -30,18 +51,27 @@ class AIIntegrationService:
     
     def __init__(self):
         self.logger = logging.getLogger(__name__)
-        self.db_manager = DatabaseManager()
         
-        # URL ИИ-системы на VM 10.0.88.25 (если доступна через API)
-        self.ai_api_url = f"http://10.0.88.25:8000"  # Предполагаемый порт
+        # Инициализация DatabaseManager (опционально)
+        if DATABASE_AVAILABLE:
+            try:
+                self.db_manager = DatabaseManager()
+            except Exception as e:
+                self.logger.warning(f"Не удалось инициализировать DatabaseManager: {e}")
+                self.db_manager = None
+        else:
+            self.db_manager = None
+        
+        # URL ИИ-системы на VM 10.0.88.25
+        self.ai_api_url = "http://10.0.88.25:8000"
         self.ai_api_available = False
         
         # Проверка доступности внешней ИИ-системы
         self._check_ai_api_availability()
         
-        # Используем локальные анализаторы как fallback
-        self.local_ai_analyzer = ai_analyzer
-        self.local_ai_tagger = ai_tagger
+        # Используем локальные анализаторы как fallback (если доступны)
+        self.local_ai_analyzer = ai_analyzer if LOCAL_AI_ANALYZER_AVAILABLE else None
+        self.local_ai_tagger = ai_tagger if LOCAL_AI_TAGGER_AVAILABLE else None
     
     def _check_ai_api_availability(self):
         """Проверка доступности внешней ИИ-системы на VM 10.0.88.25"""
@@ -67,44 +97,78 @@ class AIIntegrationService:
             Dict с результатами анализа
         """
         try:
-            # Пробуем использовать внешнюю ИИ-систему
+            # Пробуем использовать внешнюю ИИ-систему на VM 10.0.88.25
             if self.ai_api_available:
                 try:
+                    # Формируем запрос для внешней ИИ-системы
+                    api_data = {
+                        'title': vulnerability_data.get('title', ''),
+                        'description': vulnerability_data.get('description', ''),
+                        'cve_id': vulnerability_data.get('cve_id', '')
+                    }
                     response = requests.post(
                         f"{self.ai_api_url}/api/analyze",
-                        json=vulnerability_data,
+                        json=api_data,
                         timeout=10
                     )
                     if response.status_code == 200:
-                        return response.json()
+                        api_result = response.json()
+                        if api_result.get('success'):
+                            # Преобразуем результат внешнего API в формат нашего сервиса
+                            return {
+                                'is_ai_related': api_result.get('is_ai_related', False),
+                                'confidence': api_result.get('confidence', 0.0),
+                                'cve_id': api_result.get('cve_id', ''),
+                                'source': 'external_ai_api',
+                                'ai_categories': [],
+                                'matched_keywords': [],
+                                'reasoning': f"Классификация выполнена внешней ИИ-системой на VM 10.0.88.25 (confidence: {api_result.get('confidence', 0.0):.2f})"
+                            }
+                except requests.exceptions.Timeout:
+                    self.logger.warning("Таймаут при обращении к внешней ИИ-системе, используем локальную")
                 except Exception as e:
                     self.logger.warning(f"Ошибка обращения к внешней ИИ-системе: {e}, используем локальную")
             
-            # Используем локальную ИИ-систему
-            ai_result = self.local_ai_analyzer.analyze_all(vulnerability_data)
-            tagger_result = self.local_ai_tagger.analyze_vulnerability(
-                title=vulnerability_data.get('title', ''),
-                description=vulnerability_data.get('description', ''),
-                cve_id=vulnerability_data.get('cve_id', ''),
-                affected_software=vulnerability_data.get('affected_products', []),
-                references=vulnerability_data.get('references', [])
-            )
+            # Используем локальную ИИ-систему (если доступна)
+            if self.local_ai_analyzer and self.local_ai_tagger:
+                try:
+                    ai_result = self.local_ai_analyzer.analyze_all(vulnerability_data)
+                    tagger_result = self.local_ai_tagger.analyze_vulnerability(
+                        title=vulnerability_data.get('title', ''),
+                        description=vulnerability_data.get('description', ''),
+                        cve_id=vulnerability_data.get('cve_id', ''),
+                        affected_software=vulnerability_data.get('affected_products', []),
+                        references=vulnerability_data.get('references', [])
+                    )
+                    
+                    # Объединяем результаты
+                    return {
+                        'is_ai_related': ai_result['ai_classification']['is_ai_related'] or tagger_result.is_ai_related,
+                        'confidence': max(
+                            ai_result['ai_classification']['confidence'],
+                            tagger_result.confidence
+                        ),
+                        'ai_categories': ai_result['ai_classification']['categories'],
+                        'matched_keywords': tagger_result.matched_keywords,
+                        'suggested_tags': tagger_result.suggested_tags,
+                        'reasoning': ai_result['ai_classification']['reasoning'],
+                        'owasp_categories': ai_result['owasp_classification'],
+                        'zero_day_assessment': ai_result['zero_day_assessment'],
+                        'risk_multiplier': tagger_result.risk_multiplier,
+                        'source': 'local'
+                    }
+                except Exception as e:
+                    self.logger.warning(f"Ошибка локального анализа: {e}, возвращаем базовый результат")
             
-            # Объединяем результаты
+            # Базовый результат, если локальные анализаторы недоступны
             return {
-                'is_ai_related': ai_result['ai_classification']['is_ai_related'] or tagger_result.is_ai_related,
-                'confidence': max(
-                    ai_result['ai_classification']['confidence'],
-                    tagger_result.confidence
-                ),
-                'ai_categories': ai_result['ai_classification']['categories'],
-                'matched_keywords': tagger_result.matched_keywords,
-                'suggested_tags': tagger_result.suggested_tags,
-                'reasoning': ai_result['ai_classification']['reasoning'],
-                'owasp_categories': ai_result['owasp_classification'],
-                'zero_day_assessment': ai_result['zero_day_assessment'],
-                'risk_multiplier': tagger_result.risk_multiplier,
-                'source': 'local' if not self.ai_api_available else 'external'
+                'is_ai_related': False,
+                'confidence': 0.0,
+                'ai_categories': [],
+                'matched_keywords': [],
+                'suggested_tags': [],
+                'reasoning': 'Локальные ИИ-анализаторы недоступны, внешняя ИИ-система также недоступна',
+                'source': 'none'
             }
         except Exception as e:
             self.logger.error(f"Ошибка анализа уязвимости: {e}", exc_info=True)
@@ -135,7 +199,10 @@ class AIIntegrationService:
             
             vulnerability = repo.get_by_id(vulnerability_id)
             if not vulnerability:
+                self.logger.warning(f"Уязвимость {vulnerability_id} не найдена в БД")
                 return {'error': 'Уязвимость не найдена'}
+            
+            self.logger.info(f"Классификация уязвимости {vulnerability_id}: {getattr(vulnerability, 'cve_id', 'N/A')}")
             
             # Преобразуем в словарь для анализа
             vuln_data = {
@@ -160,10 +227,10 @@ class AIIntegrationService:
     
     def batch_analyze(self, vulnerability_ids: List[int]) -> Dict[str, Any]:
         """
-        Пакетный анализ уязвимостей
+        Пакетный анализ уязвимостей (работает с новыми уязвимостями)
         
         Args:
-            vulnerability_ids: Список ID уязвимостей
+            vulnerability_ids: Список ID уязвимостей (можно пустой - тогда анализирует все новые)
             
         Returns:
             Dict со статистикой анализа
@@ -171,14 +238,37 @@ class AIIntegrationService:
         results = []
         ai_count = 0
         
-        for vuln_id in vulnerability_ids:
+        # Если список пустой, получаем новые уязвимости из БД
+        if not vulnerability_ids:
             try:
+                cursor = self.db_manager.connection.cursor()
+                # Получаем последние 100 уязвимостей (новые)
+                cursor.execute("""
+                    SELECT id FROM turn 
+                    ORDER BY id DESC 
+                    LIMIT 100
+                """)
+                rows = cursor.fetchall()
+                vulnerability_ids = [row[0] for row in rows]
+                cursor.close()
+                self.logger.info(f"Автоматически выбрано {len(vulnerability_ids)} новых уязвимостей для анализа")
+            except Exception as e:
+                self.logger.error(f"Ошибка получения новых уязвимостей: {e}")
+                return {'error': f'Ошибка получения уязвимостей: {str(e)}'}
+        
+        self.logger.info(f"Начинаем пакетный анализ {len(vulnerability_ids)} уязвимостей")
+        
+        for idx, vuln_id in enumerate(vulnerability_ids, 1):
+            try:
+                self.logger.debug(f"Анализ {idx}/{len(vulnerability_ids)}: уязвимость {vuln_id}")
                 result = self.classify_vulnerability(vuln_id)
                 results.append(result)
                 if result.get('is_ai_related'):
                     ai_count += 1
+                    self.logger.info(f"✅ Уязвимость {vuln_id} классифицирована как ИИ-связанная (confidence: {result.get('confidence', 0.0):.2f})")
             except Exception as e:
-                self.logger.error(f"Ошибка анализа уязвимости {vuln_id}: {e}")
+                self.logger.error(f"Ошибка анализа уязвимости {vuln_id}: {e}", exc_info=True)
+                results.append({'vulnerability_id': vuln_id, 'error': str(e)})
         
         return {
             'total': len(results),
@@ -216,17 +306,26 @@ class AIIntegrationService:
                         'accuracy': float(row[3]) if row[3] else 0.0
                     })
             except Exception:
-                # Таблица не существует, используем данные из анализаторов
+                # Таблица не существует, используем данные из анализаторов (если доступны)
                 keywords = []
-                # Собираем ключевые слова из локальных анализаторов
-                for category, kw_list in ai_analyzer.AI_KEYWORDS.items():
-                    for keyword in kw_list:
-                        keywords.append({
-                            'keyword': keyword,
-                            'category': category,
-                            'usage_count': 0,
-                            'accuracy': 0.0
-                        })
+                # Собираем ключевые слова из локальных анализаторов (если доступны)
+                if LOCAL_AI_ANALYZER_AVAILABLE and ai_analyzer and hasattr(ai_analyzer, 'AI_KEYWORDS'):
+                    try:
+                        for category, kw_list in ai_analyzer.AI_KEYWORDS.items():
+                            for keyword in kw_list:
+                                keywords.append({
+                                    'keyword': keyword,
+                                    'category': category,
+                                    'usage_count': 0,
+                                    'accuracy': 0.0
+                                })
+                    except Exception as e:
+                        self.logger.warning(f"Не удалось получить ключевые слова из ai_analyzer: {e}")
+                        # Используем базовый набор ключевых слов
+                        keywords = self._get_default_keywords()
+                else:
+                    # Используем базовый набор ключевых слов
+                    keywords = self._get_default_keywords()
             
             # Подсчет по категориям
             category_stats = {}
@@ -677,6 +776,24 @@ class AIIntegrationService:
             self.logger.error(f"Ошибка сохранения паспорта: {e}", exc_info=True)
             if self.db_manager.connection:
                 self.db_manager.connection.rollback()
+    
+    def _get_default_keywords(self) -> List[Dict[str, Any]]:
+        """Базовый набор ключевых слов ИИ (если локальные анализаторы недоступны)"""
+        default_keywords = [
+            'ai', 'artificial intelligence', 'machine learning', 'deep learning',
+            'neural network', 'llm', 'large language model', 'transformer',
+            'tensorflow', 'pytorch', 'keras', 'scikit-learn', 'ml model',
+            'generative ai', 'gpt', 'chatgpt', 'openai', 'huggingface'
+        ]
+        return [
+            {
+                'keyword': kw,
+                'category': 'general',
+                'usage_count': 0,
+                'accuracy': 0.0
+            }
+            for kw in default_keywords
+        ]
 
 
 # Глобальный экземпляр

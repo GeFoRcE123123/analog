@@ -102,34 +102,6 @@
         </h3>
         
         <div class="space-y-6">
-            <!-- HTML Parser Settings -->
-            <div class="border border-gray-200 rounded-lg p-4">
-                <div class="flex items-center justify-between mb-3">
-                    <h4 class="font-semibold text-gray-800">
-                        <i class="fas fa-globe mr-2 text-purple-600"></i>HTML Парсер
-                    </h4>
-                    <label class="relative inline-flex items-center cursor-pointer">
-                        <input type="checkbox" id="enableHtmlParser" class="sr-only peer" checked>
-                        <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-                    </label>
-                </div>
-                <div id="htmlParserSettings" class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Источники</label>
-                        <div class="space-y-2">
-                            <label class="flex items-center"><input type="checkbox" class="parser-source" data-parser="html" value="ubuntu" checked> <span class="ml-2 text-sm">Ubuntu Security</span></label>
-                            <label class="flex items-center"><input type="checkbox" class="parser-source" data-parser="html" value="debian" checked> <span class="ml-2 text-sm">Debian Security Tracker</span></label>
-                            <label class="flex items-center"><input type="checkbox" class="parser-source" data-parser="html" value="nvd"> <span class="ml-2 text-sm">NVD</span></label>
-                            <label class="flex items-center"><input type="checkbox" class="parser-source" data-parser="html" value="redhat"> <span class="ml-2 text-sm">Red Hat</span></label>
-                        </div>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Лимит уязвимостей</label>
-                        <input type="number" id="htmlLimit" class="w-full px-3 py-2 border border-gray-300 rounded-lg" value="50" min="1" max="1000">
-                    </div>
-                </div>
-            </div>
-
             <!-- NVD Parser Settings -->
             <div class="border border-gray-200 rounded-lg p-4">
                 <div class="flex items-center justify-between mb-3">
@@ -137,30 +109,14 @@
                         <i class="fas fa-shield-alt mr-2 text-blue-600"></i>NVD Парсер
                     </h4>
                     <label class="relative inline-flex items-center cursor-pointer">
-                        <input type="checkbox" id="enableNvdParser" class="sr-only peer">
+                        <input type="checkbox" id="enableNvdParser" class="sr-only peer" checked>
                         <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
                     </label>
                 </div>
-                <div id="nvdParserSettings" class="mt-4 opacity-50">
+                <div id="nvdParserSettings" class="mt-4">
                     <label class="block text-sm font-medium text-gray-700 mb-2">Дней назад для инкрементального парсинга</label>
-                    <input type="number" id="nvdDays" class="w-full px-3 py-2 border border-gray-300 rounded-lg" value="7" min="1" max="365" disabled>
-                    <p class="text-xs text-gray-500 mt-1">Рекомендуется: 1-7 дней для ежедневного обновления</p>
-                </div>
-            </div>
-
-            <!-- RedHat Parser Settings -->
-            <div class="border border-gray-200 rounded-lg p-4">
-                <div class="flex items-center justify-between mb-3">
-                    <h4 class="font-semibold text-gray-800">
-                        <i class="fab fa-redhat mr-2 text-red-600"></i>Red Hat Importer
-                    </h4>
-                    <label class="relative inline-flex items-center cursor-pointer">
-                        <input type="checkbox" id="enableRedhatParser" class="sr-only peer">
-                        <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-                    </label>
-                </div>
-                <div id="redhatParserSettings" class="mt-4 opacity-50">
-                    <p class="text-sm text-gray-600">Импортирует CVE из Red Hat Security Data API за последние 7 дней</p>
+                    <input type="number" id="nvdDays" class="w-full px-3 py-2 border border-gray-300 rounded-lg" value="30" min="1" max="365">
+                    <p class="text-xs text-gray-500 mt-1">Рекомендуется: 7-30 дней для регулярного обновления. Последний парсинг: 4,948 уязвимостей сохранено</p>
                 </div>
             </div>
         </div>
@@ -293,6 +249,11 @@ async function startAllParsers() {
         
         const data = await response.json();
         
+        // Отображение детальных сообщений о прогрессе
+        if (data.progress_messages && data.progress_messages.length > 0) {
+            displayProgressMessages(data.progress_messages);
+        }
+        
         updateProgress(80, 'Сохранение результатов...');
         
         if (data.success) {
@@ -331,10 +292,11 @@ async function startAllParsers() {
     }
 }
 
-// Обновление прогресс-бара
-function updateProgress(percent, text) {
+// Обновление прогресс-бара с детальной информацией
+function updateProgress(percent, text, details = null) {
     const progressBar = document.getElementById('progressBar');
     const progressText = document.getElementById('progressText');
+    const progressDetails = document.getElementById('progressDetails');
     
     if (progressBar) {
         progressBar.style.width = `${Math.min(100, Math.max(0, percent))}%`;
@@ -344,26 +306,82 @@ function updateProgress(percent, text) {
     if (progressText) {
         progressText.textContent = text || `${percent}%`;
     }
+    
+    // Добавляем детальную информацию о прогрессе
+    if (progressDetails && details) {
+        let detailsHtml = '';
+        if (details.source) {
+            detailsHtml += `<div class="text-sm text-gray-600"><strong>Источник:</strong> ${details.source}</div>`;
+        }
+        if (details.parsed_count !== undefined) {
+            detailsHtml += `<div class="text-sm text-gray-600"><strong>Спарсено:</strong> ${details.parsed_count}</div>`;
+        }
+        if (details.saved_count !== undefined) {
+            detailsHtml += `<div class="text-sm text-gray-600"><strong>Сохранено:</strong> ${details.saved_count}</div>`;
+        }
+        if (details.error) {
+            detailsHtml += `<div class="text-sm text-red-600"><strong>Ошибка:</strong> ${details.error}</div>`;
+        }
+        progressDetails.innerHTML = detailsHtml;
+    }
 }
 
 // Получение настроек парсеров
 function getParserSettings() {
-    const htmlEnabled = document.getElementById('enableHtmlParser').checked;
-    const htmlSources = Array.from(document.querySelectorAll('.parser-source[data-parser="html"]:checked')).map(cb => cb.value);
-    const htmlLimit = parseInt(document.getElementById('htmlLimit').value) || 50;
-    
     const nvdEnabled = document.getElementById('enableNvdParser').checked;
-    const nvdDays = parseInt(document.getElementById('nvdDays').value) || 7;
-    
-    const redhatEnabled = document.getElementById('enableRedhatParser').checked;
+    const nvdDays = parseInt(document.getElementById('nvdDays').value) || 30;
     
     return {
-        sources: htmlEnabled ? htmlSources : [],
-        limit_per_source: htmlLimit,
+        sources: [], // HTML парсер отключен
+        limit_per_source: 0,
         enable_nvd: nvdEnabled,
-        enable_redhat: redhatEnabled,
+        enable_redhat: false, // RedHat парсер отключен
         nvd_days: nvdDays
     };
+}
+
+// Отображение детальных сообщений о прогрессе парсинга
+function displayProgressMessages(messages) {
+    const progressDetails = document.getElementById('progressDetails');
+    if (!progressDetails) return;
+    
+    let html = '<div class="mt-4 space-y-2 max-h-64 overflow-y-auto">';
+    messages.forEach(msg => {
+        const stageClass = {
+            'parsing': 'text-blue-600',
+            'parsed': 'text-green-600',
+            'saving': 'text-yellow-600',
+            'saved': 'text-green-700 font-semibold',
+            'error': 'text-red-600',
+            'warning': 'text-orange-600'
+        }[msg.stage] || 'text-gray-600';
+        
+        const icon = {
+            'parsing': '🌐',
+            'parsed': '✅',
+            'saving': '💾',
+            'saved': '✅',
+            'error': '❌',
+            'warning': '⚠️'
+        }[msg.stage] || '📋';
+        
+        html += `<div class="text-sm ${stageClass}">${icon} ${msg.message}</div>`;
+        
+        if (msg.parsed_count !== undefined) {
+            html += `<div class="text-xs text-gray-500 ml-4">Спарсено: ${msg.parsed_count}</div>`;
+        }
+        if (msg.saved_count !== undefined) {
+            html += `<div class="text-xs text-gray-500 ml-4">Сохранено: ${msg.saved_count}</div>`;
+        }
+        if (msg.cvss_found !== undefined) {
+            html += `<div class="text-xs text-gray-500 ml-4">CVSS найден: ${msg.cvss_found}, средний: ${msg.avg_cvss || 0}</div>`;
+        }
+        if (msg.error) {
+            html += `<div class="text-xs text-red-500 ml-4">${msg.error}</div>`;
+        }
+    });
+    html += '</div>';
+    progressDetails.innerHTML = html;
 }
 
 // Отображение результатов парсинга
@@ -503,26 +521,17 @@ function showError(message) {
 
 // Обновление UI настроек при включении/выключении парсеров
 document.addEventListener('DOMContentLoaded', function() {
-    // HTML Parser toggle
-    document.getElementById('enableHtmlParser').addEventListener('change', function(e) {
-        const settings = document.getElementById('htmlParserSettings');
-        settings.style.opacity = e.target.checked ? '1' : '0.5';
-        Array.from(settings.querySelectorAll('input, select')).forEach(el => el.disabled = !e.target.checked);
-    });
-    
     // NVD Parser toggle
-    document.getElementById('enableNvdParser').addEventListener('change', function(e) {
-        const settings = document.getElementById('nvdParserSettings');
-        settings.style.opacity = e.target.checked ? '1' : '0.5';
-        Array.from(settings.querySelectorAll('input, select')).forEach(el => el.disabled = !e.target.checked);
-    });
-    
-    // RedHat Parser toggle
-    document.getElementById('enableRedhatParser').addEventListener('change', function(e) {
-        const settings = document.getElementById('redhatParserSettings');
-        settings.style.opacity = e.target.checked ? '1' : '0.5';
-        Array.from(settings.querySelectorAll('input, select')).forEach(el => el.disabled = !e.target.checked);
-    });
+    const nvdToggle = document.getElementById('enableNvdParser');
+    if (nvdToggle) {
+        nvdToggle.addEventListener('change', function(e) {
+            const settings = document.getElementById('nvdParserSettings');
+            if (settings) {
+                settings.style.opacity = e.target.checked ? '1' : '0.5';
+                Array.from(settings.querySelectorAll('input, select')).forEach(el => el.disabled = !e.target.checked);
+            }
+        });
+    }
     
     // Первоначальная загрузка статистики
     refreshStats();

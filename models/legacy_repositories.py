@@ -177,25 +177,143 @@ class LegacyVulnerabilityRepository:
             # Status (boolean)
             status = vulnerability.status not in ['completed', 'approved']
 
-            # Проверяем, существует ли уже запись
-            logger.debug(f"   [TURN] Проверяем существование cve={cve_id}")
+            # Подготовка данных для NVD полей (до проверки существования)
+            cvss_v2_vector = getattr(vulnerability, 'cvss_v2_vector', None)
+            cvss_v3_vector = getattr(vulnerability, 'cvss_v3_vector', None)
+            cvss_v4_vector = getattr(vulnerability, 'cvss_v4_vector', None)
+            cvss_version = getattr(vulnerability, 'cvss_version', None) or '3.1'
+            epss_score = getattr(vulnerability, 'epss_score', None)
+            epss_percentile = getattr(vulnerability, 'epss_percentile', None)
+            
+            # CWE IDs из weaknesses
+            cwe_ids = []
+            weaknesses = getattr(vulnerability, 'weaknesses', [])
+            if weaknesses:
+                for weakness in weaknesses:
+                    if isinstance(weakness, dict):
+                        cwe_id = weakness.get('cwe_id') or weakness.get('cweId', '')
+                    else:
+                        cwe_id = getattr(weakness, 'cwe_id', '')
+                    if cwe_id and cwe_id not in cwe_ids:
+                        cwe_ids.append(cwe_id)
+            
+            # JSONB поля
+            affected_products = getattr(vulnerability, 'affected_products', None)
+            if affected_products:
+                affected_products_json = json.dumps(affected_products, ensure_ascii=False) if not isinstance(affected_products, str) else affected_products
+            else:
+                affected_products_json = None
+                
+            nvd_references = getattr(vulnerability, 'references', None)
+            if nvd_references:
+                nvd_references_json = json.dumps(nvd_references, ensure_ascii=False) if not isinstance(nvd_references, str) else nvd_references
+            else:
+                nvd_references_json = None
+                
+            vendor_comments_json = None
+            if hasattr(vulnerability, 'vendor_comments') and vulnerability.vendor_comments:
+                vendor_comments_json = json.dumps(vulnerability.vendor_comments, ensure_ascii=False) if not isinstance(vulnerability.vendor_comments, str) else vulnerability.vendor_comments
+                
+            cpe_configurations = getattr(vulnerability, 'configurations', None)
+            if cpe_configurations:
+                cpe_configurations_json = json.dumps(cpe_configurations, ensure_ascii=False) if not isinstance(cpe_configurations, str) else cpe_configurations
+            else:
+                cpe_configurations_json = None
+                
+            nvd_weaknesses_json = None
+            if weaknesses:
+                # Преобразуем weaknesses в JSON-совместимый формат
+                weaknesses_list = []
+                for weakness in weaknesses:
+                    if isinstance(weakness, dict):
+                        weaknesses_list.append(weakness)
+                    else:
+                        weaknesses_list.append({
+                            'source': getattr(weakness, 'source', ''),
+                            'type': getattr(weakness, 'type', ''),
+                            'description': getattr(weakness, 'description', ''),
+                            'cwe_id': getattr(weakness, 'cwe_id', '')
+                        })
+                nvd_weaknesses_json = json.dumps(weaknesses_list, ensure_ascii=False)
+                
+            source_identifier = getattr(vulnerability, 'source_identifier', None) or source
+            nvd_status = getattr(vulnerability, 'vuln_status', None) or 'PUBLISHED'
+            nvd_published = getattr(vulnerability, 'published', None) or start_date
+            nvd_last_modified = getattr(vulnerability, 'last_modified', None) or end_date
+            
+            # Описания на разных языках
+            nvd_descriptions = getattr(vulnerability, 'descriptions', None)
+            if nvd_descriptions:
+                nvd_descriptions_json = json.dumps(nvd_descriptions, ensure_ascii=False) if not isinstance(nvd_descriptions, str) else nvd_descriptions
+            else:
+                nvd_descriptions_json = None
+                
+            # CVSS метрики
+            metrics = getattr(vulnerability, 'metrics', None)
+            cvss_v2_metrics = None
+            cvss_v3_metrics = None
+            cvss_v4_metrics = None
+            nvd_metrics_json = None
+            if metrics:
+                if isinstance(metrics, dict):
+                    cvss_v2_metrics = json.dumps(metrics.get('cvss_v2'), ensure_ascii=False) if metrics.get('cvss_v2') else None
+                    cvss_v3_metrics = json.dumps(metrics.get('cvss_v3'), ensure_ascii=False) if metrics.get('cvss_v3') else None
+                    cvss_v4_metrics = json.dumps(metrics.get('cvss_v4'), ensure_ascii=False) if metrics.get('cvss_v4') else None
+                    nvd_metrics_json = json.dumps(metrics, ensure_ascii=False)
+                else:
+                    # Если это NVDMetrics объект
+                    cvss_v2_metrics = json.dumps(metrics.cvss_v2, ensure_ascii=False) if metrics.cvss_v2 else None
+                    cvss_v3_metrics = json.dumps(metrics.cvss_v3, ensure_ascii=False) if metrics.cvss_v3 else None
+                    cvss_v4_metrics = json.dumps(metrics.cvss_v4, ensure_ascii=False) if metrics.cvss_v4 else None
+                    nvd_metrics_json = json.dumps({
+                        'cvss_v2': metrics.cvss_v2,
+                        'cvss_v3': metrics.cvss_v3,
+                        'cvss_v4': metrics.cvss_v4
+                    }, ensure_ascii=False)
+            
+            has_kev = getattr(vulnerability, 'has_kev', False) or False
+            has_cert_alerts = getattr(vulnerability, 'has_cert_alerts', False) or False
+            
+            # CVE JSON 5.x данные (если есть)
+            cve_json5_data = getattr(vulnerability, 'raw_cve_json5', None)
+            if cve_json5_data:
+                cve_json5_data_json = json.dumps(cve_json5_data, ensure_ascii=False) if not isinstance(cve_json5_data, str) else cve_json5_data
+            else:
+                cve_json5_data_json = None
+            
+            # Проверяем, существует ли уже запись с этим CVE ID
             cursor.execute("SELECT id FROM turn WHERE cve = %s", (cve_id,))
-            existing = cursor.fetchone()
-            logger.debug(f"   [TURN] Результат проверки: existing={existing}")
-
+            existing_row = cursor.fetchone()
+            existing = existing_row is not None
+            
             if existing:
                 logger.debug(f"   [TURN] Обновляем существующую запись для {cve_id}")
-                # Обновляем существующую запись
+                # Обновляем существующую запись с новыми NVD полями
                 cursor.execute("""
                     UPDATE turn SET
                         source = %s, link = %s, name = %s, cvss = %s,
                         price_one = %s, priority = %s, joining_date = %s,
-                        start_date = %s, end_date = %s, etc = %s, status = %s
+                        start_date = %s, end_date = %s, etc = %s, status = %s,
+                        cvss_v2_vector = %s, cvss_v3_vector = %s, cvss_v4_vector = %s,
+                        cvss_version = %s, epss_score = %s, epss_percentile = %s,
+                        cwe_ids = %s, affected_products = %s, nvd_references = %s,
+                        vendor_comments = %s, cpe_configurations = %s, nvd_weaknesses = %s,
+                        source_identifier = %s, nvd_status = %s, nvd_published = %s,
+                        nvd_last_modified = %s, nvd_descriptions = %s, nvd_metrics = %s,
+                        cvss_v2_metrics = %s, cvss_v3_metrics = %s, cvss_v4_metrics = %s,
+                        has_kev = %s, has_cert_alerts = %s, cve_json5_data = %s
                     WHERE cve = %s
                     RETURNING id
                 """, (
                     source, link, name, cvss, price_one, priority,
-                    joining_date, start_date, end_date, etc, status, cve_id
+                    joining_date, start_date, end_date, etc, status,
+                    cvss_v2_vector, cvss_v3_vector, cvss_v4_vector, cvss_version,
+                    epss_score, epss_percentile, cwe_ids if cwe_ids else None,
+                    affected_products_json, nvd_references_json, vendor_comments_json,
+                    cpe_configurations_json, nvd_weaknesses_json, source_identifier,
+                    nvd_status, nvd_published, nvd_last_modified, nvd_descriptions_json,
+                    nvd_metrics_json, cvss_v2_metrics, cvss_v3_metrics, cvss_v4_metrics,
+                    has_kev, has_cert_alerts, cve_json5_data_json, cve_id
                 ))
             else:
                 # Вставляем новую запись
@@ -204,12 +322,26 @@ class LegacyVulnerabilityRepository:
                     cursor.execute("""
                         INSERT INTO turn (
                             source, link, cve, joining_date, name, cvss,
-                            price_one, priority, start_date, end_date, etc, status
-                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                            price_one, priority, start_date, end_date, etc, status,
+                            cvss_v2_vector, cvss_v3_vector, cvss_v4_vector, cvss_version,
+                            epss_score, epss_percentile, cwe_ids, affected_products, nvd_references,
+                            vendor_comments, cpe_configurations, nvd_weaknesses,
+                            source_identifier, nvd_status, nvd_published, nvd_last_modified,
+                            nvd_descriptions, nvd_metrics, cvss_v2_metrics, cvss_v3_metrics, cvss_v4_metrics,
+                            has_kev, has_cert_alerts, cve_json5_data
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                                  %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                         RETURNING id
                     """, (
                         source, link, cve_id, joining_date, name, cvss,
-                        price_one, priority, start_date, end_date, etc, status
+                        price_one, priority, start_date, end_date, etc, status,
+                        cvss_v2_vector, cvss_v3_vector, cvss_v4_vector, cvss_version,
+                        epss_score, epss_percentile, cwe_ids if cwe_ids else None,
+                        affected_products_json, nvd_references_json, vendor_comments_json,
+                        cpe_configurations_json, nvd_weaknesses_json, source_identifier,
+                        nvd_status, nvd_published, nvd_last_modified, nvd_descriptions_json,
+                        nvd_metrics_json, cvss_v2_metrics, cvss_v3_metrics, cvss_v4_metrics,
+                        has_kev, has_cert_alerts, cve_json5_data_json
                     ))
                 except Exception as insert_error:
                     # Если ошибка UNIQUE constraint, пытаемся обновить
@@ -219,12 +351,27 @@ class LegacyVulnerabilityRepository:
                             UPDATE turn SET
                                 source = %s, link = %s, name = %s, cvss = %s,
                                 price_one = %s, priority = %s, joining_date = %s,
-                                start_date = %s, end_date = %s, etc = %s, status = %s
+                                start_date = %s, end_date = %s, etc = %s, status = %s,
+                                cvss_v2_vector = %s, cvss_v3_vector = %s, cvss_v4_vector = %s,
+                                cvss_version = %s, epss_score = %s, epss_percentile = %s,
+                                cwe_ids = %s, affected_products = %s, nvd_references = %s,
+                                vendor_comments = %s, cpe_configurations = %s, nvd_weaknesses = %s,
+                                source_identifier = %s, nvd_status = %s, nvd_published = %s,
+                                nvd_last_modified = %s, nvd_descriptions = %s, nvd_metrics = %s,
+                                cvss_v2_metrics = %s, cvss_v3_metrics = %s, cvss_v4_metrics = %s,
+                                has_kev = %s, has_cert_alerts = %s, cve_json5_data = %s
                             WHERE cve = %s
                             RETURNING id
                         """, (
                             source, link, name, cvss, price_one, priority,
-                            joining_date, start_date, end_date, etc, status, cve_id
+                            joining_date, start_date, end_date, etc, status,
+                            cvss_v2_vector, cvss_v3_vector, cvss_v4_vector, cvss_version,
+                            epss_score, epss_percentile, cwe_ids if cwe_ids else None,
+                            affected_products_json, nvd_references_json, vendor_comments_json,
+                            cpe_configurations_json, nvd_weaknesses_json, source_identifier,
+                            nvd_status, nvd_published, nvd_last_modified, nvd_descriptions_json,
+                            nvd_metrics_json, cvss_v2_metrics, cvss_v3_metrics, cvss_v4_metrics,
+                            has_kev, has_cert_alerts, cve_json5_data_json, cve_id
                         ))
                     else:
                         raise  # Пробрасываем другие ошибки
@@ -947,7 +1094,7 @@ class LegacyVulnerabilityRepository:
                        price_one, priority, start_date, end_date, etc, status
                 FROM turn
                 WHERE {where_clause}
-                ORDER BY joining_date DESC
+                ORDER BY id DESC, joining_date DESC
                 LIMIT %s OFFSET %s
             """
             query_params = list(params) + [per_page, offset]
