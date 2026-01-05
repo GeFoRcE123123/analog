@@ -76,3 +76,17 @@ class Config:
     # По умолчанию (для обратной совместимости)
     NVD_REQUESTS_PER_SECOND = NVD_FULL_SYNC_REQUESTS_PER_SECOND
     NVD_MAX_WORKERS = NVD_FULL_SYNC_MAX_WORKERS
+    
+    # Application Role (для разделения на VM)
+    # Возможные значения: 'frontend', 'backend', 'parsers', 'full'
+    # - frontend: только UI-маршруты, без подключения к БД
+    # - backend: только API-маршруты, с подключением к БД
+    # - parsers: фоновые задачи, без Flask, с подключением к БД
+    # - full: старое поведение (все в одном)
+    APP_ROLE = os.getenv("APP_ROLE", "full")
+    
+    # VM IP адреса
+    DATABASE_VM_IP = "10.0.88.11"  # VM 230
+    FRONTEND_VM_IP = "10.0.88.10"  # VM 231
+    BACKEND_VM_IP = "10.0.88.20"   # VM 232
+    PARSERS_VM_IP = "10.0.88.23"   # VM 233
