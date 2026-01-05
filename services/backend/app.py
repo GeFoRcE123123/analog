@@ -879,8 +879,11 @@ def api_parsers_run_all():
         enable_vendors = data.get('enable_vendors', False)
         vendor_sources = data.get('vendor_sources', [])
         nvd_days = data.get('nvd_days', 7)
+        # ⭐ Поддержка Legacy парсеров
+        enable_legacy_parsers = data.get('enable_legacy_parsers', False)
+        legacy_parser_sources = data.get('legacy_parser_sources', [])
         
-        logger.info(f"🚀 [API] Запуск всех парсеров: sources={sources}, limit={limit_per_source}, nvd={enable_nvd}, redhat={enable_redhat}, osv={enable_osv}, vendors={enable_vendors}, vendor_sources={vendor_sources}")
+        logger.info(f"🚀 [API] Запуск всех парсеров: sources={sources}, limit={limit_per_source}, nvd={enable_nvd}, redhat={enable_redhat}, osv={enable_osv}, vendors={enable_vendors}, vendor_sources={vendor_sources}, legacy={enable_legacy_parsers}, legacy_sources={legacy_parser_sources}")
         
         # Запуск парсинга
         start_time = time.time()
@@ -894,7 +897,9 @@ def api_parsers_run_all():
                 enable_osv=enable_osv,
                 enable_vendors=enable_vendors,
                 vendor_sources=vendor_sources,
-                nvd_days=nvd_days
+                nvd_days=nvd_days,
+                enable_legacy_parsers=enable_legacy_parsers,
+                legacy_parser_sources=legacy_parser_sources
             )
             duration = int(time.time() - start_time)
             logger.info(f"   [API] Парсинг завершен: results={results}")
@@ -913,7 +918,9 @@ def api_parsers_run_all():
                         'enable_nvd': enable_nvd,
                         'enable_redhat': enable_redhat,
                         'enable_osv': enable_osv,
-                        'nvd_days': nvd_days
+                        'nvd_days': nvd_days,
+                        'enable_legacy_parsers': enable_legacy_parsers,
+                        'legacy_parser_sources': legacy_parser_sources
                     },
                     status='completed',
                     duration_seconds=duration
@@ -949,7 +956,9 @@ def api_parsers_run_all():
                         'enable_nvd': enable_nvd,
                         'enable_redhat': enable_redhat,
                         'enable_osv': enable_osv,
-                        'nvd_days': nvd_days
+                        'nvd_days': nvd_days,
+                        'enable_legacy_parsers': enable_legacy_parsers,
+                        'legacy_parser_sources': legacy_parser_sources
                     },
                     status='failed',
                     error_message=str(parse_error),

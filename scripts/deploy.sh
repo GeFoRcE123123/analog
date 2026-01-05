@@ -176,6 +176,11 @@ if [ "$DEPLOY_TARGET" == "backend" ] || [ "$DEPLOY_TARGET" == "all" ]; then
     cp services/redhat_cve_importer.py /tmp/backend_deploy/services/ 2>/dev/null || true
     cp services/nvd_integration_service.py /tmp/backend_deploy/services/ 2>/dev/null || true
     cp services/vendor_parsers.py /tmp/backend_deploy/services/ 2>/dev/null || true
+    # ⭐ Копируем Legacy парсеры
+    if [ -d "services/legacy_parsers" ]; then
+        cp -r services/legacy_parsers /tmp/backend_deploy/services/
+        echo "✅ Legacy парсеры скопированы"
+    fi
     # Удаляем файлы с psycopg2, которые не используются в backend
     rm -f /tmp/backend_deploy/models/optimized_database.py 2>/dev/null || true
     rm -f /tmp/backend_deploy/models/optimized_postgres_repositories.py 2>/dev/null || true
@@ -255,6 +260,11 @@ if [ "$DEPLOY_TARGET" == "parsers" ] || [ "$DEPLOY_TARGET" == "all" ]; then
     cp services/redhat_cve_importer.py /tmp/parsers_deploy/services/ 2>/dev/null || true
     cp services/osv_parser.py /tmp/parsers_deploy/services/ 2>/dev/null || true
     cp services/fast_osv_parser.py /tmp/parsers_deploy/services/ 2>/dev/null || true
+    # ⭐ Копируем Legacy парсеры
+    if [ -d "services/legacy_parsers" ]; then
+        cp -r services/legacy_parsers /tmp/parsers_deploy/services/
+        echo "✅ Legacy парсеры скопированы"
+    fi
     # Копируем models
     cp -r models/* /tmp/parsers_deploy/models/
     
