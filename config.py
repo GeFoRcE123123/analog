@@ -90,3 +90,7 @@ class Config:
     FRONTEND_VM_IP = "10.0.88.10"  # VM 231
     BACKEND_VM_IP = "10.0.88.20"   # VM 232
     PARSERS_VM_IP = "10.0.88.23"   # VM 233
+    
+    # ML Platform AI Analysis Settings
+    ML_ANALYSIS_MAX_BATCH = int(os.getenv("ML_ANALYSIS_MAX_BATCH", "50000"))  # Максимум уязвимостей для анализа за раз
+    ML_ANALYSIS_TIMEOUT = int(os.getenv("ML_ANALYSIS_TIMEOUT", "1800"))  # Таймаут для анализа (30 минут)

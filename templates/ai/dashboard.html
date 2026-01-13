@@ -68,27 +68,38 @@
         </div>
     </div>
 
+    <!-- Статус подключения к ML платформе -->
+    <div id="ml-platform-status" class="bg-white rounded-lg shadow p-4 mb-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <h3 class="text-sm font-medium text-gray-700">ML Платформа (k8s-worker)</h3>
+                <p class="text-xs text-gray-500" id="ml-status-text">Проверка подключения...</p>
+            </div>
+            <div id="ml-status-indicator" class="w-3 h-3 rounded-full bg-gray-400"></div>
+        </div>
+    </div>
+
     <!-- Действия -->
     <div class="bg-white rounded-lg shadow p-6 mb-8">
         <h2 class="text-xl font-bold text-gray-900 mb-4">Действия</h2>
         <div class="flex flex-wrap gap-4">
-            <button onclick="startAIAnalysis()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg font-medium transition-colors">
+            <button onclick="startAIAnalysis()" id="btn-ai-analysis" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                 🚀 Запустить ИИ-анализ
             </button>
-            <a href="/ai/statistics" class="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg font-medium transition-colors">
+            <button onclick="loadStatistics()" class="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg font-medium transition-colors">
                 📊 Статистика по ключевым словам
-            </a>
+            </button>
             {% if session.role == 'admin' %}
-            <a href="/ai/training" class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg font-medium transition-colors">
+            <button onclick="openTraining()" class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg font-medium transition-colors">
                 🎓 Управление обучением
-            </a>
-            <a href="/ai/monitoring" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition-colors">
+            </button>
+            <button onclick="openMonitoring()" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition-colors">
                 🔍 Мониторинг сайтов
-            </a>
+            </button>
             {% endif %}
-            <a href="/ai/passports" class="bg-gray-600 hover:bg-gray-700 text-white px-6 py-2 rounded-lg font-medium transition-colors">
+            <button onclick="openPassports()" class="bg-gray-600 hover:bg-gray-700 text-white px-6 py-2 rounded-lg font-medium transition-colors">
                 📄 Паспорта уязвимостей
-            </a>
+            </button>
         </div>
     </div>
 
@@ -102,6 +113,31 @@
 </div>
 
 <script>
+// Проверка подключения к ML платформе
+async function checkMLPlatformConnection() {
+    try {
+        const response = await fetch('/api/ml-platform/connection');
+        const data = await response.json();
+        
+        const statusIndicator = document.getElementById('ml-status-indicator');
+        const statusText = document.getElementById('ml-status-text');
+        
+        if (data.success && data.status.success) {
+            statusIndicator.className = 'w-3 h-3 rounded-full bg-green-500';
+            statusText.textContent = `✅ Подключено (${data.status.vm_host})`;
+            document.getElementById('btn-ai-analysis').disabled = false;
+        } else {
+            statusIndicator.className = 'w-3 h-3 rounded-full bg-red-500';
+            statusText.textContent = '❌ ML платформа недоступна';
+            document.getElementById('btn-ai-analysis').disabled = true;
+        }
+    } catch (error) {
+        console.error('Ошибка проверки подключения:', error);
+        document.getElementById('ml-status-indicator').className = 'w-3 h-3 rounded-full bg-red-500';
+        document.getElementById('ml-status-text').textContent = '❌ Ошибка подключения';
+    }
+}
+
 async function loadStatistics() {
     try {
         const response = await fetch('/api/ai/statistics');
@@ -109,9 +145,12 @@ async function loadStatistics() {
         
         if (data.success) {
             const stats = data.statistics;
-            document.getElementById('total-analyzed').textContent = stats.total_keywords || 0;
+            document.getElementById('total-analyzed').textContent = stats.total_analyzed || stats.total_keywords || 0;
+            document.getElementById('ai-related').textContent = stats.ai_related || 0;
+            document.getElementById('avg-confidence').textContent = (stats.avg_confidence || 0).toFixed(1) + '%';
             document.getElementById('total-keywords').textContent = stats.total_keywords || 0;
-            // TODO: Получить реальную статистику из БД
+        } else {
+            console.error('Ошибка загрузки статистики:', data.error);
         }
     } catch (error) {
         console.error('Ошибка загрузки статистики:', error);
@@ -119,48 +158,31 @@ async function loadStatistics() {
 }
 
 async function startAIAnalysis() {
-    if (!confirm('Запустить ИИ-анализ всех уязвимостей? Это может занять некоторое время.')) {
+    if (!confirm('Запустить ИИ-анализ всех уязвимостей через ML платформу? Это может занять некоторое время.')) {
         return;
     }
 
-    const button = event.target;
+    const button = document.getElementById('btn-ai-analysis');
     button.disabled = true;
     button.textContent = '⏳ Анализ запущен...';
 
     try {
-        // Получаем список всех уязвимостей
-        const vulnResponse = await fetch('/api/vulnerabilities?page=1&per_page=1000');
-        const vulnData = await vulnResponse.json();
-        
-        if (!vulnData.success || !vulnData.vulnerabilities) {
-            throw new Error('Не удалось получить список уязвимостей');
-        }
-
-        const vulnerabilityIds = vulnData.vulnerabilities.map(v => v.id);
-        
-        // Проверка что есть уязвимости для анализа
-        if (!vulnerabilityIds || vulnerabilityIds.length === 0) {
-            alert('⚠️ Нет уязвимостей для анализа. Сначала запустите парсинг уязвимостей.');
-            button.disabled = false;
-            button.textContent = '🚀 Запустить ИИ-анализ';
-            return;
-        }
-        
-        // Запускаем пакетный анализ
+        // Запускаем анализ через ML платформу
         const response = await fetch('/api/ai/batch-analyze', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                vulnerability_ids: vulnerabilityIds
+                vulnerability_ids: []  // Пустой список = все уязвимости
             })
         });
 
         const result = await response.json();
         
         if (result.success) {
-            alert(`✅ Анализ завершен!\n\nВсего проанализировано: ${result.result.total}\nИИ-уязвимостей найдено: ${result.result.ai_related} (${result.result.percentage.toFixed(1)}%)`);
+            const resultData = result.result || {};
+            alert(`✅ Анализ запущен через ML платформу!\n\nЗадача отправлена на k8s-worker для обработки.`);
             loadStatistics();
         } else {
             throw new Error(result.error || 'Ошибка анализа');
@@ -174,9 +196,25 @@ async function startAIAnalysis() {
     }
 }
 
+function openTraining() {
+    window.location.href = '/ai/training';
+}
+
+function openMonitoring() {
+    window.location.href = '/ai/monitoring';
+}
+
+function openPassports() {
+    window.location.href = '/ai/passports';
+}
+
 // Загрузка при открытии страницы
 document.addEventListener('DOMContentLoaded', () => {
+    checkMLPlatformConnection();
     loadStatistics();
+    
+    // Обновление статуса каждые 30 секунд
+    setInterval(checkMLPlatformConnection, 30000);
 });
 </script>
 {% endblock %}

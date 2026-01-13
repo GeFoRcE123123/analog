@@ -19,6 +19,7 @@ from services.assignment_manager import AssignmentManager
 from services.data_manager import DataManager
 from services.analytics_service import analytics_service
 from services.auth_service import AuthService
+from services.ml_platform_client import ml_platform_client
 import sys
 import os
 
@@ -102,33 +103,128 @@ def get_vulnerabilities_with_operators(page: int = 1, per_page: int = 50,
         return [], [], 0
 
 
-def save_parsing_history(sources, total_parsed, total_saved, total_errors, by_source, settings, status='completed', error_message=None, duration_seconds=0):
-    """Сохранить историю парсинга в БД"""
+def save_parsing_history(sources, total_parsed, total_saved, total_errors, by_source, settings, status='completed', error_message=None, duration_seconds=0, parsing_id=None):
+    """Сохранить или обновить историю парсинга в БД"""
     try:
         import json
-        query = """
-            INSERT INTO parsing_history (
-                sources, total_parsed, total_saved, total_errors, 
-                by_source, settings, status, error_message, duration_seconds
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-        """
-        db_manager.execute_query(
-            query,
-            (
-                sources,
-                total_parsed,
-                total_saved,
-                total_errors,
-                json.dumps(by_source),
-                json.dumps(settings),
-                status,
-                error_message,
-                duration_seconds
+        # Убеждаемся, что db_manager доступен
+        if 'db_manager' not in globals():
+            from models.database import DatabaseManager
+            global db_manager
+            db_manager = DatabaseManager()
+        
+        if parsing_id:
+            # Обновляем существующую запись
+            query = """
+                UPDATE parsing_history SET
+                    total_parsed = %s,
+                    total_saved = %s,
+                    total_errors = %s,
+                    by_source = %s,
+                    status = %s,
+                    error_message = %s,
+                    duration_seconds = %s
+                WHERE id = %s
+            """
+            db_manager.execute_query(
+                query,
+                (
+                    total_parsed,
+                    total_saved,
+                    total_errors,
+                    json.dumps(by_source) if by_source else '{}',
+                    status,
+                    error_message,
+                    duration_seconds,
+                    parsing_id
+                )
             )
-        )
-        logger.info(f"✅ История парсинга сохранена: parsed={total_parsed}, saved={total_saved}")
+            logger.info(f"✅ История парсинга обновлена (ID: {parsing_id}): parsed={total_parsed}, saved={total_saved}")
+            return parsing_id
+        else:
+            # Создаем новую запись
+            query = """
+                INSERT INTO parsing_history (
+                    sources, total_parsed, total_saved, total_errors, 
+                    by_source, settings, status, error_message, duration_seconds, scan_date
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
+                RETURNING id
+            """
+            # PostgreSQL ожидает массив для sources, а не JSON строку
+            sources_array = sources if isinstance(sources, list) else (sources if sources else [])
+            
+            result = db_manager.execute_query(
+                query,
+                (
+                    sources_array,  # PostgreSQL массив напрямую
+                    total_parsed,
+                    total_saved,
+                    total_errors,
+                    json.dumps(by_source) if by_source else '{}',
+                    json.dumps(settings) if settings else '{}',
+                    status,
+                    error_message,
+                    duration_seconds
+                )
+            )
+            # Обработка результата: может быть список кортежей или просто значение
+            if result:
+                if isinstance(result, list) and len(result) > 0:
+                    if isinstance(result[0], (list, tuple)) and len(result[0]) > 0:
+                        parsing_id = result[0][0]
+                    elif isinstance(result[0], (int, str)):
+                        parsing_id = result[0]
+                    else:
+                        parsing_id = None
+                elif isinstance(result, (int, str)):
+                    parsing_id = result
+                else:
+                    parsing_id = None
+            else:
+                parsing_id = None
+            if parsing_id:
+                logger.info(f"✅ История парсинга сохранена (ID: {parsing_id}): parsed={total_parsed}, saved={total_saved}")
+            else:
+                logger.error(f"❌ Не удалось получить ID после INSERT. Result: {result}")
+            return parsing_id
     except Exception as e:
         logger.error(f"❌ Ошибка сохранения истории парсинга: {e}", exc_info=True)
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return None
+
+def get_active_parsing_status():
+    """Получить текущий активный статус парсинга из БД"""
+    try:
+        query = """
+            SELECT id, sources, total_parsed, total_saved, total_errors, 
+                   by_source, settings, status, error_message, duration_seconds, scan_date
+            FROM parsing_history
+            WHERE status IN ('running', 'pending')
+            ORDER BY scan_date DESC
+            LIMIT 1
+        """
+        result = db_manager.execute_query(query)
+        if result and len(result) > 0:
+            row = result[0]
+            import json
+            return {
+                'id': row[0],
+                'sources': row[1],
+                'total_parsed': row[2],
+                'total_saved': row[3],
+                'total_errors': row[4],
+                'by_source': json.loads(row[5]) if row[5] else {},
+                'settings': json.loads(row[6]) if row[6] else {},
+                'status': row[7],
+                'error_message': row[8],
+                'duration_seconds': row[9],
+                'scan_date': row[10].isoformat() if row[10] else None
+            }
+        return None
+    except Exception as e:
+        logger.error(f"❌ Ошибка получения статуса парсинга: {e}", exc_info=True)
+        return None
 
 
 def get_vulnerabilities_with_operators_old():
@@ -871,7 +967,10 @@ def api_parsers_run_all():
             }), 500
         
         data = request.get_json() or {}
-        sources = data.get('sources', ['ubuntu', 'debian'])
+        # Если sources не указаны, используем дефолтные источники
+        sources = data.get('sources', None)
+        if not sources or len(sources) == 0:
+            sources = ['ubuntu', 'debian']  # Дефолтные источники для HTML парсера
         limit_per_source = data.get('limit_per_source', 50)
         enable_nvd = data.get('enable_nvd', False)
         enable_redhat = data.get('enable_redhat', False)
@@ -885,122 +984,282 @@ def api_parsers_run_all():
         
         logger.info(f"🚀 [API] Запуск всех парсеров: sources={sources}, limit={limit_per_source}, nvd={enable_nvd}, redhat={enable_redhat}, osv={enable_osv}, vendors={enable_vendors}, vendor_sources={vendor_sources}, legacy={enable_legacy_parsers}, legacy_sources={legacy_parser_sources}")
         
-        # Запуск парсинга
-        start_time = time.time()
+        # Создаем запись о начале парсинга в БД
+        parsing_id = None
         try:
-            logger.info(f"   [API] Вызываем unified_parser_service.parse_all()...")
-            results = unified_parser_service.parse_all(
+            parsing_id = save_parsing_history(
                 sources=sources,
-                limit_per_source=limit_per_source,
-                enable_nvd=enable_nvd,
-                enable_redhat=enable_redhat,
-                enable_osv=enable_osv,
-                enable_vendors=enable_vendors,
-                vendor_sources=vendor_sources,
-                nvd_days=nvd_days,
-                enable_legacy_parsers=enable_legacy_parsers,
-                legacy_parser_sources=legacy_parser_sources
+                total_parsed=0,
+                total_saved=0,
+                total_errors=0,
+                by_source={},
+                settings={
+                    'limit_per_source': limit_per_source,
+                    'enable_nvd': enable_nvd,
+                    'enable_redhat': enable_redhat,
+                    'enable_osv': enable_osv,
+                    'nvd_days': nvd_days,
+                    'enable_legacy_parsers': enable_legacy_parsers,
+                    'legacy_parser_sources': legacy_parser_sources
+                },
+                status='running',
+                duration_seconds=0
             )
-            duration = int(time.time() - start_time)
-            logger.info(f"   [API] Парсинг завершен: results={results}")
-            logger.info(f"   [API] total_parsed={results.get('total_parsed', 0)}, total_saved={results.get('total_saved', 0)}")
-            
-            # Сохранение истории парсинга
+            logger.info(f"✅ [API] Создана запись парсинга в БД (ID: {parsing_id})")
+        except Exception as history_error:
+            logger.error(f"Ошибка создания записи парсинга: {history_error}", exc_info=True)
+        
+        # Запуск парсинга в отдельном потоке для неблокирующего выполнения
+        import threading
+        def run_parsing():
+            start_time = time.time()
             try:
-                save_parsing_history(
+                logger.info(f"   [API] Вызываем unified_parser_service.parse_all()...")
+                # parse_all не принимает parsing_id, он обновляется внутри через update_parsing_status
+                results = unified_parser_service.parse_all(
                     sources=sources,
-                    total_parsed=results.get('total_parsed', 0),
-                    total_saved=results.get('total_saved', 0),
-                    total_errors=len(results.get('errors', [])),
-                    by_source=results.get('by_source', {}),
-                    settings={
-                        'limit_per_source': limit_per_source,
-                        'enable_nvd': enable_nvd,
-                        'enable_redhat': enable_redhat,
-                        'enable_osv': enable_osv,
-                        'nvd_days': nvd_days,
-                        'enable_legacy_parsers': enable_legacy_parsers,
-                        'legacy_parser_sources': legacy_parser_sources
-                    },
-                    status='completed',
-                    duration_seconds=duration
+                    limit_per_source=limit_per_source,
+                    enable_nvd=enable_nvd,
+                    enable_redhat=enable_redhat,
+                    enable_osv=enable_osv,
+                    enable_vendors=enable_vendors,
+                    vendor_sources=vendor_sources,
+                    nvd_days=nvd_days,
+                    enable_legacy_parsers=enable_legacy_parsers,
+                    legacy_parser_sources=legacy_parser_sources
                 )
-            except Exception as history_error:
-                logger.error(f"Ошибка сохранения истории парсинга: {history_error}", exc_info=True)
-            
-            # Добавляем детальную информацию о прогрессе в ответ
-            response_data = {
-                'success': True,
-                **results
-            }
-            
-            # Если есть progress_messages, добавляем их
-            if 'progress_messages' not in response_data:
-                response_data['progress_messages'] = []
-            
-            return jsonify(response_data)
-        except Exception as parse_error:
-            duration = int(time.time() - start_time)
-            logger.error(f"   [API] Ошибка при вызове parse_all(): {parse_error}", exc_info=True)
-            
-            # Сохранение истории парсинга с ошибкой
-            try:
-                save_parsing_history(
-                    sources=sources,
-                    total_parsed=0,
-                    total_saved=0,
-                    total_errors=1,
-                    by_source={},
-                    settings={
-                        'limit_per_source': limit_per_source,
-                        'enable_nvd': enable_nvd,
-                        'enable_redhat': enable_redhat,
-                        'enable_osv': enable_osv,
-                        'nvd_days': nvd_days,
-                        'enable_legacy_parsers': enable_legacy_parsers,
-                        'legacy_parser_sources': legacy_parser_sources
-                    },
-                    status='failed',
-                    error_message=str(parse_error),
-                    duration_seconds=duration
-                )
-            except Exception as history_error:
-                logger.error(f"Ошибка сохранения истории парсинга: {history_error}", exc_info=True)
-            
-            return jsonify({
-                'success': False,
-                'message': f'Ошибка парсинга: {str(parse_error)}',
-                'error': str(parse_error)
-            }), 500
+                # Устанавливаем parsing_id в результаты для обновления статуса
+                results['parsing_id'] = parsing_id
+                duration = int(time.time() - start_time)
+                logger.info(f"   [API] Парсинг завершен: results={results}")
+                logger.info(f"   [API] total_parsed={results.get('total_parsed', 0)}, total_saved={results.get('total_saved', 0)}")
+                
+                # Обновление истории парсинга
+                try:
+                    save_parsing_history(
+                        sources=sources,
+                        total_parsed=results.get('total_parsed', 0),
+                        total_saved=results.get('total_saved', 0),
+                        total_errors=len(results.get('errors', [])),
+                        by_source=results.get('by_source', {}),
+                        settings={
+                            'limit_per_source': limit_per_source,
+                            'enable_nvd': enable_nvd,
+                            'enable_redhat': enable_redhat,
+                            'enable_osv': enable_osv,
+                            'nvd_days': nvd_days,
+                            'enable_legacy_parsers': enable_legacy_parsers,
+                            'legacy_parser_sources': legacy_parser_sources
+                        },
+                        status='completed',
+                        duration_seconds=duration,
+                        parsing_id=parsing_id
+                    )
+                except Exception as history_error:
+                    logger.error(f"Ошибка обновления истории парсинга: {history_error}", exc_info=True)
+            except Exception as parse_error:
+                duration = int(time.time() - start_time)
+                logger.error(f"   [API] Ошибка при вызове parse_all(): {parse_error}", exc_info=True)
+                
+                # Обновление истории парсинга с ошибкой
+                try:
+                    save_parsing_history(
+                        sources=sources,
+                        total_parsed=0,
+                        total_saved=0,
+                        total_errors=1,
+                        by_source={},
+                        settings={
+                            'limit_per_source': limit_per_source,
+                            'enable_nvd': enable_nvd,
+                            'enable_redhat': enable_redhat,
+                            'enable_osv': enable_osv,
+                            'nvd_days': nvd_days,
+                            'enable_legacy_parsers': enable_legacy_parsers,
+                            'legacy_parser_sources': legacy_parser_sources
+                        },
+                        status='failed',
+                        error_message=str(parse_error),
+                        duration_seconds=duration,
+                        parsing_id=parsing_id
+                    )
+                except Exception as history_error:
+                    logger.error(f"Ошибка обновления истории парсинга: {history_error}", exc_info=True)
+        
+        # Запускаем парсинг в отдельном потоке
+        parsing_thread = threading.Thread(target=run_parsing, daemon=True)
+        parsing_thread.start()
+        
+        # Возвращаем немедленный ответ с ID парсинга
+        return jsonify({
+            'success': True,
+            'message': 'Парсинг запущен',
+            'parsing_id': parsing_id,
+            'status': 'running'
+        })
         
     except Exception as e:
         logger.error(f"Ошибка запуска парсеров: {e}", exc_info=True)
         return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/parsing-status', methods=['GET'])
+@csrf.exempt
+def api_parsing_status():
+    """Получить текущий активный статус парсинга из БД"""
+    try:
+        status = get_active_parsing_status()
+        if status:
+            return jsonify({
+                'success': True,
+                'status': status
+            })
+        else:
+            return jsonify({
+                'success': True,
+                'status': {
+                    'status': 'idle',
+                    'message': 'Парсинг не активен'
+                }
+            })
+    except Exception as e:
+        logger.error(f"Ошибка получения статуса парсинга: {e}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 @app.route('/api/parsers/stats', methods=['GET'])
 @csrf.exempt
 def api_parsers_stats():
     """Получить статистику парсеров и БД"""
     try:
-        # Получение статистики из БД
-        total_in_db = len(vuln_service.get_all_vulnerabilities()) if vuln_service else 0
+        # Получение статистики из БД напрямую (без ограничений)
+        from models.database import DatabaseManager
+        import json
+        db_manager = DatabaseManager()
         
-        # Подсчет по источникам
-        by_source = {}
-        vulnerabilities = vuln_service.get_all_vulnerabilities() if vuln_service else []
+        # Считаем общее количество записей напрямую из БД
+        if Config.USE_LEGACY_SCHEMA:
+            # Считаем все записи, не только с CVE
+            # Используем свежий запрос без кеша
+            result = db_manager.execute_query("SELECT COUNT(*) FROM turn")
+            total_in_db = result[0][0] if result and len(result) > 0 else 0
+            
+            # Дополнительная проверка: считаем только записи с CVE для точности
+            result_with_cve = db_manager.execute_query(
+                "SELECT COUNT(*) FROM turn WHERE cve IS NOT NULL AND cve != ''"
+            )
+            total_with_cve = result_with_cve[0][0] if result_with_cve and len(result_with_cve) > 0 else 0
+            
+            # Используем более точное значение (с CVE)
+            if total_with_cve > 0:
+                total_in_db = total_with_cve
+            
+            # Подсчет по источникам из БД
+            source_result = db_manager.execute_query(
+                "SELECT source, COUNT(*) as cnt FROM turn WHERE cve IS NOT NULL AND cve != '' AND source IS NOT NULL GROUP BY source ORDER BY cnt DESC"
+            )
+            by_source = {}
+            for row in source_result:
+                source = row[0] or 'unknown'
+                by_source[source] = {'in_db': row[1], 'parsed': 0, 'saved': 0}
+            
+            # Логирование для отладки
+            logger.debug(f"📊 [STATS] Всего в БД: {total_in_db}, с CVE: {total_with_cve}")
+            logger.debug(f"📊 [STATS] Источники: {list(by_source.keys())}")
+            
+            # Получаем статистику из активного парсинга (если есть) или последнего успешного
+            # Сначала проверяем активный парсинг
+            active_result = db_manager.execute_query("""
+                SELECT by_source, total_parsed, total_saved 
+                FROM parsing_history 
+                WHERE status = 'running' 
+                ORDER BY scan_date DESC 
+                LIMIT 1
+            """)
+            
+            # Если активного нет, берем последний completed с реальными данными
+            if not active_result or len(active_result) == 0 or (active_result[0][1] == 0 and active_result[0][2] == 0):
+                history_result = db_manager.execute_query("""
+                    SELECT by_source, total_parsed, total_saved 
+                    FROM parsing_history 
+                    WHERE status = 'completed' AND (total_parsed > 0 OR total_saved > 0)
+                    ORDER BY scan_date DESC 
+                    LIMIT 1
+                """)
+                if history_result and len(history_result) > 0:
+                    active_result = history_result
+            
+            if active_result and len(active_result) > 0:
+                # by_source может быть уже dict (JSONB) или строкой (TEXT)
+                by_source_value = active_result[0][0]
+                if isinstance(by_source_value, dict):
+                    history_by_source = by_source_value
+                elif isinstance(by_source_value, str):
+                    history_by_source = json.loads(by_source_value) if by_source_value else {}
+                else:
+                    history_by_source = {}
+                total_parsed = active_result[0][1] or 0
+                total_saved = active_result[0][2] or 0
+                
+                # Объединяем данные: берем in_db из БД, parsed/saved из истории
+                # Но не перезаписываем нулями, если в БД уже есть данные
+                for source, stats in history_by_source.items():
+                    # Обрабатываем разные форматы данных
+                    if isinstance(stats, dict):
+                        parsed_val = stats.get('parsed', 0) or stats.get('total_parsed', 0) or 0
+                        saved_val = stats.get('saved', 0) or stats.get('total_saved', 0) or 0
+                    elif isinstance(stats, (int, float)):
+                        parsed_val = int(stats)
+                        saved_val = 0
+                    else:
+                        parsed_val = 0
+                        saved_val = 0
+                    
+                    # Нормализуем имя источника (lowercase для сравнения)
+                    source_lower = source.lower() if source else 'unknown'
+                    
+                    # Ищем соответствующий источник в by_source (case-insensitive)
+                    matched_source = None
+                    for existing_source in by_source.keys():
+                        if existing_source and existing_source.lower() == source_lower:
+                            matched_source = existing_source
+                            break
+                    
+                    if matched_source:
+                        # Обновляем только если есть реальные данные (не нули)
+                        # Или если в БД нет данных для этого источника
+                        if parsed_val > 0 or saved_val > 0 or by_source[matched_source]['in_db'] == 0:
+                            by_source[matched_source]['parsed'] = parsed_val
+                            by_source[matched_source]['saved'] = saved_val
+                        # Если в истории нули, но в БД есть данные - оставляем как есть
+                    else:
+                        # Добавляем новый источник только если есть реальные данные
+                        if parsed_val > 0 or saved_val > 0:
+                            by_source[source] = {
+                                'in_db': 0,
+                                'parsed': parsed_val,
+                                'saved': saved_val
+                            }
+            else:
+                total_parsed = 0
+                total_saved = 0
+        else:
+            result = db_manager.execute_query("SELECT COUNT(*) FROM vulnerabilities")
+            total_in_db = result[0][0] if result else 0
+            by_source = {}
+            total_parsed = 0
+            total_saved = 0
         
-        for vuln in vulnerabilities:
-            source = getattr(vuln, 'category', None) or getattr(vuln, 'source', None) or getattr(vuln, 'source_identifier', None) or 'unknown'
-            if source not in by_source:
-                by_source[source] = {'in_db': 0, 'parsed': 0, 'saved': 0}
-            by_source[source]['in_db'] = by_source[source].get('in_db', 0) + 1
+        # Логирование итоговой статистики
+        logger.debug(f"📊 [STATS API] Возврат статистики: total_in_db={total_in_db}, by_source_count={len(by_source)}")
         
         return jsonify({
             'success': True,
             'stats': {
                 'total_in_db': total_in_db,
-                'total_parsed': 0,  # Будет обновляться после парсинга
-                'total_saved': 0,
+                'total_parsed': total_parsed,
+                'total_saved': total_saved,
                 'total_errors': 0,
                 'by_source': by_source
             }
@@ -1096,26 +1355,6 @@ def api_vendors_parse():
         logger.error(f"Vendors parse error: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
 
-@app.route('/api/redhat/import', methods=['POST'])
-@csrf.exempt
-def api_redhat_import():
-    """Импорт уязвимостей Red Hat"""
-    try:
-        data = request.get_json() or {}
-        recent_days = data.get('recent_days', 7)
-        
-        logger.info(f"Запрос импорта Red Hat за последние {recent_days} дней")
-        return jsonify({
-            'success': True,
-            'result': {
-                'successfully_saved': 0,
-                'note': 'Импорт Red Hat запускается на VM 10.0.88.23. Проверьте логи там.'
-            }
-        })
-    except Exception as e:
-        logger.error(f"Red Hat import error: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
-
 @app.route('/api/ai-tagger/scan-all', methods=['POST'])
 @csrf.exempt
 def api_ai_tagger_scan():
@@ -1150,6 +1389,145 @@ def api_parsers_status():
         })
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/redhat/import', methods=['POST'])
+@csrf.exempt
+@admin_required
+def api_redhat_import():
+    """Импорт Red Hat CVE из JSON файлов в БД"""
+    try:
+        from services.redhat_db_importer import RedHatDBImporter
+        from services.redhat_full_downloader import download_all_pages, DATA_DIR
+        import threading
+        
+        data = request.get_json() or {}
+        mode = data.get('mode', 'import')  # download, import, csv
+        max_pages = data.get('max_pages')
+        import_limit = data.get('import_limit')
+        skip_existing = data.get('skip_existing', True)
+        
+        logger.info(f"🚀 [API] Запуск импорта Red Hat CVE: mode={mode}, max_pages={max_pages}, limit={import_limit}")
+        
+        def run_import():
+            try:
+                importer = RedHatDBImporter(data_dir=str(DATA_DIR))
+                
+                # Режим 1: Скачать и импортировать
+                if mode == 'download':
+                    logger.info(f"Скачивание Red Hat CVE (max_pages={max_pages})...")
+                    pages = download_all_pages(max_pages=max_pages)
+                    logger.info(f"Скачано страниц: {pages}")
+                
+                # Режим 2 и 3: Импорт из файлов или CSV
+                if mode in ['import', 'download']:
+                    result = importer.import_to_database(
+                        limit=import_limit,
+                        skip_existing=skip_existing
+                    )
+                elif mode == 'csv':
+                    csv_path = data.get('csv_path', str(DATA_DIR / 'redhat_all_cve.csv'))
+                    result = importer.import_from_csv(csv_path, limit=import_limit)
+                else:
+                    result = {
+                        'success': False,
+                        'message': f'Неизвестный режим: {mode}',
+                        'total': 0,
+                        'imported': 0,
+                        'skipped': 0,
+                        'errors': 0
+                    }
+                
+                logger.info(f"✅ [API] Импорт Red Hat завершен: {result}")
+                
+            except Exception as e:
+                logger.error(f"❌ [API] Ошибка импорта Red Hat: {e}", exc_info=True)
+        
+        # Запуск в отдельном потоке
+        import_thread = threading.Thread(target=run_import, daemon=True)
+        import_thread.start()
+        
+        # Возвращаем немедленный ответ
+        return jsonify({
+            'success': True,
+            'message': 'Импорт Red Hat CVE запущен',
+            'mode': mode
+        })
+        
+    except Exception as e:
+        logger.error(f"Ошибка запуска импорта Red Hat: {e}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+@app.route('/api/redhat/import-sync', methods=['POST'])
+@csrf.exempt
+@admin_required
+def api_redhat_import_sync():
+    """Синхронный импорт Red Hat CVE (для небольших объемов)"""
+    try:
+        from services.redhat_db_importer import RedHatDBImporter
+        from services.redhat_full_downloader import download_all_pages, DATA_DIR
+        
+        data = request.get_json() or {}
+        mode = data.get('mode', 'import')
+        max_pages = data.get('max_pages')  # None = без ограничений
+        import_limit = data.get('import_limit')  # None = без ограничений
+        skip_existing = data.get('skip_existing', True)
+        
+        logger.info(f"🚀 [API] Синхронный импорт Red Hat CVE: mode={mode}, max_pages={max_pages}, limit={import_limit}")
+        
+        # Для синхронного режима ограничиваем объемы
+        if not import_limit and mode != 'csv':
+            import_limit = 500  # Безопасный лимит для синхронного режима
+        
+        importer = RedHatDBImporter(data_dir=str(DATA_DIR))
+        
+        # Скачивание если нужно
+        if mode == 'download':
+            pages = download_all_pages(max_pages=max_pages or 5)  # Ограничиваем для синхронного режима
+            logger.info(f"Скачано страниц: {pages}")
+        
+        # Импорт
+        if mode in ['import', 'download']:
+            result = importer.import_to_database(
+                limit=import_limit,
+                skip_existing=skip_existing
+            )
+        elif mode == 'csv':
+            csv_path = data.get('csv_path', str(DATA_DIR / 'redhat_all_cve.csv'))
+            result = importer.import_from_csv(csv_path, limit=import_limit)
+        else:
+            result = {
+                'success': False,
+                'message': f'Неизвестный режим: {mode}',
+                'total': 0,
+                'imported': 0,
+                'skipped': 0,
+                'errors': 0
+            }
+        
+        # Логирование результата импорта
+        logger.info(f"✅ [REDHAT IMPORT] Импорт завершен: imported={result.get('imported', 0)}, skipped={result.get('skipped', 0)}, errors={result.get('errors', 0)}")
+        
+        # Принудительно обновляем статистику после импорта
+        # (статистика обновится при следующем запросе, но можно добавить здесь явное обновление)
+        
+        return jsonify({
+            'success': result['success'],
+            'message': result.get('message', 'Импорт завершен'),
+            'imported': result.get('imported', 0),
+            'skipped': result.get('skipped', 0),
+            'errors': result.get('errors', 0),
+            'total': result.get('total', 0)
+        })
+        
+    except Exception as e:
+        logger.error(f"Ошибка импорта Red Hat: {e}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
 
 
 # === HEALTH CHECK ===
@@ -1398,51 +1776,70 @@ def api_ai_classify(vulnerability_id):
         logger.error(f"Ошибка классификации: {e}", exc_info=True)
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@app.route('/api/ml-platform/connection', methods=['GET'])
+@csrf.exempt
+@login_required
+def api_ml_platform_connection():
+    """Проверка подключения к ML платформе"""
+    try:
+        status = ml_platform_client.check_connection()
+        return jsonify({'success': True, 'status': status})
+    except Exception as e:
+        logger.error(f"Ошибка проверки подключения: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @app.route('/api/ai/batch-analyze', methods=['POST'])
 @csrf.exempt
 @login_required
 @admin_required
 def api_ai_batch_analyze():
-    """Пакетный анализ уязвимостей"""
+    """Пакетный анализ уязвимостей через ML платформу"""
     try:
         data = request.get_json() or {}
         vulnerability_ids = data.get('vulnerability_ids', [])
         
-        # Проверка наличия и валидности списка ID
-        if not vulnerability_ids:
+        logger.info(f"🚀 [API] Запрос на ИИ-анализ: vulnerability_ids={len(vulnerability_ids) if vulnerability_ids else 'all'}")
+        
+        # Используем ML платформу для анализа
+        result = ml_platform_client.start_ai_analysis(vulnerability_ids if vulnerability_ids else None)
+        
+        logger.info(f"📊 [API] Результат ИИ-анализа: success={result.get('success')}, error={result.get('error', 'N/A')}")
+        
+        if result['success']:
             return jsonify({
+                'success': True,
+                'result': result.get('data', {}),
+                'message': 'Анализ запущен через ML платформу'
+            })
+        else:
+            # Возвращаем детальную информацию об ошибке
+            error_response = {
                 'success': False,
-                'error': 'vulnerability_ids required',
-                'message': 'Необходимо передать список ID уязвимостей для анализа'
-            }), 400
-        
-        # Проверка что это список
-        if not isinstance(vulnerability_ids, list):
-            return jsonify({
-                'success': False,
-                'error': 'vulnerability_ids must be a list',
-                'message': 'vulnerability_ids должен быть массивом'
-            }), 400
-        
-        if not AI_SERVICE_AVAILABLE:
-            return jsonify({"success": False, "error": "AI Integration Service недоступен"}), 503
-        
-        result = ai_integration_service.batch_analyze(vulnerability_ids)
-        return jsonify({'success': True, 'result': result})
+                'error': result.get('error', 'Ошибка анализа'),
+                'hint': result.get('hint', '')
+            }
+            logger.warning(f"⚠️ [API] Ошибка ИИ-анализа: {error_response}")
+            return jsonify(error_response), 500
     except Exception as e:
-        logger.error(f"Ошибка пакетного анализа: {e}", exc_info=True)
+        logger.error(f"❌ [API] Критическая ошибка пакетного анализа: {e}", exc_info=True)
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/ai/statistics', methods=['GET'])
 @csrf.exempt
 @login_required
 def api_ai_statistics():
-    """Статистика по ключевым словам"""
-    if not AI_SERVICE_AVAILABLE:
-        return jsonify({'success': False, 'error': 'AI Integration Service недоступен'}), 503
+    """Статистика по ключевым словам из ML платформы"""
     try:
-        stats = ai_integration_service.get_keywords_statistics()
-        return jsonify({'success': True, 'statistics': stats})
+        result = ml_platform_client.get_ai_statistics()
+        if result['success']:
+            return jsonify({'success': True, 'statistics': result.get('data', {})})
+        else:
+            # Fallback на локальный сервис
+            if AI_SERVICE_AVAILABLE:
+                stats = ai_integration_service.get_keywords_statistics()
+                return jsonify({'success': True, 'statistics': stats})
+            return jsonify({'success': False, 'error': result.get('error', 'ML платформа недоступна')}), 503
     except Exception as e:
         logger.error(f"Ошибка получения статистики: {e}", exc_info=True)
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -1470,11 +1867,25 @@ def api_ai_keywords():
 @login_required
 @admin_required
 def api_ai_train():
-    """Обучение модели на новых данных"""
+    """Обучение модели на новых данных через ML платформу"""
     try:
         data = request.get_json()
-        training_data = data.get('training_data', [])
+        config = data.get('config', {})
         
+        # Запускаем обучение на ML платформе
+        result = ml_platform_client.start_training(config)
+        
+        if result['success']:
+            return jsonify({
+                'success': True,
+                'task_id': result.get('data', {}).get('task_id'),
+                'message': 'Обучение запущено на ML платформе'
+            })
+        else:
+            return jsonify({'success': False, 'error': result.get('error', 'Ошибка запуска обучения')}), 500
+        
+        # Старый код для fallback
+        training_data = data.get('training_data', [])
         if not training_data:
             return jsonify({'error': 'training_data required'}), 400
         
@@ -1539,11 +1950,23 @@ def api_ai_get_passport(vulnerability_id):
 @login_required
 @admin_required
 def api_ai_monitor_start():
-    """Запуск мониторинга сайтов"""
+    """Запуск мониторинга сайтов через ML платформу"""
     try:
-        # TODO: Реализовать запуск мониторинга
-        return jsonify({'success': True, 'message': 'Мониторинг запущен'})
+        data = request.get_json() or {}
+        sites = data.get('sites', [])
+        
+        result = ml_platform_client.start_site_monitoring(sites)
+        
+        if result['success']:
+            return jsonify({
+                'success': True,
+                'message': 'Мониторинг запущен на ML платформе',
+                'data': result.get('data', {})
+            })
+        else:
+            return jsonify({'success': False, 'error': result.get('error', 'Ошибка запуска мониторинга')}), 500
     except Exception as e:
+        logger.error(f"Ошибка запуска мониторинга: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/ai/monitor-stop', methods=['POST'])
@@ -1553,6 +1976,7 @@ def api_ai_monitor_start():
 def api_ai_monitor_stop():
     """Остановка мониторинга"""
     try:
+        # TODO: Реализовать остановку через ML платформу
         return jsonify({'success': True, 'message': 'Мониторинг остановлен'})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -1561,9 +1985,99 @@ def api_ai_monitor_stop():
 @csrf.exempt
 @login_required
 def api_ai_monitor_status():
-    """Статус мониторинга"""
+    """Статус мониторинга из ML платформы"""
     try:
-        return jsonify({'success': True, 'status': 'stopped', 'sites': []})
+        result = ml_platform_client.get_monitoring_status()
+        if result['success']:
+            return jsonify({'success': True, 'status': result.get('data', {})})
+        else:
+            return jsonify({'success': False, 'error': result.get('error', 'ML платформа недоступна')}), 503
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# === ML ПЛАТФОРМА API ENDPOINTS ===
+
+@app.route('/api/ml-platform/training/start', methods=['POST'])
+@csrf.exempt
+@login_required
+@admin_required
+def api_ml_training_start():
+    """Запуск обучения модели"""
+    try:
+        data = request.get_json() or {}
+        result = ml_platform_client.start_training(data)
+        
+        if result['success']:
+            return jsonify({
+                'success': True,
+                'task_id': result.get('data', {}).get('task_id'),
+                'message': 'Обучение запущено'
+            })
+        else:
+            return jsonify({'success': False, 'error': result.get('error')}), 500
+    except Exception as e:
+        logger.error(f"Ошибка запуска обучения: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/ml-platform/training/status/<task_id>', methods=['GET'])
+@csrf.exempt
+@login_required
+def api_ml_training_status(task_id):
+    """Статус обучения"""
+    try:
+        result = ml_platform_client.get_training_status(task_id)
+        if result['success']:
+            return jsonify({'success': True, 'status': result.get('data', {})})
+        else:
+            return jsonify({'success': False, 'error': result.get('error')}), 500
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/ml-platform/training/history', methods=['GET'])
+@csrf.exempt
+@login_required
+def api_ml_training_history():
+    """История обучения"""
+    try:
+        result = ml_platform_client.get_training_history()
+        if result['success']:
+            return jsonify({'success': True, 'history': result.get('data', {})})
+        else:
+            return jsonify({'success': False, 'error': result.get('error')}), 500
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/ml-platform/passports/<cve_id>', methods=['GET'])
+@csrf.exempt
+@login_required
+def api_ml_passport(cve_id):
+    """Получение паспорта CVE"""
+    try:
+        result = ml_platform_client.get_cve_passport(cve_id)
+        if result['success']:
+            return jsonify({'success': True, 'passport': result.get('data', {})})
+        else:
+            return jsonify({'success': False, 'error': result.get('error')}), 500
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/ml-platform/passports', methods=['GET'])
+@csrf.exempt
+@login_required
+def api_ml_passports():
+    """Получение всех паспортов"""
+    try:
+        limit = request.args.get('limit', 100, type=int)
+        result = ml_platform_client.get_all_passports(limit)
+        if result['success']:
+            return jsonify({'success': True, 'passports': result.get('data', {})})
+        else:
+            return jsonify({'success': False, 'error': result.get('error')}), 500
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
