@@ -643,7 +643,7 @@ class LegacyVulnerabilityRepository:
                 placeholders = ','.join(['%s'] * len(cve_list))
                 cursor.execute(f"""
                     SELECT id, source, link, cve, joining_date, name, cvss, 
-                           price_one, priority, start_date, end_date, etc, status
+                           price_one, priority, start_date, end_date, etc, status, nvd_descriptions
                     FROM turn
                     WHERE cve IN ({placeholders})
                     ORDER BY joining_date DESC
@@ -656,20 +656,61 @@ class LegacyVulnerabilityRepository:
                     except:
                         etc_data = {}
                     
-                    # Загружаем описание из cvelist
+                    # Загружаем описание из nvd_descriptions (приоритет) или cvelist (fallback)
                     description = ''
-                    try:
-                        cursor.execute("SELECT ff_eng, ff_rus FROM cvelist WHERE cve = %s", (row[3],))
-                        cve_row = cursor.fetchone()
-                        if cve_row:
-                            description = cve_row[0] or cve_row[1] or ''
-                    except:
-                        pass
+                    nvd_descriptions = row[13] if len(row) > 13 else None
+                    
+                    # Пробуем извлечь описание из nvd_descriptions
+                    if nvd_descriptions:
+                        try:
+                            if isinstance(nvd_descriptions, str):
+                                desc_data = json.loads(nvd_descriptions)
+                            else:
+                                desc_data = nvd_descriptions
+                            
+                            if isinstance(desc_data, list) and len(desc_data) > 0:
+                                for desc_item in desc_data:
+                                    if isinstance(desc_item, dict):
+                                        lang = desc_item.get('lang', 'en')
+                                        value = desc_item.get('value', '')
+                                        if lang == 'en' and value:
+                                            description = value
+                                            break
+                                if not description:
+                                    first_desc = desc_data[0]
+                                    if isinstance(first_desc, dict):
+                                        description = first_desc.get('value', '')
+                                    else:
+                                        description = str(first_desc)
+                            elif isinstance(desc_data, dict):
+                                description = desc_data.get('value', '') or str(desc_data)
+                        except:
+                            pass
+                    
+                    # Если описание не найдено в nvd_descriptions, пробуем cvelist
+                    if not description:
+                        try:
+                            cursor.execute("SELECT ff_eng, ff_rus FROM cvelist WHERE cve = %s", (row[3],))
+                            cve_row = cursor.fetchone()
+                            if cve_row:
+                                description = cve_row[0] or cve_row[1] or ''
+                        except:
+                            pass
+                    
+                    # Определяем title: если name = CVE ID, используем только CVE ID
+                    cve_id = row[3] or ''
+                    name = row[5] or ''
+                    if name == cve_id:
+                        title = cve_id
+                    elif name and name.strip():
+                        title = cve_id if cve_id else name
+                    else:
+                        title = cve_id or 'Unknown'
                     
                     vuln = Vulnerability(
                         id=row[0],
-                        title=row[5] or row[3] or 'Unknown',
-                        description=description,
+                        title=title,  # Используем исправленный title
+                        description=description,  # Описание из nvd_descriptions или cvelist
                         severity=self._cvss_to_severity(row[6] or 0.0),
                         status='new' if row[12] else 'completed',
                         assigned_operator=operator_id,  # Сохраняем operator_id
@@ -680,7 +721,7 @@ class LegacyVulnerabilityRepository:
                         cvss_score=float(row[6] or 0.0),
                         risk_level=etc_data.get('risk_level', 'medium'),
                         category=etc_data.get('category', row[1] or 'unknown'),
-                        cve_id=row[3]
+                        cve_id=cve_id
                     )
                     vuln.source_identifier = row[1] or 'NVD'
                     vulnerabilities.append(vuln)
@@ -701,7 +742,7 @@ class LegacyVulnerabilityRepository:
             with self.db.cursor() as cursor:
                 cursor.execute("""
                     SELECT id, source, link, cve, joining_date, name, cvss, 
-                           price_one, priority, start_date, end_date, etc, status
+                           price_one, priority, start_date, end_date, etc, status, nvd_descriptions
                     FROM turn WHERE id = %s
                 """, (vuln_id,))
                 row = cursor.fetchone()
@@ -716,18 +757,60 @@ class LegacyVulnerabilityRepository:
                 except:
                     etc_data = {}
                 
-                # Загружаем описание из cvelist
+                # Загружаем описание из nvd_descriptions (приоритет) или cvelist (fallback)
                 description = ''
-                try:
-                    cursor.execute("SELECT ff_eng, ff_rus FROM cvelist WHERE cve = %s", (row[3],))
-                    cve_row = cursor.fetchone()
-                    if cve_row:
-                        description = cve_row[0] or cve_row[1] or ''
-                        logger.debug(f"✅ [get_by_id] Загружено описание для {row[3]}: {len(description)} символов")
-                    else:
-                        logger.debug(f"⚠️ [get_by_id] Описание для {row[3]} не найдено в cvelist")
-                except Exception as e:
-                    logger.debug(f"⚠️ [get_by_id] Ошибка загрузки описания для {row[3]}: {e}")
+                nvd_descriptions = row[13] if len(row) > 13 else None
+                
+                # Пробуем извлечь описание из nvd_descriptions
+                if nvd_descriptions:
+                    try:
+                        if isinstance(nvd_descriptions, str):
+                            desc_data = json.loads(nvd_descriptions)
+                        else:
+                            desc_data = nvd_descriptions
+                        
+                        if isinstance(desc_data, list) and len(desc_data) > 0:
+                            for desc_item in desc_data:
+                                if isinstance(desc_item, dict):
+                                    lang = desc_item.get('lang', 'en')
+                                    value = desc_item.get('value', '')
+                                    if lang == 'en' and value:
+                                        description = value
+                                        break
+                            if not description:
+                                first_desc = desc_data[0]
+                                if isinstance(first_desc, dict):
+                                    description = first_desc.get('value', '')
+                                else:
+                                    description = str(first_desc)
+                        elif isinstance(desc_data, dict):
+                            description = desc_data.get('value', '') or str(desc_data)
+                        logger.debug(f"✅ [get_by_id] Загружено описание из nvd_descriptions для {row[3]}: {len(description)} символов")
+                    except Exception as e:
+                        logger.debug(f"⚠️ [get_by_id] Ошибка парсинга nvd_descriptions для {row[3]}: {e}")
+                
+                # Если описание не найдено в nvd_descriptions, пробуем cvelist
+                if not description:
+                    try:
+                        cursor.execute("SELECT ff_eng, ff_rus FROM cvelist WHERE cve = %s", (row[3],))
+                        cve_row = cursor.fetchone()
+                        if cve_row:
+                            description = cve_row[0] or cve_row[1] or ''
+                            logger.debug(f"✅ [get_by_id] Загружено описание из cvelist для {row[3]}: {len(description)} символов")
+                        else:
+                            logger.debug(f"⚠️ [get_by_id] Описание для {row[3]} не найдено в cvelist")
+                    except Exception as e:
+                        logger.debug(f"⚠️ [get_by_id] Ошибка загрузки описания из cvelist для {row[3]}: {e}")
+                
+                # Определяем title: если name = CVE ID, используем только CVE ID
+                cve_id = row[3] or ''
+                name = row[5] or ''
+                if name == cve_id:
+                    title = cve_id
+                elif name and name.strip():
+                    title = cve_id if cve_id else name
+                else:
+                    title = cve_id or 'Unknown'
                 
                 # Загружаем назначенного оператора из actids
                 assigned_operator_id = None
@@ -751,8 +834,8 @@ class LegacyVulnerabilityRepository:
                 
                 vulnerability = Vulnerability(
                     id=row[0],
-                    title=row[5] or row[3] or 'Unknown',
-                    description=description,
+                    title=title,  # Используем исправленный title
+                    description=description,  # Описание из nvd_descriptions или cvelist
                     severity=self._cvss_to_severity(row[6] or 0.0),
                     status='new' if row[12] else 'completed',
                     assigned_operator=assigned_operator_id,
@@ -763,11 +846,11 @@ class LegacyVulnerabilityRepository:
                     cvss_score=float(row[6] or 0.0),
                     risk_level=etc_data.get('risk_level', 'medium'),
                     category=etc_data.get('category', row[1] or 'unknown'),
-                    cve_id=row[3]
+                    cve_id=cve_id
                 )
                 vulnerability.source_identifier = row[1] or 'NVD'
                 
-                logger.info(f"✅ [get_by_id] Уязвимость ID {vuln_id} загружена: CVE={row[3]}, описание={len(description)} символов")
+                logger.info(f"✅ [get_by_id] Уязвимость ID {vuln_id} загружена: CVE={cve_id}, title={title}, описание={len(description)} символов")
                 return vulnerability
                 
         except Exception as e:
@@ -955,7 +1038,7 @@ class LegacyVulnerabilityRepository:
         """Получить все уязвимости из таблицы turn (для совместимости с VulnerabilityService)"""
         return self.get_all_vulnerabilities()
     
-    def get_all_vulnerabilities(self) -> List[Vulnerability]:
+    def get_all_vulnerabilities(self, limit: Optional[int] = None) -> List[Vulnerability]:
         """Получить все уязвимости из таблицы turn (для совместимости)"""
         try:
             from models.entities import Vulnerability
@@ -963,12 +1046,18 @@ class LegacyVulnerabilityRepository:
             
             vulnerabilities = []
             with self.db.cursor() as cursor:
-                cursor.execute("""
+                # Если limit не указан, получаем все записи (или очень большое число)
+                if limit is None:
+                    limit_clause = ""  # Без ограничения
+                else:
+                    limit_clause = f"LIMIT {limit}"
+                
+                cursor.execute(f"""
                     SELECT id, source, link, cve, joining_date, name, cvss, 
-                           price_one, priority, start_date, end_date, etc, status
+                           price_one, priority, start_date, end_date, etc, status, nvd_descriptions
                     FROM turn
                     ORDER BY joining_date DESC
-                    LIMIT 1000
+                    {limit_clause}
                 """)
                 rows = cursor.fetchall()
                 
@@ -978,15 +1067,56 @@ class LegacyVulnerabilityRepository:
                     except:
                         etc_data = {}
                     
-                    # Загружаем описание из cvelist
+                    # Загружаем описание из nvd_descriptions (приоритет) или cvelist (fallback)
                     description = ''
-                    try:
-                        cursor.execute("SELECT ff_eng, ff_rus FROM cvelist WHERE cve = %s", (row[3],))
-                        cve_row = cursor.fetchone()
-                        if cve_row:
-                            description = cve_row[0] or cve_row[1] or ''
-                    except:
-                        pass
+                    nvd_descriptions = row[13] if len(row) > 13 else None
+                    
+                    # Пробуем извлечь описание из nvd_descriptions
+                    if nvd_descriptions:
+                        try:
+                            if isinstance(nvd_descriptions, str):
+                                desc_data = json.loads(nvd_descriptions)
+                            else:
+                                desc_data = nvd_descriptions
+                            
+                            if isinstance(desc_data, list) and len(desc_data) > 0:
+                                for desc_item in desc_data:
+                                    if isinstance(desc_item, dict):
+                                        lang = desc_item.get('lang', 'en')
+                                        value = desc_item.get('value', '')
+                                        if lang == 'en' and value:
+                                            description = value
+                                            break
+                                if not description:
+                                    first_desc = desc_data[0]
+                                    if isinstance(first_desc, dict):
+                                        description = first_desc.get('value', '')
+                                    else:
+                                        description = str(first_desc)
+                            elif isinstance(desc_data, dict):
+                                description = desc_data.get('value', '') or str(desc_data)
+                        except:
+                            pass
+                    
+                    # Если описание не найдено в nvd_descriptions, пробуем cvelist
+                    if not description:
+                        try:
+                            cursor.execute("SELECT ff_eng, ff_rus FROM cvelist WHERE cve = %s", (row[3],))
+                            cve_row = cursor.fetchone()
+                            if cve_row:
+                                description = cve_row[0] or cve_row[1] or ''
+                        except:
+                            pass
+                    
+                    # Определяем title: если name = CVE ID, используем только CVE ID
+                    cve_id = row[3] or ''
+                    name = row[5] or ''
+                    if name == cve_id:
+                        title = cve_id
+                    elif name and name.strip():
+                        title = cve_id if cve_id else name
+                    else:
+                        title = cve_id or 'Unknown'
                     
                     # Загружаем назначенного оператора из actids
                     assigned_operator_id = None
@@ -1009,8 +1139,8 @@ class LegacyVulnerabilityRepository:
                     
                     vuln = Vulnerability(
                         id=row[0],
-                        title=row[5] or row[3] or 'Unknown',
-                        description=description,
+                        title=title,  # Используем исправленный title
+                        description=description,  # Описание из nvd_descriptions или cvelist
                         severity=self._cvss_to_severity(row[6] or 0.0),
                         status='new' if row[12] else 'completed',
                         assigned_operator=assigned_operator_id,
@@ -1021,7 +1151,7 @@ class LegacyVulnerabilityRepository:
                         cvss_score=float(row[6] or 0.0),
                         risk_level=etc_data.get('risk_level', 'medium'),
                         category=etc_data.get('category', row[1] or 'unknown'),
-                        cve_id=row[3]
+                        cve_id=cve_id
                     )
                     vuln.source_identifier = row[1] or 'NVD'
                     vulnerabilities.append(vuln)
@@ -1091,7 +1221,7 @@ class LegacyVulnerabilityRepository:
             offset = (page - 1) * per_page
             query = f"""
                 SELECT id, source, link, cve, joining_date, name, cvss, 
-                       price_one, priority, start_date, end_date, etc, status
+                       price_one, priority, start_date, end_date, etc, status, nvd_descriptions
                 FROM turn
                 WHERE {where_clause}
                 ORDER BY id DESC, joining_date DESC
@@ -1112,15 +1242,61 @@ class LegacyVulnerabilityRepository:
                     except:
                         etc_data = {}
                     
-                    # Загружаем описание из cvelist
+                    # Загружаем описание из nvd_descriptions (приоритет) или cvelist (fallback)
                     description = ''
-                    try:
-                        cursor.execute("SELECT ff_eng, ff_rus FROM cvelist WHERE cve = %s", (row[3],))
-                        cve_row = cursor.fetchone()
-                        if cve_row:
-                            description = cve_row[0] or cve_row[1] or ''
-                    except Exception as e:
-                        logger.debug(f"⚠️ [get_paginated] Ошибка загрузки описания для {row[3]}: {e}")
+                    nvd_descriptions = row[13] if len(row) > 13 else None
+                    
+                    # Пробуем извлечь описание из nvd_descriptions
+                    if nvd_descriptions:
+                        try:
+                            if isinstance(nvd_descriptions, str):
+                                desc_data = json.loads(nvd_descriptions)
+                            else:
+                                desc_data = nvd_descriptions
+                            
+                            if isinstance(desc_data, list) and len(desc_data) > 0:
+                                # Ищем английское описание
+                                for desc_item in desc_data:
+                                    if isinstance(desc_item, dict):
+                                        lang = desc_item.get('lang', 'en')
+                                        value = desc_item.get('value', '')
+                                        if lang == 'en' and value:
+                                            description = value
+                                            break
+                                # Если английского нет, берем первое
+                                if not description:
+                                    first_desc = desc_data[0]
+                                    if isinstance(first_desc, dict):
+                                        description = first_desc.get('value', '')
+                                    else:
+                                        description = str(first_desc)
+                            elif isinstance(desc_data, dict):
+                                description = desc_data.get('value', '') or str(desc_data)
+                        except Exception as e:
+                            logger.debug(f"⚠️ [get_paginated] Ошибка парсинга nvd_descriptions для {row[3]}: {e}")
+                    
+                    # Если описание не найдено в nvd_descriptions, пробуем cvelist
+                    if not description:
+                        try:
+                            cursor.execute("SELECT ff_eng, ff_rus FROM cvelist WHERE cve = %s", (row[3],))
+                            cve_row = cursor.fetchone()
+                            if cve_row:
+                                description = cve_row[0] or cve_row[1] or ''
+                        except Exception as e:
+                            logger.debug(f"⚠️ [get_paginated] Ошибка загрузки описания из cvelist для {row[3]}: {e}")
+                    
+                    # Определяем title: если name = CVE ID, используем только CVE ID, иначе name
+                    cve_id = row[3] or ''
+                    name = row[5] or ''
+                    if name == cve_id:
+                        # name совпадает с CVE ID - используем только CVE ID
+                        title = cve_id
+                    elif name and name.strip():
+                        # name содержит что-то другое (например, описание) - используем только CVE ID если есть
+                        title = cve_id if cve_id else name
+                    else:
+                        # name пустое - используем CVE ID
+                        title = cve_id or 'Unknown'
                     
                     # Загружаем назначенного оператора из actids
                     assigned_operator_id = None
@@ -1144,8 +1320,8 @@ class LegacyVulnerabilityRepository:
                     
                     vuln = Vulnerability(
                         id=row[0],
-                        title=row[5] or row[3] or 'Unknown',
-                        description=description,
+                        title=title,  # Используем исправленный title
+                        description=description,  # Описание из nvd_descriptions или cvelist
                         severity=self._cvss_to_severity(row[6] or 0.0),
                         status='new' if row[12] else 'completed',
                         assigned_operator=assigned_operator_id,
@@ -1156,7 +1332,7 @@ class LegacyVulnerabilityRepository:
                         cvss_score=float(row[6] or 0.0),
                         risk_level=etc_data.get('risk_level', 'medium'),
                         category=etc_data.get('category', row[1] or 'unknown'),
-                        cve_id=row[3]
+                        cve_id=cve_id
                     )
                     vuln.source_identifier = row[1] or 'NVD'
                     vulnerabilities.append(vuln)
