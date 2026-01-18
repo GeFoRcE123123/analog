@@ -25,8 +25,8 @@ if [[ "$CURRENT_HOST" == *"MacBook"* ]] || [[ "$CURRENT_HOST" == *"Mac"* ]]; the
     echo ""
 fi
 
-# Все возможные комбинации
-USERS=("user" "test" "admin" "ubuntu" "root" "monitoring")
+# Все возможные комбинации (test - основной пользователь для Monitoring VM)
+USERS=("test" "user" "admin" "ubuntu" "root" "monitoring")
 PASSWORDS=("123" "admin" "password" "")
 
 # Функция для попытки подключения

@@ -72,7 +72,7 @@ echo ""
 echo -e "${BLUE}🔐 ЭТАП 2: Тестирование подключений${NC}"
 echo "----------------------------------------"
 
-USERS=("user" "admin" "ubuntu" "root" "test" "monitoring" "siem")
+USERS=("test" "user" "admin" "ubuntu" "root" "monitoring" "siem")  # test - основной для Monitoring VM
 
 for user in "${USERS[@]}"; do
     for password in "${PASSWORDS[@]}"; do

@@ -5,7 +5,7 @@
 set -e
 
 VM_IP="10.0.88.41"
-VM_USER="user"
+VM_USER="test"  # Основной пользователь для Monitoring VM
 VM_PASSWORD="123"
 
 # Цвета для вывода
