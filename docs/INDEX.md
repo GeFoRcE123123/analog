@@ -47,6 +47,23 @@
 - [FOLDER_ROOT_FILES.md](FOLDER_ROOT_FILES.md) - Корневые файлы проекта
 - [REDESIGN_PLAN.md](analysis/REDESIGN_PLAN.md) - План редизайна
 
+### Для разработчиков 👥
+- **[COMPLETE_GUIDE_FOR_SECOND_DEVELOPER.md](COMPLETE_GUIDE_FOR_SECOND_DEVELOPER.md)** - 📚 **ПОЛНОЕ РУКОВОДСТВО** для второго разработчика (стек, архитектура, деплой на сервер) ⭐
+- [DEVELOPER_SETUP.md](DEVELOPER_SETUP.md) - 🛠️ Настройка окружения разработчика
+- [CONTRIBUTING.md](CONTRIBUTING.md) - 👥 Руководство для разработчиков
+- [GIT_WORKFLOW.md](GIT_WORKFLOW.md) - 🔀 Git Workflow для параллельной разработки
+- [GITHUB_SYNC.md](GITHUB_SYNC.md) - 🔄 Синхронизация с GitHub (важно!)
+- [GET_UPDATES_FROM_GITHUB.md](GET_UPDATES_FROM_GITHUB.md) - 📥 Получение изменений с GitHub (для второго разработчика)
+- [FOR_SECOND_DEVELOPER.md](FOR_SECOND_DEVELOPER.md) - 👥 Краткая инструкция для второго разработчика
+- [WORK_IN_SAME_BRANCH.md](WORK_IN_SAME_BRANCH.md) - 👥 Работа в одной ветке main-new (видеть изменения на сайте)
+- [SAME_BRANCH_CHEATSHEET.md](SAME_BRANCH_CHEATSHEET.md) - 📋 Шпаргалка: работа в одной ветке
+- [ADD_COLLABORATOR.md](ADD_COLLABORATOR.md) - 👤 Как добавить второго разработчика в репозиторий
+- [GITHUB_SYNC_CHEATSHEET.md](GITHUB_SYNC_CHEATSHEET.md) - 📋 Шпаргалка по синхронизации
+- [SYNC_SUMMARY.md](SYNC_SUMMARY.md) - 📌 Краткая инструкция по синхронизации
+- [SSH_SETUP.md](SSH_SETUP.md) - 🔐 Настройка SSH подключений к VM
+- [QUICK_START_DEVELOPER.md](QUICK_START_DEVELOPER.md) - ⚡ Быстрый старт
+- [ONBOARDING.md](ONBOARDING.md) - 👋 Онбординг нового разработчика
+
 ### Архитектура
 - [FOLDER_SERVICES.md](FOLDER_SERVICES.md) - Структура сервисов
 - [FOLDER_MODELS.md](FOLDER_MODELS.md) - Модели данных
@@ -73,6 +90,7 @@
 - [MONITORING_DEPLOYMENT_COMPLETE.md](MONITORING_DEPLOYMENT_COMPLETE.md) - Развертывание Monitoring Stack
 - [MONITORING_SECURITY.md](MONITORING_SECURITY.md) - 🔒 Безопасность и изоляция мониторинга
 - [GIT_VS_GITHUB.md](GIT_VS_GITHUB.md) - Разница между Git и GitHub
+- [SSH_SETUP.md](SSH_SETUP.md) - 🔐 Настройка SSH подключений к VM
 
 ## 📋 Описание папок проекта
 

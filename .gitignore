@@ -193,3 +193,16 @@ vulnerability_data/
 examples/*.json
 demo_*.json
 parsed_vulnerabilities.json
+
+# SSH ключи и конфигурация (не коммитить личные ключи)
+*.pem
+*.key
+!*.pub
+.ssh/config.local
+.ssh/*_key
+!/.ssh/config.example
+
+# Локальные конфигурации
+config.py.local
+.env.local
+*.local
