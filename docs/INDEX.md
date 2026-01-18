@@ -67,6 +67,13 @@
 ### Frontend
 - [FOLDER_TEMPLATES.md](FOLDER_TEMPLATES.md) - HTML шаблоны
 
+### Мониторинг и DevOps
+- [MONITORING_VM_SPECIFICATIONS.md](MONITORING_VM_SPECIFICATIONS.md) - Спецификация для VM мониторинга
+- [MONITORING_VM_SETUP.md](MONITORING_VM_SETUP.md) - Настройка VM для мониторинга
+- [MONITORING_DEPLOYMENT_COMPLETE.md](MONITORING_DEPLOYMENT_COMPLETE.md) - Развертывание Monitoring Stack
+- [MONITORING_SECURITY.md](MONITORING_SECURITY.md) - 🔒 Безопасность и изоляция мониторинга
+- [GIT_VS_GITHUB.md](GIT_VS_GITHUB.md) - Разница между Git и GitHub
+
 ## 📋 Описание папок проекта
 
 | Папка | Описание | Документация |
