@@ -73,7 +73,7 @@ class JuniperParser(BaseLegacyParser):
                     try:
                         r = requests.get(advisory_url, timeout=30)
                         r.raise_for_status()
-                        soup_page = BeautifulSoup(r.text, 'lxml')
+                        soup_page = BeautifulSoup(r.text, 'html.parser')
                         
                         # Ищем CVE ссылки
                         for quote_ in soup_page.find_all('a', href=re.compile("cve.mitre")):

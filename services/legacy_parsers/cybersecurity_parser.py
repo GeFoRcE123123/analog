@@ -78,7 +78,7 @@ class CyberSecurityParser(BaseLegacyParser):
                 try:
                     r = requests.get(link, timeout=30)
                     r.raise_for_status()
-                    soup_page = BeautifulSoup(r.text, 'lxml')
+                    soup_page = BeautifulSoup(r.text, 'html.parser')
                     
                     # Ищем CVE
                     for quote in soup_page.find_all('div', {'class': 'cve'}):

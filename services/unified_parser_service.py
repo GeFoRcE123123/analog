@@ -164,7 +164,8 @@ class UnifiedParserService:
         nvd_days: int = 1,
         enable_cve_org: bool = False,
         enable_legacy_parsers: bool = False,
-        legacy_parser_sources: Optional[List[str]] = None
+        legacy_parser_sources: Optional[List[str]] = None,
+        parsing_id: Optional[int] = None
     ) -> Dict[str, Any]:
         """
         Запуск всех парсеров и сохранение данных в БД
@@ -195,8 +196,50 @@ class UnifiedParserService:
             'total_saved': 0,
             'by_source': {},
             'errors': [],
-            'progress_messages': []  # Детальные сообщения о прогрессе
+            'progress_messages': [],  # Детальные сообщения о прогрессе
+            'parsing_id': parsing_id  # ID записи в БД для обновления статуса
         }
+        
+        # Функция для обновления статуса в БД
+        def update_parsing_status():
+            if parsing_id:
+                try:
+                    # Импортируем функцию сохранения истории напрямую
+                    from models.database import DatabaseManager
+                    import json
+                    db_manager = DatabaseManager()
+                    
+                    start_dt = datetime.fromisoformat(results['start_time'])
+                    duration = int((datetime.now() - start_dt).total_seconds())
+                    
+                    query = """
+                        UPDATE parsing_history SET
+                            total_parsed = %s,
+                            total_saved = %s,
+                            total_errors = %s,
+                            by_source = %s,
+                            status = %s,
+                            duration_seconds = %s
+                        WHERE id = %s
+                    """
+                    db_manager.execute_query(
+                        query,
+                        (
+                            results['total_parsed'],
+                            results['total_saved'],
+                            len(results['errors']),
+                            json.dumps(results['by_source']),
+                            'running',
+                            duration,
+                            parsing_id
+                        )
+                    )
+                    
+                    start_dt = datetime.fromisoformat(results['start_time'])
+                    duration = int((datetime.now() - start_dt).total_seconds())
+                    
+                except Exception as e:
+                    self.logger.error(f"Ошибка обновления статуса парсинга: {e}", exc_info=True)
         
         self.logger.info(f"🚀 [PARSE_ALL] Начало парсинга: sources={sources}, limit={limit_per_source}, nvd={enable_nvd}, redhat={enable_redhat}, osv={enable_osv}, vendors={enable_vendors}, vendor_sources={vendor_sources}")
         self.logger.info(f"   [PARSE_ALL] html_parser={self.html_parser}, type={type(self.html_parser)}")
@@ -206,6 +249,11 @@ class UnifiedParserService:
         
         try:
             # HTML парсинг (используем для всех источников)
+            # Если sources не указаны, используем дефолтные источники
+            if not sources or len(sources) == 0:
+                sources = ['ubuntu', 'debian']  # Дефолтные источники
+                self.logger.info(f"⚠️ [PARSE_ALL] Источники не указаны, используем дефолтные: {sources}")
+            
             if sources and len(sources) > 0:
                 self.logger.info(f"🔍 [PARSE_ALL] Начинаем HTML парсинг источников: {sources}, лимит: {limit_per_source}")
                 results['progress_messages'].append({
@@ -227,6 +275,7 @@ class UnifiedParserService:
                 results['total_parsed'] += html_results.get('total_parsed', 0)
                 results['total_saved'] += html_results.get('total_saved', 0)
                 self.logger.info(f"✅ [PARSE_ALL] HTML парсинг: спарсено={html_results.get('total_parsed', 0)}, сохранено={html_results.get('total_saved', 0)}")
+                update_parsing_status()  # Обновляем статус в БД
             else:
                 self.logger.warning(f"⚠️ [PARSE_ALL] Источники не указаны или пусты: sources={sources}")
             
@@ -238,13 +287,15 @@ class UnifiedParserService:
                 results['by_source']['nvd'] = nvd_results
                 results['total_parsed'] += nvd_results.get('parsed', 0)
                 results['total_saved'] += nvd_results.get('saved', 0)
+                update_parsing_status()  # Обновляем статус в БД
             
-            # RedHat импорт
+            # RedHat импорт (новый API парсер)
             if enable_redhat:
-                redhat_results = self._parse_redhat()
+                redhat_results = self._parse_redhat(limit=limit_per_source)
                 results['by_source']['redhat'] = redhat_results
                 results['total_parsed'] += redhat_results.get('parsed', 0)
                 results['total_saved'] += redhat_results.get('saved', 0)
+                update_parsing_status()  # Обновляем статус в БД
             
             # OSV API парсинг
             if enable_osv and self.osv_api_parser:
@@ -252,6 +303,7 @@ class UnifiedParserService:
                 results['by_source']['osv'] = osv_results
                 results['total_parsed'] += osv_results.get('parsed', 0)
                 results['total_saved'] += osv_results.get('saved', 0)
+                update_parsing_status()  # Обновляем статус в БД
             
             # Vendor парсеры (дополнительные источники)
             if enable_vendors and self.vendor_parsers and vendor_sources:
@@ -259,6 +311,7 @@ class UnifiedParserService:
                 results['by_source'].update(vendor_results.get('by_source', {}))
                 results['total_parsed'] += vendor_results.get('total_parsed', 0)
                 results['total_saved'] += vendor_results.get('total_saved', 0)
+                update_parsing_status()  # Обновляем статус в БД
             
             # CVE.org синхронизация (все ~380,000 CVE)
             if enable_cve_org and self.cve_org_service:
@@ -266,6 +319,7 @@ class UnifiedParserService:
                 results['by_source']['cve_org'] = cve_org_results
                 results['total_parsed'] += cve_org_results.get('parsed', 0)
                 results['total_saved'] += cve_org_results.get('saved', 0)
+                update_parsing_status()  # Обновляем статус в БД
             
             # Legacy парсеры из папки pars/
             if enable_legacy_parsers and self.legacy_parsers and legacy_parser_sources:
@@ -273,16 +327,89 @@ class UnifiedParserService:
                 results['by_source'].update(legacy_results.get('by_source', {}))
                 results['total_parsed'] += legacy_results.get('total_parsed', 0)
                 results['total_saved'] += legacy_results.get('total_saved', 0)
+                update_parsing_status()  # Обновляем статус в БД
             
             results['end_time'] = datetime.now().isoformat()
             results['success'] = True
             self.logger.info(f"✅ [PARSE_ALL] Парсинг завершен: спарсено={results['total_parsed']}, сохранено={results['total_saved']}, by_source={results.get('by_source', {})}")
+            
+            # Финальное обновление статуса в БД
+            if parsing_id:
+                try:
+                    from models.database import DatabaseManager
+                    import json
+                    db_manager = DatabaseManager()
+                    
+                    start_dt = datetime.fromisoformat(results['start_time'])
+                    duration = int((datetime.now() - start_dt).total_seconds())
+                    
+                    query = """
+                        UPDATE parsing_history SET
+                            total_parsed = %s,
+                            total_saved = %s,
+                            total_errors = %s,
+                            by_source = %s,
+                            status = %s,
+                            duration_seconds = %s
+                        WHERE id = %s
+                    """
+                    db_manager.execute_query(
+                        query,
+                        (
+                            results['total_parsed'],
+                            results['total_saved'],
+                            len(results['errors']),
+                            json.dumps(results['by_source']),
+                            'completed',
+                            duration,
+                            parsing_id
+                        )
+                    )
+                except Exception as e:
+                    self.logger.error(f"Ошибка финального обновления статуса: {e}", exc_info=True)
             
         except Exception as e:
             error_msg = str(e)
             self.logger.error(f"❌ Критическая ошибка парсинга: {error_msg}", exc_info=True)
             results['success'] = False
             results['errors'].append(error_msg)
+            
+            # Обновление статуса с ошибкой
+            if parsing_id:
+                try:
+                    from models.database import DatabaseManager
+                    import json
+                    db_manager = DatabaseManager()
+                    
+                    start_dt = datetime.fromisoformat(results['start_time'])
+                    duration = int((datetime.now() - start_dt).total_seconds())
+                    
+                    query = """
+                        UPDATE parsing_history SET
+                            total_parsed = %s,
+                            total_saved = %s,
+                            total_errors = %s,
+                            by_source = %s,
+                            status = %s,
+                            error_message = %s,
+                            duration_seconds = %s
+                        WHERE id = %s
+                    """
+                    db_manager.execute_query(
+                        query,
+                        (
+                            results['total_parsed'],
+                            results['total_saved'],
+                            len(results['errors']),
+                            json.dumps(results['by_source']),
+                            'failed',
+                            error_msg,
+                            duration,
+                            parsing_id
+                        )
+                    )
+                except Exception as e:
+                    self.logger.error(f"Ошибка обновления статуса с ошибкой: {e}", exc_info=True)
         
         finally:
             with self._parsing_lock:
@@ -708,18 +835,30 @@ class UnifiedParserService:
         
         return results
     
-    def _parse_redhat(self) -> Dict[str, Any]:
-        """Импорт RedHat CVE"""
-        if not self.redhat_importer:
-            return {'parsed': 0, 'saved': 0, 'error': 'RedHat importer не доступен'}
-        
+    def _parse_redhat(self, limit: int = 100) -> Dict[str, Any]:
+        """Импорт RedHat CVE через новый API парсер"""
         try:
-            self.logger.info("RedHat импорт последних 7 дней")
+            from services.parsers.redhat_api_parser import RedHatAPIParser
+            redhat_parser = RedHatAPIParser()
             
-            # Получение CVE
-            from datetime import datetime, timedelta
-            after_date = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
-            cves = self.redhat_importer.fetch_cves(after_date=after_date, per_page=100)
+            self.logger.info(f"🚀 RedHat парсинг через API (limit={limit})")
+            stats = redhat_parser.parse_and_save(limit=limit)
+            
+            return {
+                'parsed': stats.get('total_fetched', 0),
+                'saved': stats.get('total_saved', 0),
+                'skipped': stats.get('total_skipped', 0),
+                'errors': stats.get('total_errors', 0)
+            }
+        except Exception as e:
+            self.logger.error(f"❌ Ошибка RedHat парсинга: {e}", exc_info=True)
+            # Fallback на старый импортер
+            if self.redhat_importer:
+                try:
+                    self.logger.info("Пробуем старый RedHat importer как fallback")
+                    from datetime import datetime, timedelta
+                    after_date = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
+                    cves = self.redhat_importer.fetch_cves(after_date=after_date, per_page=limit)
             
             saved_count = 0
             for cve in cves:

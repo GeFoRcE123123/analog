@@ -9,82 +9,107 @@
         <div class="grid grid-cols-1 md:grid-cols-6 gap-4 mb-6">
             <div class="bg-gradient-to-r from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200">
                 <div class="text-center">
-                    <p class="text-2xl font-bold text-blue-600">{{ total_count }}</p>
+                    <p class="text-2xl font-bold text-blue-600">{{ global_stats.total_count }}</p>
                     <p class="text-sm text-gray-600">Всего уязвимостей</p>
                 </div>
             </div>
             <div class="bg-gradient-to-r from-red-50 to-red-100 rounded-xl p-4 border border-red-200">
                 <div class="text-center">
-                    <p class="text-2xl font-bold text-red-600">{{ vulnerabilities|selectattr('severity', 'equalto', 'high')|list|length + vulnerabilities|selectattr('severity', 'equalto', 'critical')|list|length }}</p>
+                    <p class="text-2xl font-bold text-red-600">{{ global_stats.high_risk }}</p>
                     <p class="text-sm text-gray-600">Высокий риск</p>
                 </div>
             </div>
             <div class="bg-gradient-to-r from-yellow-50 to-yellow-100 rounded-xl p-4 border border-yellow-200">
                 <div class="text-center">
-                    <p class="text-2xl font-bold text-yellow-600">{{ vulnerabilities|selectattr('status', 'equalto', 'new')|list|length }}</p>
+                    <p class="text-2xl font-bold text-yellow-600">{{ global_stats.new }}</p>
                     <p class="text-sm text-gray-600">Новые</p>
                 </div>
             </div>
             <div class="bg-gradient-to-r from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200">
                 <div class="text-center">
-                    <p class="text-2xl font-bold text-blue-600">{{ vulnerabilities|selectattr('status', 'equalto', 'in_progress')|list|length }}</p>
+                    <p class="text-2xl font-bold text-blue-600">{{ global_stats.in_work }}</p>
                     <p class="text-sm text-gray-600">В работе</p>
                 </div>
             </div>
             <div class="bg-gradient-to-r from-green-50 to-green-100 rounded-xl p-4 border border-green-200">
                 <div class="text-center">
-                    <p class="text-2xl font-bold text-green-600">{{ vulnerabilities|selectattr('status', 'equalto', 'completed')|list|length + vulnerabilities|selectattr('status', 'equalto', 'approved')|list|length }}</p>
+                    <p class="text-2xl font-bold text-green-600">{{ global_stats.completed }}</p>
                     <p class="text-sm text-gray-600">Завершено</p>
                 </div>
             </div>
             <div class="bg-gradient-to-r from-purple-50 to-purple-100 rounded-xl p-4 border border-purple-200">
                 <div class="text-center">
-                    <p class="text-2xl font-bold text-purple-600">{{ total_pages }}</p>
-                    <p class="text-sm text-gray-600">Всего страниц</p>
-                </div>
-            </div>
-        </div>
+                    <p class="text-2xl font-bold text-purple-600">{{ global_stats.total_pages }}</p>
                     <p class="text-sm text-gray-600">Всего страниц</p>
                 </div>
             </div>
         </div>
         <!-- Фильтры -->
-        <!-- Фильтры удалены по запросу пользователя -->
-        <!-- Таблица уязвимостей -->
-<!-- Фильтры -->
-<div class="bg-gradient-to-r from-gray-50 to-gray-100 rounded-2xl p-6 mb-8 shadow-sm">
-    <div class="flex flex-wrap gap-6 items-end">
-        <div class="flex-1 min-w-64">
-            <label class="block text-sm font-semibold text-gray-700 mb-2">🔍 Поиск уязвимостей</label>
+<!-- Фильтры (серверные, адаптивные) -->
+<form method="get" class="bg-gray-50 rounded-2xl p-4 mb-6 border border-gray-200">
+    <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+        <div class="md:col-span-6">
+            <label class="block text-sm font-semibold text-gray-700 mb-1">Поиск</label>
+            <input id="search-filter" type="text" name="search" value="{{ search or '' }}" placeholder="CVE или название..."
+                   class="w-full px-3 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+        </div>
+        <div class="md:col-span-3">
+            <label class="block text-sm font-semibold text-gray-700 mb-1">Теги</label>
+            <input id="tags-filter" type="text" name="tags" value="{{ tags or '' }}" placeholder="ml, ai, llm..."
+                   class="w-full px-3 py-2 border border-gray-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+            <div class="mt-1 flex flex-wrap gap-1 text-[11px] text-gray-500">
+                <button type="button" class="px-2 py-0.5 rounded-full bg-white border border-gray-200 hover:bg-gray-50" onclick="addQuickTag('ml')">#ml</button>
+                <button type="button" class="px-2 py-0.5 rounded-full bg-white border border-gray-200 hover:bg-gray-50" onclick="addQuickTag('ai')">#ai</button>
+                <button type="button" class="px-2 py-0.5 rounded-full bg-white border border-gray-200 hover:bg-gray-50" onclick="addQuickTag('llm')">#llm</button>
+                <button type="button" class="px-2 py-0.5 rounded-full bg-white border border-gray-200 hover:bg-gray-50" onclick="addQuickTag('prompt-injection')">#prompt-injection</button>
+            </div>
+        </div>
+        <div class="md:col-span-3">
+            <label class="block text-sm font-semibold text-gray-700 mb-1">Статус</label>
             <div class="relative">
-                <input type="text" id="search-filter" placeholder="Введите название уязвимости..."
-                       class="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200">
-                <i class="fas fa-search absolute left-3 top-3.5 text-gray-400"></i>
-                    </div>
-                </div>
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">📊 Статус</label>
-                    <select id="status-filter" class="w-48 px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200">
-                        <option value="all">Все статусы</option>
-                        <option value="new">🆕 Новые</option>
-                        <option value="in_progress">🔄 В работе</option>
-                        <option value="completed">✅ Завершено</option>
-                        <option value="approved">👍 Одобрено</option>
-                        <option value="needs_modification">📝 На модификации</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">⚠️ Уровень риска</label>
-                    <select id="severity-filter" class="w-48 px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200">
-                        <option value="all">Все уровни</option>
-                        <option value="critical">🔴 Критический</option>
-                        <option value="high">🟠 Высокий</option>
-                        <option value="medium">🟡 Средний</option>
-                        <option value="low">🟢 Низкий</option>
-                    </select>
+                <select id="status-filter" name="status" class="w-full appearance-none px-3 py-2 pr-10 border border-gray-300 rounded-xl bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    <option value="" {% if not status %}selected{% endif %}>Все</option>
+                    <option value="new" {% if status == 'new' %}selected{% endif %}>Новые</option>
+                    <option value="completed" {% if status == 'completed' %}selected{% endif %}>Завершено</option>
+                </select>
+                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400">
+                    <i class="fas fa-chevron-down text-xs"></i>
                 </div>
             </div>
         </div>
+        <div class="md:col-span-3">
+            <label class="block text-sm font-semibold text-gray-700 mb-1">Риск (CVSS)</label>
+            <div class="relative">
+                <select id="severity-filter" name="severity" class="w-full appearance-none px-3 py-2 pr-10 border border-gray-300 rounded-xl bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    <option value="" {% if not severity %}selected{% endif %}>Все</option>
+                    <option value="critical" {% if severity == 'critical' %}selected{% endif %}>Критический</option>
+                    <option value="high" {% if severity == 'high' %}selected{% endif %}>Высокий</option>
+                    <option value="medium" {% if severity == 'medium' %}selected{% endif %}>Средний</option>
+                    <option value="low" {% if severity == 'low' %}selected{% endif %}>Низкий</option>
+                </select>
+                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400">
+                    <i class="fas fa-chevron-down text-xs"></i>
+                </div>
+            </div>
+        </div>
+        <div class="md:col-span-3">
+            <label class="block text-sm font-semibold text-gray-700 mb-1">ИИ</label>
+            <label class="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-xl bg-white">
+                <input id="ai-only-filter" type="checkbox" name="ai_only" value="1" {% if ai_only %}checked{% endif %}>
+                <span class="text-sm text-gray-700">Только AI‑уязвимости</span>
+            </label>
+        </div>
+        <input type="hidden" name="per_page" value="{{ per_page }}">
+        <div class="md:col-span-9 text-xs text-gray-500">
+            Показано: {{ total_count }} (страниц: {{ total_pages }}) • Всего в системе: {{ global_stats.total_count }}
+        </div>
+        <div class="md:col-span-3 flex gap-2">
+            <button type="submit" class="flex-1 px-4 py-2 rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-700">Применить</button>
+            <button type="button" onclick="onlyAIVulns()" class="px-4 py-2 rounded-xl bg-emerald-600 text-white font-semibold hover:bg-emerald-700">Только ИИ</button>
+            <a href="{{ url_for('vulnerabilities_list') }}" class="px-4 py-2 rounded-xl bg-gray-200 text-gray-800 font-semibold hover:bg-gray-300">Сброс</a>
+        </div>
+    </div>
+</form>
 
         <!-- Таблица уязвимостей -->
         <div class="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
@@ -112,42 +137,7 @@
                             </th>
                             <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Действия</th>
                         </tr>
-                        <tr class="bg-gray-50">
-                            <th class="px-6 py-2">
-                                <input type="text" id="filter-title" placeholder="Фильтр по названию" class="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
-                            </th>
-                            <th class="px-6 py-2">
-                                <input type="text" id="filter-description" placeholder="Фильтр по описанию" class="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
-                            </th>
-                            <th class="px-6 py-2">
-                                <select id="filter-severity" class="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
-                                    <option value="">Все</option>
-                                    <option value="critical">Критический</option>
-                                    <option value="high">Высокий</option>
-                                    <option value="medium">Средний</option>
-                                    <option value="low">Низкий</option>
-                                </select>
-                            </th>
-                            <th class="px-6 py-2">
-                                <select id="filter-status" class="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
-                                    <option value="">Все</option>
-                                    <option value="new">Новый</option>
-                                    <option value="in_progress">В работе</option>
-                                    <option value="completed">Завершено</option>
-                                    <option value="approved">Одобрено</option>
-                                    <option value="needs_modification">На модификации</option>
-                                </select>
-                            </th>
-                            <th class="px-6 py-2">
-                                <input type="text" id="filter-cvss" placeholder="Фильтр по CVSS" class="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
-                            </th>
-                            <th class="px-6 py-2">
-                                <input type="text" id="filter-operator" placeholder="Фильтр по оператору" class="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
-                            </th>
-                            <th class="px-6 py-2">
-                                <button onclick="clearFilters()" class="px-2 py-1 text-xs bg-gray-200 hover:bg-gray-300 rounded">Сброс</button>
-                            </th>
-                        </tr>
+                        <!-- Колоночные фильтры убраны: фильтрация серверная (форма выше) -->
                     </thead>
                     <tbody class="bg-white divide-y divide-gray-200" id="vulnerabilities-table-body">
                         {% for vulnerability in vulnerabilities %}
@@ -163,13 +153,24 @@
                                     <div>
                                         <div class="text-sm font-semibold text-gray-900 group-hover:text-blue-700 transition-colors cursor-pointer" onclick="showVulnerabilityDetails({{ vulnerability.id }})">
                                             {% if vulnerability.cve_id %}
-                                                <span class="font-mono text-blue-600">{{ vulnerability.cve_id }}</span>
-                                                <span class="text-gray-600 ml-2">{{ vulnerability.title }}</span>
+                                                <span class="font-mono text-blue-600 underline">{{ vulnerability.cve_id }}</span>
                                             {% else %}
-                                                {{ vulnerability.title }}
+                                                {{ vulnerability.title[:100] if vulnerability.title else 'Без названия' }}
                                             {% endif %}
                                         </div>
                                         <div class="text-xs text-gray-500">{{ vulnerability.category|title }}</div>
+                                        <div id="tags-inline-{{ vulnerability.id }}" class="mt-1 flex flex-wrap gap-1">
+                                        {% if vulnerability.tags %}
+                                            {% for tag in vulnerability.tags[:6] %}
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-700 border border-gray-200">
+                                                #{{ tag }}
+                                            </span>
+                                            {% endfor %}
+                                            {% if vulnerability.tags|length > 6 %}
+                                            <span class="text-[10px] text-gray-400">+{{ vulnerability.tags|length - 6 }}</span>
+                                            {% endif %}
+                                        {% endif %}
+                                        </div>
                                     </div>
                                 </div>
                             </td>
@@ -228,11 +229,25 @@
                                         <i class="fas fa-eye mr-1"></i>
                                         Просмотр
                                     </button>
+                                    {% if session.role == 'admin' %}
+                                    <button onclick="generateAIPassport({{ vulnerability.id }})"
+                                            class="inline-flex items-center px-3 py-2 border border-transparent text-xs font-medium rounded-lg text-emerald-700 bg-emerald-100 hover:bg-emerald-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition-all duration-200 transform hover:scale-105"
+                                            title="ИИ‑паспорт (сохранить в БД)">
+                                        <i class="fas fa-id-card mr-1"></i>
+                                        Паспорт
+                                    </button>
+                                    {% endif %}
                                     <button onclick="editVulnerability({{ vulnerability.id }})"
                                             class="inline-flex items-center px-3 py-2 border border-transparent text-xs font-medium rounded-lg text-green-700 bg-green-100 hover:bg-green-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-all duration-200 transform hover:scale-105"
                                             title="Редактировать">
                                         <i class="fas fa-edit mr-1"></i>
                                         Редакт.
+                                    </button>
+                                    <button onclick="manageTags({{ vulnerability.id }})"
+                                            class="inline-flex items-center px-3 py-2 border border-transparent text-xs font-medium rounded-lg text-gray-700 bg-gray-100 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-300 transition-all duration-200 transform hover:scale-105"
+                                            title="Теги">
+                                        <i class="fas fa-tags mr-1"></i>
+                                        Теги
                                     </button>
                                     {% if vulnerability.status == 'new' %}
                                     <button onclick="assignVulnerability({{ vulnerability.id }})"
@@ -272,13 +287,13 @@
 <div class="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6 rounded-b-2xl">
     <div class="flex flex-1 justify-between sm:hidden">
         {% if current_page > 1 %}
-        <a href="?page={{ current_page - 1 }}&per_page={{ per_page }}{% if status %}&status={{ status }}{% endif %}{% if severity %}&severity={{ severity }}{% endif %}{% if search %}&search={{ search }}{% endif %}" 
+        <a href="?page={{ current_page - 1 }}&per_page={{ per_page }}{% if status %}&status={{ status }}{% endif %}{% if severity %}&severity={{ severity }}{% endif %}{% if search %}&search={{ search }}{% endif %}{% if tags %}&tags={{ tags }}{% endif %}{% if ai_only %}&ai_only=1{% endif %}" 
            class="relative inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
             Назад
         </a>
         {% endif %}
         {% if current_page < total_pages %}
-        <a href="?page={{ current_page + 1 }}&per_page={{ per_page }}{% if status %}&status={{ status }}{% endif %}{% if severity %}&severity={{ severity }}{% endif %}{% if search %}&search={{ search }}{% endif %}" 
+        <a href="?page={{ current_page + 1 }}&per_page={{ per_page }}{% if status %}&status={{ status }}{% endif %}{% if severity %}&severity={{ severity }}{% endif %}{% if search %}&search={{ search }}{% endif %}{% if tags %}&tags={{ tags }}{% endif %}{% if ai_only %}&ai_only=1{% endif %}" 
            class="relative ml-3 inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
             Вперед
         </a>
@@ -294,9 +309,23 @@
         </div>
         <div>
             <nav class="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
+                <!-- Первая страница -->
                 {% if current_page > 1 %}
-                <a href="?page={{ current_page - 1 }}&per_page={{ per_page }}{% if status %}&status={{ status }}{% endif %}{% if severity %}&severity={{ severity }}{% endif %}{% if search %}&search={{ search }}{% endif %}" 
+                <a href="?page=1&per_page={{ per_page }}{% if status %}&status={{ status }}{% endif %}{% if severity %}&severity={{ severity }}{% endif %}{% if search %}&search={{ search }}{% endif %}{% if tags %}&tags={{ tags }}{% endif %}{% if ai_only %}&ai_only=1{% endif %}"
                    class="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0">
+                    <span class="sr-only">Первая</span>
+                    <i class="fas fa-angles-left"></i>
+                </a>
+                {% else %}
+                <span class="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-300 ring-1 ring-inset ring-gray-200 bg-gray-50 cursor-not-allowed">
+                    <span class="sr-only">Первая</span>
+                    <i class="fas fa-angles-left"></i>
+                </span>
+                {% endif %}
+
+                {% if current_page > 1 %}
+                <a href="?page={{ current_page - 1 }}&per_page={{ per_page }}{% if status %}&status={{ status }}{% endif %}{% if severity %}&severity={{ severity }}{% endif %}{% if search %}&search={{ search }}{% endif %}{% if tags %}&tags={{ tags }}{% endif %}{% if ai_only %}&ai_only=1{% endif %}" 
+                   class="relative inline-flex items-center px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0">
                     <span class="sr-only">Назад</span>
                     <i class="fas fa-chevron-left"></i>
                 </a>
@@ -306,17 +335,31 @@
                 {% if page_num == current_page %}
                 <span class="relative z-10 inline-flex items-center px-4 py-2 text-sm font-semibold text-white bg-blue-600 focus:z-20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">{{ page_num }}</span>
                 {% else %}
-                <a href="?page={{ page_num }}&per_page={{ per_page }}{% if status %}&status={{ status }}{% endif %}{% if severity %}&severity={{ severity }}{% endif %}{% if search %}&search={{ search }}{% endif %}" 
+                <a href="?page={{ page_num }}&per_page={{ per_page }}{% if status %}&status={{ status }}{% endif %}{% if severity %}&severity={{ severity }}{% endif %}{% if search %}&search={{ search }}{% endif %}{% if tags %}&tags={{ tags }}{% endif %}{% if ai_only %}&ai_only=1{% endif %}" 
                    class="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0">{{ page_num }}</a>
                 {% endif %}
                 {% endfor %}
                 
                 {% if current_page < total_pages %}
-                <a href="?page={{ current_page + 1 }}&per_page={{ per_page }}{% if status %}&status={{ status }}{% endif %}{% if severity %}&severity={{ severity }}{% endif %}{% if search %}&search={{ search }}{% endif %}" 
-                   class="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0">
+                <a href="?page={{ current_page + 1 }}&per_page={{ per_page }}{% if status %}&status={{ status }}{% endif %}{% if severity %}&severity={{ severity }}{% endif %}{% if search %}&search={{ search }}{% endif %}{% if tags %}&tags={{ tags }}{% endif %}{% if ai_only %}&ai_only=1{% endif %}" 
+                   class="relative inline-flex items-center px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0">
                     <span class="sr-only">Вперед</span>
                     <i class="fas fa-chevron-right"></i>
                 </a>
+                {% endif %}
+
+                <!-- Последняя страница -->
+                {% if current_page < total_pages %}
+                <a href="?page={{ total_pages }}&per_page={{ per_page }}{% if status %}&status={{ status }}{% endif %}{% if severity %}&severity={{ severity }}{% endif %}{% if search %}&search={{ search }}{% endif %}{% if tags %}&tags={{ tags }}{% endif %}{% if ai_only %}&ai_only=1{% endif %}"
+                   class="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0">
+                    <span class="sr-only">Последняя</span>
+                    <i class="fas fa-angles-right"></i>
+                </a>
+                {% else %}
+                <span class="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-300 ring-1 ring-inset ring-gray-200 bg-gray-50 cursor-not-allowed">
+                    <span class="sr-only">Последняя</span>
+                    <i class="fas fa-angles-right"></i>
+                </span>
                 {% endif %}
             </nav>
         </div>
@@ -374,6 +417,26 @@
                                     <span class="text-gray-600">CVSS Score:</span>
                                     <span id="view-cvss" class="font-bold text-lg"></span>
                                 </div>
+                            </div>
+                        </div>
+
+                        <!-- Теги -->
+                        <div class="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                            <div class="flex items-center justify-between mb-3">
+                                <h4 class="font-semibold text-gray-900 flex items-center">
+                                    <i class="fas fa-tags text-gray-500 mr-2"></i>
+                                    Теги
+                                </h4>
+                                <button id="view-tags-edit-btn" onclick="openTagsModalFromView()"
+                                        class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-white border border-gray-300 hover:bg-gray-50 transition-all duration-200 hidden">
+                                    <i class="fas fa-pen mr-1"></i> Изменить
+                                </button>
+                            </div>
+                            <div id="view-tags-list" class="flex flex-wrap gap-2">
+                                <span class="text-gray-500 text-sm">Нет тегов</span>
+                            </div>
+                            <div id="view-tags-hint" class="text-xs text-gray-500 mt-2 hidden">
+                                Для редактирования нужны права администратора.
                             </div>
                         </div>
 
@@ -445,6 +508,75 @@
                     <div id="description-content" class="px-6 pb-4 hidden">
                         <div class="bg-white rounded-lg p-4 border border-gray-200">
                             <p id="view-description" class="text-gray-700 leading-relaxed"></p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ИИ‑паспорт (аккордеон) -->
+                <div class="bg-gradient-to-r from-emerald-50 to-green-50 rounded-xl border border-emerald-200 mt-4">
+                    <button onclick="toggleAIPassport()" class="w-full px-6 py-4 text-left flex justify-between items-center hover:bg-emerald-100 transition-colors duration-200 rounded-xl">
+                        <h4 class="font-semibold text-emerald-900 flex items-center">
+                            <i class="fas fa-id-card text-emerald-600 mr-2"></i>
+                            ИИ‑паспорт уязвимости
+                        </h4>
+                        <i class="fas fa-chevron-down text-emerald-600 transition-transform duration-200" id="ai-passport-chevron"></i>
+                    </button>
+                    <div id="ai-passport-content" class="px-6 pb-4 hidden">
+                        <div class="bg-white rounded-lg p-4 border border-gray-200 space-y-3">
+                            <div class="flex items-center justify-between gap-3">
+                                <div id="ai-passport-status" class="text-sm text-gray-600">Загрузка...</div>
+                                {% if session.role == 'admin' %}
+                                <button id="ai-passport-generate-btn" onclick="generateAIPassportFromView()"
+                                        class="inline-flex items-center px-3 py-2 border border-transparent text-xs font-medium rounded-lg text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition-all duration-200"
+                                        title="Сгенерировать ИИ‑паспорт и сохранить в БД">
+                                    <i class="fas fa-magic mr-1"></i>
+                                    Сгенерировать
+                                </button>
+                                {% endif %}
+                            </div>
+                            <pre id="ai-passport-json" class="bg-gray-50 rounded-lg p-3 text-xs overflow-auto max-h-64">—</pre>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ИИ‑анализ (прозрачность) -->
+                <div class="bg-gradient-to-r from-violet-50 to-indigo-50 rounded-xl border border-violet-200 mt-4">
+                    <button onclick="toggleAIAnalysis()" class="w-full px-6 py-4 text-left flex justify-between items-center hover:bg-violet-100 transition-colors duration-200 rounded-xl">
+                        <h4 class="font-semibold text-violet-900 flex items-center">
+                            <i class="fas fa-brain text-violet-600 mr-2"></i>
+                            ИИ‑анализ (что получила модель и почему так решила)
+                        </h4>
+                        <i class="fas fa-chevron-down text-violet-600 transition-transform duration-200" id="ai-analysis-chevron"></i>
+                    </button>
+                    <div id="ai-analysis-content" class="px-6 pb-4 hidden">
+                        <div class="bg-white rounded-lg p-4 border border-gray-200 space-y-3">
+                            <div id="ai-analysis-status" class="text-sm text-gray-600">Нет данных анализа</div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                                <div class="bg-violet-50 rounded-lg p-3 border border-violet-100">
+                                    <div class="text-xs text-violet-700">Итог confidence</div>
+                                    <div class="font-bold text-violet-900" id="ai-analysis-confidence">—</div>
+                                </div>
+                                <div class="bg-indigo-50 rounded-lg p-3 border border-indigo-100">
+                                    <div class="text-xs text-indigo-700">ML score / Context score</div>
+                                    <div class="font-semibold text-indigo-900" id="ai-analysis-scores">—</div>
+                                </div>
+                            </div>
+                            <div class="text-sm">
+                                <div class="font-semibold text-gray-800 mb-1">Что подали на вход (excerpt)</div>
+                                <pre id="ai-analysis-input" class="bg-gray-50 rounded-lg p-3 text-xs overflow-auto max-h-40">—</pre>
+                            </div>
+                            <div class="text-sm">
+                                <div class="font-semibold text-gray-800 mb-1">Триггеры (keyword_hits)</div>
+                                <div id="ai-analysis-hits" class="flex flex-wrap gap-2"></div>
+                            </div>
+                            <div class="text-sm">
+                                <div class="font-semibold text-gray-800 mb-1">Негативные сигналы (negative_hits)</div>
+                                <div id="ai-analysis-neg" class="flex flex-wrap gap-2"></div>
+                            </div>
+                            <div class="text-sm">
+                                <div class="font-semibold text-gray-800 mb-1">Объяснение</div>
+                                <div id="ai-analysis-reasoning" class="text-gray-700">—</div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -672,6 +804,68 @@
     </div>
 </div>
 
+<!-- Модальное окно управления тегами -->
+<div id="tags-modal" class="fixed inset-0 bg-black bg-opacity-50 overflow-y-auto h-full w-full hidden z-50 transition-opacity duration-300">
+    <div class="relative top-20 mx-auto p-4 w-full max-w-xl">
+        <div class="bg-white rounded-2xl shadow-2xl transform transition-all duration-300 scale-95 opacity-0" id="tags-modal-content">
+            <div class="bg-gradient-to-r from-gray-700 to-gray-900 rounded-t-2xl px-6 py-4">
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center space-x-3">
+                        <div class="bg-white bg-opacity-20 p-2 rounded-xl">
+                            <i class="fas fa-tags text-white text-xl"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-xl font-bold text-white">Теги уязвимости</h3>
+                            <p class="text-gray-200 text-sm" id="tags-modal-subtitle">Управление тегами</p>
+                        </div>
+                    </div>
+                    <button onclick="closeTagsModal()" class="text-white hover:text-gray-200 transition-colors duration-200 p-2 rounded-lg hover:bg-white hover:bg-opacity-10">
+                        <i class="fas fa-times text-xl"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="p-6 space-y-4">
+                <div class="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                    <div class="flex items-center justify-between mb-2">
+                        <div class="text-sm font-semibold text-gray-800">Текущие теги</div>
+                        <div class="text-xs text-gray-500" id="tags-modal-role"></div>
+                    </div>
+                    <div id="tags-modal-list" class="flex flex-wrap gap-2">
+                        <span class="text-gray-500 text-sm">Нет тегов</span>
+                    </div>
+                </div>
+
+                <div id="tags-modal-editor" class="bg-white rounded-xl p-4 border border-gray-200 hidden">
+                    <div class="text-sm font-semibold text-gray-800 mb-2">Добавить тег</div>
+                    <div class="flex gap-2">
+                        <input id="tags-input" type="text" placeholder="Например: ai, kev, exploit"
+                               class="flex-1 px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent transition-all duration-200">
+                        <button onclick="addTagFromInput()"
+                                class="px-4 py-3 text-sm font-semibold text-white bg-gray-900 rounded-xl hover:bg-black transition-all duration-200">
+                            <i class="fas fa-plus mr-1"></i> Добавить
+                        </button>
+                    </div>
+                    <div class="text-xs text-gray-500 mt-2">Enter тоже добавляет. Тег нормализуется и дедупится.</div>
+                </div>
+            </div>
+
+            <div class="bg-gray-50 rounded-b-2xl px-6 py-4 border-t border-gray-200">
+                <div class="flex justify-end space-x-3">
+                    <button onclick="closeTagsModal()"
+                            class="px-6 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 transition-all duration-200">
+                        Закрыть
+                    </button>
+                    <button id="tags-save-btn" onclick="saveTags()"
+                            class="px-6 py-2 text-sm font-semibold text-white bg-gradient-to-r from-green-600 to-green-700 rounded-xl hover:from-green-700 hover:to-green-800 transition-all duration-200 hidden">
+                        <i class="fas fa-save mr-2"></i> Сохранить
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Модальное окно редактирования уязвимости -->
 <div id="edit-modal" class="fixed inset-0 bg-black bg-opacity-50 overflow-y-auto h-full w-full hidden z-50 transition-opacity duration-300">
     <div class="relative top-10 mx-auto p-4 w-full max-w-2xl">
@@ -883,100 +1077,15 @@
 // Глобальные переменные
 let currentViewingVulnId = null;
 let currentEditingVulnId = null;
+const IS_ADMIN = {{ 'true' if session.role == 'admin' else 'false' }};
 
-// Функции для фильтрации
-document.addEventListener('DOMContentLoaded', function() {
-    // Старые фильтры
-    const statusFilter = document.getElementById('status-filter');
-    const severityFilter = document.getElementById('severity-filter');
-    const searchFilter = document.getElementById('search-filter');
-    
-    // Новые фильтры в заголовках
-    const titleFilter = document.getElementById('filter-title');
-    const descriptionFilter = document.getElementById('filter-description');
-    const severityColumnFilter = document.getElementById('filter-severity');
-    const statusColumnFilter = document.getElementById('filter-status');
-    const cvssFilter = document.getElementById('filter-cvss');
-    const operatorFilter = document.getElementById('filter-operator');
+// Tags state
+let currentTagsVulnId = null;
+let currentTags = [];
 
-    function applyFilters() {
-        // Получаем значения фильтров
-        const statusValue = statusFilter.value;
-        const severityValue = severityFilter.value;
-        const searchValue = searchFilter.value.toLowerCase();
-        
-        // Новые фильтры
-        const titleValue = titleFilter.value.toLowerCase();
-        const descriptionValue = descriptionFilter.value.toLowerCase();
-        const severityColumnValue = severityColumnFilter.value;
-        const statusColumnValue = statusColumnFilter.value;
-        const cvssValue = cvssFilter.value;
-        const operatorValue = operatorFilter.value.toLowerCase();
-
-        document.querySelectorAll('.vulnerability-row').forEach(row => {
-            const status = row.getAttribute('data-status');
-            const severity = row.getAttribute('data-severity');
-            const title = row.getAttribute('data-title');
-            const description = row.querySelector('td:nth-child(2)').textContent.toLowerCase();
-            const cvss = row.querySelector('td:nth-child(5)').textContent;
-            const operator = row.querySelector('td:nth-child(6)').textContent.toLowerCase();
-
-            // Старые фильтры
-            const statusMatch = statusValue === 'all' || statusValue === '' || status === statusValue;
-            const severityMatch = severityValue === 'all' || severityValue === '' || severity === severityValue;
-            const searchMatch = searchValue === '' || title.includes(searchValue);
-            
-            // Новые фильтры
-            const titleMatch = titleValue === '' || title.includes(titleValue);
-            const descriptionMatch = descriptionValue === '' || description.includes(descriptionValue);
-            const severityColumnMatch = severityColumnValue === '' || severity === severityColumnValue;
-            const statusColumnMatch = statusColumnValue === '' || status === statusColumnValue;
-            const cvssMatch = cvssValue === '' || cvss.includes(cvssValue);
-            const operatorMatch = operatorValue === '' || operator.includes(operatorValue);
-
-            if (statusMatch && severityMatch && searchMatch && 
-                titleMatch && descriptionMatch && severityColumnMatch && 
-                statusColumnMatch && cvssMatch && operatorMatch) {
-                row.classList.remove('hidden');
-            } else {
-                row.classList.add('hidden');
-            }
-        });
-    }
-
-    // Добавляем обработчики событий для всех фильтров
-    statusFilter.addEventListener('change', applyFilters);
-    severityFilter.addEventListener('change', applyFilters);
-    searchFilter.addEventListener('input', applyFilters);
-    
-    // Новые фильтры
-    titleFilter.addEventListener('input', applyFilters);
-    descriptionFilter.addEventListener('input', applyFilters);
-    severityColumnFilter.addEventListener('change', applyFilters);
-    statusColumnFilter.addEventListener('change', applyFilters);
-    cvssFilter.addEventListener('input', applyFilters);
-    operatorFilter.addEventListener('input', applyFilters);
-});
-
-// Функция для сброса всех фильтров
+// Фильтрация перенесена на сервер (форма сверху) — чтобы не было лагов/поломок на больших данных.
 function clearFilters() {
-    // Старые фильтры
-    document.getElementById('status-filter').value = 'all';
-    document.getElementById('severity-filter').value = 'all';
-    document.getElementById('search-filter').value = '';
-    
-    // Новые фильтры
-    document.getElementById('filter-title').value = '';
-    document.getElementById('filter-description').value = '';
-    document.getElementById('filter-severity').value = '';
-    document.getElementById('filter-status').value = '';
-    document.getElementById('filter-cvss').value = '';
-    document.getElementById('filter-operator').value = '';
-    
-    // Применяем фильтры
-    document.querySelectorAll('.vulnerability-row').forEach(row => {
-        row.classList.remove('hidden');
-    });
+    window.location.href = '/vulnerabilities';
 }
 
 // Функция для сортировки таблицы
@@ -1029,6 +1138,7 @@ function showVulnerabilityDetails(vulnId) {
                 const vuln = data.vulnerability;
                 populateViewModal(vuln);
                 openViewModal();
+                loadAIPassport(vulnId);
             } else {
                 console.error('Error in response:', data);
                 showNotification('Ошибка загрузки данных уязвимости', 'error');
@@ -1038,6 +1148,301 @@ function showVulnerabilityDetails(vulnId) {
             console.error('Error fetching vulnerability:', error);
             showNotification('Ошибка загрузки данных уязвимости', 'error');
         });
+}
+
+function onlyAIVulns() {
+    const cb = document.getElementById('ai-only-filter');
+    if (cb) cb.checked = true;
+    // submit the filter form (top of the page)
+    const form = cb?.closest('form');
+    if (form) form.submit();
+    else applyFilters();
+}
+
+function addQuickTag(tag) {
+    const input = document.getElementById('tags-filter');
+    if (!input) return;
+    const current = (input.value || '').split(',').map(s => s.trim()).filter(Boolean);
+    const t = String(tag || '').trim();
+    if (!t) return;
+    if (!current.map(s => s.toLowerCase()).includes(t.toLowerCase())) current.push(t);
+    input.value = current.join(', ');
+}
+
+function toggleAIPassport() {
+    const content = document.getElementById('ai-passport-content');
+    const chevron = document.getElementById('ai-passport-chevron');
+    if (!content || !chevron) return;
+    const willShow = content.classList.contains('hidden');
+    content.classList.toggle('hidden');
+    chevron.style.transform = willShow ? 'rotate(180deg)' : 'rotate(0deg)';
+}
+
+function toggleAIAnalysis() {
+    const content = document.getElementById('ai-analysis-content');
+    const chevron = document.getElementById('ai-analysis-chevron');
+    if (!content || !chevron) return;
+    const willShow = content.classList.contains('hidden');
+    content.classList.toggle('hidden');
+    chevron.style.transform = willShow ? 'rotate(180deg)' : 'rotate(0deg)';
+}
+
+function _setAIPassportUI({ statusText, jsonText }) {
+    const statusEl = document.getElementById('ai-passport-status');
+    const jsonEl = document.getElementById('ai-passport-json');
+    if (statusEl) statusEl.textContent = statusText || '';
+    if (jsonEl) jsonEl.textContent = jsonText || '—';
+}
+
+async function loadAIPassport(vulnId) {
+    if (!vulnId) return;
+    _setAIPassportUI({ statusText: 'Проверяем сохранённый паспорт в БД...', jsonText: '—' });
+
+    try {
+        const r = await fetch(`/api/vulnerabilities/${vulnId}/ai-passport`, { cache: 'no-store' });
+        const data = await r.json().catch(() => ({}));
+        if (r.ok && data && data.success && data.passport) {
+            _setAIPassportUI({
+                statusText: '✅ Паспорт найден (сохранён в БД).',
+                jsonText: JSON.stringify(data.passport, null, 2)
+            });
+            return;
+        }
+        if (r.status === 404) {
+            _setAIPassportUI({ statusText: 'Паспорт ещё не создан. Нажмите “Сгенерировать”.', jsonText: '—' });
+            return;
+        }
+        _setAIPassportUI({ statusText: `⚠️ Не удалось загрузить паспорт: ${data.error || r.status}`, jsonText: '—' });
+    } catch (e) {
+        _setAIPassportUI({ statusText: `❌ Ошибка загрузки паспорта: ${e.message}`, jsonText: '—' });
+    }
+}
+
+async function generateAIPassport(vulnId) {
+    if (!IS_ADMIN) {
+        showNotification('Недостаточно прав для генерации паспорта', 'error');
+        return;
+    }
+    if (!vulnId) return;
+
+    // Prefer showing it in the view modal
+    if (currentViewingVulnId !== vulnId) {
+        showVulnerabilityDetails(vulnId);
+        // loadAIPassport will be triggered from there; generation continues below after modal opens
+    }
+
+    const btn = document.getElementById('ai-passport-generate-btn');
+    if (btn) {
+        btn.disabled = true;
+        btn.classList.add('opacity-60', 'cursor-not-allowed');
+    }
+
+    _setAIPassportUI({ statusText: '⏳ Генерируем паспорт на k8s-worker и сохраняем в БД...', jsonText: '—' });
+
+    try {
+        const r = await fetch(`/api/vulnerabilities/${vulnId}/ai-passport`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({})
+        });
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok || !data.success) {
+            throw new Error(data.error || `HTTP ${r.status}`);
+        }
+        _setAIPassportUI({
+            statusText: '✅ Паспорт сгенерирован и сохранён в БД.',
+            jsonText: JSON.stringify(data.passport, null, 2)
+        });
+        // Auto-open accordion so user sees result
+        const content = document.getElementById('ai-passport-content');
+        if (content && content.classList.contains('hidden')) toggleAIPassport();
+    } catch (e) {
+        _setAIPassportUI({ statusText: `❌ Ошибка генерации: ${e.message}`, jsonText: '—' });
+        showNotification(`Ошибка генерации ИИ‑паспорта: ${e.message}`, 'error');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.classList.remove('opacity-60', 'cursor-not-allowed');
+        }
+    }
+}
+
+function generateAIPassportFromView() {
+    if (!currentViewingVulnId) return;
+    generateAIPassport(currentViewingVulnId);
+}
+
+function normalizeTags(tags) {
+    const arr = Array.isArray(tags) ? tags : (typeof tags === 'string' ? tags.split(',') : []);
+    const out = [];
+    const seen = new Set();
+    for (const t of arr) {
+        if (t === null || t === undefined) continue;
+        let s = String(t).trim();
+        if (!s) continue;
+        if (s.length > 40) s = s.slice(0, 40);
+        const key = s.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(s);
+    }
+    return out;
+}
+
+function renderTagChips(containerEl, tags, opts = {}) {
+    const { removable = false } = opts;
+    const safe = normalizeTags(tags);
+    if (!containerEl) return;
+    if (safe.length === 0) {
+        containerEl.innerHTML = '<span class="text-gray-500 text-sm">Нет тегов</span>';
+        return;
+    }
+    containerEl.innerHTML = safe.map(tag => {
+        const removeBtn = removable
+            ? `<button class="ml-1 text-gray-400 hover:text-gray-700" title="Удалить" data-tag="${encodeURIComponent(tag)}" onclick="removeTagFromButton(this)"><i class="fas fa-times text-[10px]"></i></button>`
+            : '';
+        return `
+          <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-700 border border-gray-200">
+            #${tag}
+            ${removeBtn}
+          </span>
+        `;
+    }).join('');
+}
+
+async function manageTags(vulnId) {
+    // open modal, fetch tags, allow editing if admin
+    await openTagsModal(vulnId);
+}
+
+async function openTagsModal(vulnId) {
+    try {
+        currentTagsVulnId = vulnId;
+        const modal = document.getElementById('tags-modal');
+        const content = document.getElementById('tags-modal-content');
+        const editor = document.getElementById('tags-modal-editor');
+        const saveBtn = document.getElementById('tags-save-btn');
+        const roleEl = document.getElementById('tags-modal-role');
+
+        roleEl.textContent = IS_ADMIN ? 'Режим: Admin (редактирование)' : 'Режим: Просмотр';
+        if (IS_ADMIN) {
+            editor.classList.remove('hidden');
+            saveBtn.classList.remove('hidden');
+        } else {
+            editor.classList.add('hidden');
+            saveBtn.classList.add('hidden');
+        }
+
+        // show modal
+        modal.classList.remove('hidden');
+        setTimeout(() => {
+            content.classList.add('modal-enter');
+            content.classList.remove('scale-95', 'opacity-0');
+        }, 10);
+
+        const resp = await fetch(`/api/vulnerabilities/${vulnId}/tags`, { credentials: 'include' });
+        const data = await resp.json();
+        if (!data.success) throw new Error(data.error || 'Не удалось загрузить теги');
+        currentTags = normalizeTags(data.tags || []);
+
+        // subtitle
+        const subtitle = document.getElementById('tags-modal-subtitle');
+        subtitle.textContent = `ID: ${vulnId}`;
+
+        renderTagChips(document.getElementById('tags-modal-list'), currentTags, { removable: IS_ADMIN });
+    } catch (e) {
+        console.error('Tags modal error:', e);
+        showNotification('Ошибка тегов: ' + e.message, 'error');
+        closeTagsModal();
+    }
+}
+
+function closeTagsModal() {
+    const modal = document.getElementById('tags-modal');
+    const content = document.getElementById('tags-modal-content');
+    if (!modal || !content) return;
+    content.classList.remove('modal-enter');
+    modal.classList.add('hidden');
+    currentTagsVulnId = null;
+    currentTags = [];
+}
+
+function addTagFromInput() {
+    const input = document.getElementById('tags-input');
+    if (!input) return;
+    const value = input.value || '';
+    const merged = normalizeTags(currentTags.concat(value.split(',').map(s => s.trim())));
+    currentTags = merged;
+    input.value = '';
+    renderTagChips(document.getElementById('tags-modal-list'), currentTags, { removable: IS_ADMIN });
+}
+
+function removeTag(tag) {
+    const rm = String(tag).trim().toLowerCase();
+    currentTags = currentTags.filter(t => t.toLowerCase() !== rm);
+    renderTagChips(document.getElementById('tags-modal-list'), currentTags, { removable: IS_ADMIN });
+}
+
+function removeTagFromButton(btn) {
+    try {
+        const raw = btn?.dataset?.tag || '';
+        const tag = decodeURIComponent(raw);
+        removeTag(tag);
+    } catch (e) {
+        console.error('removeTagFromButton error:', e);
+    }
+}
+
+async function saveTags() {
+    if (!IS_ADMIN) {
+        showNotification('Недостаточно прав для сохранения', 'error');
+        return;
+    }
+    try {
+        const vulnId = currentTagsVulnId;
+        const upd = await fetch(`/api/vulnerabilities/${vulnId}/tags`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ tags: currentTags })
+        });
+        const updData = await upd.json();
+        if (!updData.success) throw new Error(updData.error || 'Не удалось сохранить теги');
+        const saved = normalizeTags(updData.tags || currentTags);
+        currentTags = saved;
+        showNotification('Теги обновлены', 'success');
+
+        // update inline tags without reload
+        updateInlineTags(vulnId, saved);
+        updateViewTags(saved);
+        closeTagsModal();
+    } catch (e) {
+        console.error('Save tags error:', e);
+        showNotification('Ошибка сохранения тегов: ' + e.message, 'error');
+    }
+}
+
+function updateInlineTags(vulnId, tags) {
+    const el = document.getElementById(`tags-inline-${vulnId}`);
+    if (!el) return;
+    const safe = normalizeTags(tags);
+    if (safe.length === 0) {
+        el.innerHTML = '';
+        return;
+    }
+    const shown = safe.slice(0, 6);
+    el.innerHTML = shown.map(tag => `
+      <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-700 border border-gray-200">#${tag}</span>
+    `).join('') + (safe.length > 6 ? `<span class="text-[10px] text-gray-400">+${safe.length - 6}</span>` : '');
+}
+
+function updateViewTags(tags) {
+    renderTagChips(document.getElementById('view-tags-list'), tags, { removable: false });
+}
+
+function openTagsModalFromView() {
+    if (!currentViewingVulnId) return;
+    openTagsModal(currentViewingVulnId);
 }
 
 function populateViewModal(vuln) {
@@ -1052,9 +1457,16 @@ function populateViewModal(vuln) {
     document.getElementById('view-timestamp').textContent = 'Загружено только что';
     // Основная информация - показываем CVE ID в заголовке, если есть
     // В заголовке показываем CVE ID, если есть, иначе title (но не description)
-    const headerText = vuln.cve_id ? vuln.cve_id : (vuln.title && vuln.title.length < 200 ? vuln.title : (vuln.cve_id || 'Нет названия'));
+    const headerText = vuln.cve_id ? vuln.cve_id : (vuln.title && vuln.title.length < 200 ? vuln.title : 'Нет названия');
     document.getElementById('view-title').textContent = headerText;
-    document.getElementById('view-description').textContent = vuln.description || 'Нет описания';
+    
+    // Описание - показываем только description, не title
+    let description = vuln.description || '';
+    // Если description пустое, но есть title и title не является CVE ID, используем title
+    if (!description && vuln.title && !vuln.title.match(/^CVE-\d{4}-\d+/)) {
+        description = vuln.title;
+    }
+    document.getElementById('view-description').textContent = description || 'Нет описания';
     document.getElementById('view-status').innerHTML = getStatusBadge(vuln.status || 'new');
     document.getElementById('view-severity').innerHTML = getSeverityBadge(vuln.severity || 'medium');
     document.getElementById('view-risk-level').textContent = getRiskLevelText(vuln.risk_level || 'medium');
@@ -1064,6 +1476,21 @@ function populateViewModal(vuln) {
     document.getElementById('view-approved').textContent = vuln.approved ? '✅ Да' : '❌ Нет';
     // В поле ID показываем только CVE ID или числовой ID, НЕ описание
     document.getElementById('view-id').textContent = vuln.cve_id || ('ID: ' + vuln.id) || 'N/A';
+
+    // Tags (read-only in view; edit button only for admin)
+    updateViewTags(vuln.tags || []);
+    const editBtn = document.getElementById('view-tags-edit-btn');
+    const hint = document.getElementById('view-tags-hint');
+    if (IS_ADMIN) {
+        editBtn.classList.remove('hidden');
+        hint.classList.add('hidden');
+    } else {
+        editBtn.classList.add('hidden');
+        hint.classList.remove('hidden');
+    }
+
+    // AI analysis (transparency)
+    renderAIAnalysis(vuln.ai_analysis || null);
 
     // Даты
     const now = new Date();
@@ -1151,6 +1578,76 @@ function populateViewModal(vuln) {
     // Обновляем графики риска
     updateRiskCharts(vuln);
 }
+
+function _renderChips(containerId, items) {
+    const el = document.getElementById(containerId);
+    if (!el) return;
+    const arr = Array.isArray(items) ? items : (items ? [items] : []);
+    if (arr.length === 0) {
+        el.innerHTML = '<span class="text-xs text-gray-400">—</span>';
+        return;
+    }
+    el.innerHTML = arr.slice(0, 30).map(x => {
+        const s = String(x);
+        return `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-gray-100 text-gray-700 border border-gray-200">${s}</span>`;
+    }).join('');
+}
+
+function renderAIAnalysis(ai) {
+    const statusEl = document.getElementById('ai-analysis-status');
+    const confEl = document.getElementById('ai-analysis-confidence');
+    const scoresEl = document.getElementById('ai-analysis-scores');
+    const inputEl = document.getElementById('ai-analysis-input');
+    const reasoningEl = document.getElementById('ai-analysis-reasoning');
+
+    if (!ai) {
+        if (statusEl) statusEl.textContent = 'Нет данных анализа. Запусти “ИИ‑анализ” и обнови.';
+        if (confEl) confEl.textContent = '—';
+        if (scoresEl) scoresEl.textContent = '—';
+        if (inputEl) inputEl.textContent = '—';
+        if (reasoningEl) reasoningEl.textContent = '—';
+        _renderChips('ai-analysis-hits', []);
+        _renderChips('ai-analysis-neg', []);
+        return;
+    }
+
+    const isAI = !!ai.is_ai_related;
+    const conf = (typeof ai.confidence === 'number') ? ai.confidence : null;
+    const ml = (typeof ai.ml_score === 'number') ? ai.ml_score : null;
+    const ctx = (typeof ai.ai_context_score === 'number') ? ai.ai_context_score : null;
+
+    if (statusEl) statusEl.textContent = isAI ? '✅ ИИ‑уязвимость (по модели + контексту)' : 'ℹ️ Не классифицировано как ИИ‑уязвимость';
+    if (confEl) confEl.textContent = conf !== null ? conf.toFixed(4) : '—';
+    if (scoresEl) {
+        const parts = [];
+        if (ml !== null) parts.push(`ml=${ml.toFixed(4)}`);
+        if (ctx !== null) parts.push(`ctx=${ctx.toFixed(4)}`);
+        scoresEl.textContent = parts.length ? parts.join(' / ') : '—';
+    }
+
+    if (inputEl) {
+        const excerpt = ai.input_excerpt || '';
+        const len = ai.input_text_len;
+        inputEl.textContent = (excerpt || '—') + (typeof len === 'number' ? `\n\n(len=${len})` : '');
+    }
+
+    _renderChips('ai-analysis-hits', ai.keyword_hits || []);
+    _renderChips('ai-analysis-neg', ai.negative_hits || []);
+    if (reasoningEl) reasoningEl.textContent = ai.reasoning || ai.decision_basis || '—';
+}
+
+// Enter in tag input adds tag
+document.addEventListener('DOMContentLoaded', () => {
+    const input = document.getElementById('tags-input');
+    if (input) {
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                addTagFromInput();
+            }
+        });
+    }
+});
 
 function loadOperatorAssignment(operatorId, vulnId) {
     const assignmentDiv = document.getElementById('view-assignment');
@@ -1915,21 +2412,27 @@ function applyFilters() {
     const status = document.getElementById('status-filter').value;
     const severity = document.getElementById('severity-filter').value;
     const search = document.getElementById('search-filter').value;
+    const aiOnly = document.getElementById('ai-only-filter')?.checked;
+    const perPage = document.querySelector('input[name="per_page"]')?.value;
     
     // Формируем URL с параметрами
     let url = window.location.pathname + '?page=1';
-    if (status && status !== 'all') url += '&status=' + status;
-    if (severity && severity !== 'all') url += '&severity=' + severity;
+    if (perPage) url += '&per_page=' + encodeURIComponent(perPage);
+    if (status) url += '&status=' + status;
+    if (severity) url += '&severity=' + severity;
     if (search) url += '&search=' + encodeURIComponent(search);
+    if (aiOnly) url += '&ai_only=1';
     
     window.location.href = url;
 }
 
 // Сброс фильтров
 function resetFilters() {
-    document.getElementById('status-filter').value = 'all';
-    document.getElementById('severity-filter').value = 'all';
+    document.getElementById('status-filter').value = '';
+    document.getElementById('severity-filter').value = '';
     document.getElementById('search-filter').value = '';
+    const aiOnlyEl = document.getElementById('ai-only-filter');
+    if (aiOnlyEl) aiOnlyEl.checked = false;
     applyFilters();
 }
 

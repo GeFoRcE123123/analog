@@ -21,7 +21,8 @@ class CertParser(BaseLegacyParser):
     
     def __init__(self, vulnerability_repo):
         super().__init__("US-CERT", vulnerability_repo)
-        self.base_url = 'https://us-cert.cisa.gov/ics/advisories'
+        # CISA moved ICS advisories under /news-events/ics-advisories
+        self.base_url = 'https://www.cisa.gov/news-events/ics-advisories'
     
     def parse(self, limit: int = 100, **kwargs) -> Dict[str, Any]:
         """
@@ -57,13 +58,18 @@ class CertParser(BaseLegacyParser):
             
             # Находим ссылки на advisories
             advisory_links = []
-            for quote in soup.find_all('a', href=re.compile("/ics/advisories")):
+            # На странице много ссылок, нам нужны только карточки advisory вида /news-events/ics-advisories/icsa-XX-XXX-XX
+            adv_re = re.compile(r"/news-events/ics-advisories/(icsa|icsma|icsm|icsd)-", re.IGNORECASE)
+            for quote in soup.find_all('a', href=adv_re):
                 if quote is not None and 'href' in quote.attrs:
                     href = quote.attrs['href']
                     if href.startswith('http'):
                         advisory_links.append(href)
                     else:
-                        advisory_links.append(f'https://us-cert.cisa.gov{href}')
+                        advisory_links.append(f'https://www.cisa.gov{href}')
+            # уникализируем
+            seen = set()
+            advisory_links = [x for x in advisory_links if not (x in seen or seen.add(x))]
             
             # Ограничиваем количество
             advisory_links = advisory_links[:limit]
@@ -78,40 +84,33 @@ class CertParser(BaseLegacyParser):
                 try:
                     r = requests.get(advisory_url, timeout=30)
                     r.raise_for_status()
-                    soup_page = BeautifulSoup(r.text, 'lxml')
+                    soup_page = BeautifulSoup(r.text, 'html.parser')
                     
-                    # Ищем CVE ссылки
-                    for quote in soup_page.find_all('a', href=re.compile("CVE-")):
-                        if quote is not None:
-                            cve_id = self._normalize_cve_id(quote.text)
-                            if cve_id:
-                                links.append(advisory_url)
-                                identifiers.append(cve_id)
-                                
-                                # Ищем CVSS score
-                                try:
-                                    s = quote.next_sibling
-                                    result = re.search('A CVSS v3 base score of (.*) has been', str(s))
-                                    if result:
-                                        cvss = self._extract_cvss_from_text(result.group(1))
-                                    else:
-                                        cvss = 5.0
-                                except:
-                                    cvss = 5.0
-                                
-                                cvss_scores.append(cvss)
-                                
-                                # Ищем описание
-                                try:
-                                    s = quote.find_parent().previous_sibling
-                                    if s:
-                                        description = self._clean_text(str(s).replace('</p>', '').replace('<p>', ''))
-                                    else:
-                                        description = f"US-CERT ICS Advisory for {cve_id}"
-                                except:
-                                    description = f"US-CERT ICS Advisory for {cve_id}"
-                                
-                                descriptions.append(description)
+                    # Ищем CVE в ссылках и в тексте (на новых страницах CVE могут быть без href)
+                    page_text = soup_page.get_text(" ", strip=True).upper()
+                    cve_candidates = set()
+                    for a in soup_page.find_all('a'):
+                        t = (a.get_text(" ", strip=True) or "").upper()
+                        if "CVE-" in t:
+                            for x in re.findall(r"CVE-\\d{4}-\\d{4,7}", t):
+                                cve_candidates.add(x)
+                    for x in re.findall(r"CVE-\\d{4}-\\d{4,7}", page_text):
+                        cve_candidates.add(x)
+
+                    # Заголовок advisory как базовое описание
+                    page_title = ""
+                    h1 = soup_page.find('h1')
+                    if h1:
+                        page_title = self._clean_text(h1.get_text(" ", strip=True))
+
+                    for cve_raw in sorted(cve_candidates):
+                        cve_id = self._normalize_cve_id(cve_raw)
+                        if not cve_id:
+                            continue
+                        links.append(advisory_url)
+                        identifiers.append(cve_id)
+                        cvss_scores.append(5.0)
+                        descriptions.append(page_title or f"US-CERT ICS Advisory: {advisory_url} ({cve_id})")
                 
                 except Exception as e:
                     self.logger.debug(f"⚠️ Ошибка парсинга advisory {advisory_url}: {e}")

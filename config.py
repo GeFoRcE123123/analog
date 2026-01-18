@@ -94,3 +94,14 @@ class Config:
     # ML Platform AI Analysis Settings
     ML_ANALYSIS_MAX_BATCH = int(os.getenv("ML_ANALYSIS_MAX_BATCH", "50000"))  # Максимум уязвимостей для анализа за раз
     ML_ANALYSIS_TIMEOUT = int(os.getenv("ML_ANALYSIS_TIMEOUT", "1800"))  # Таймаут для анализа (30 минут)
+
+    # ML Platform (k8s-worker) connection settings
+    ML_PLATFORM_VM_IP = os.getenv("ML_PLATFORM_VM_IP", "10.0.88.25")
+    ML_PLATFORM_API_PORT = int(os.getenv("ML_PLATFORM_API_PORT", "8000"))
+    ML_PLATFORM_SSH_PORT = int(os.getenv("ML_PLATFORM_SSH_PORT", "22"))
+    ML_PLATFORM_SSH_USER = os.getenv("ML_PLATFORM_SSH_USER", "k8s-worker")
+    ML_PLATFORM_SSH_PASSWORD = os.getenv("ML_PLATFORM_SSH_PASSWORD", "k8s-worker")
+
+    # Optional: endpoints to test from k8s-worker back to backend/frontend
+    ML_PLATFORM_BACKEND_URL = os.getenv("ML_PLATFORM_BACKEND_URL", f"http://{BACKEND_VM_IP}:{BACKEND_PORT}")
+    ML_PLATFORM_FRONTEND_URL = os.getenv("ML_PLATFORM_FRONTEND_URL", FRONTEND_URL)

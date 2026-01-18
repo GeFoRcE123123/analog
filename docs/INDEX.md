@@ -1,6 +1,19 @@
 # 📑 ИНДЕКС ДОКУМЕНТАЦИИ
 
-Быстрый доступ ко всем документам проекта.
+Быстрый доступ ко всем документам проекта Vulnerability Manager.
+
+## 📁 Документация по папкам проекта
+
+### 🎯 Структура проекта
+- [FOLDER_AGENTS.md](FOLDER_AGENTS.md) - Документация папки `agents/` (автономные агенты)
+- [FOLDER_SERVICES.md](FOLDER_SERVICES.md) - Документация папки `services/` (бизнес-логика)
+- [FOLDER_SCRIPTS.md](FOLDER_SCRIPTS.md) - Документация папки `scripts/` (скрипты развертывания)
+- [FOLDER_MODELS.md](FOLDER_MODELS.md) - Документация папки `models/` (модели данных и репозитории)
+- [FOLDER_ML_PLATFORM.md](FOLDER_ML_PLATFORM.md) - Документация папки `ml_platform/` (ML платформа)
+- [FOLDER_TEMPLATES.md](FOLDER_TEMPLATES.md) - Документация папки `templates/` (HTML шаблоны)
+- [FOLDER_TESTS.md](FOLDER_TESTS.md) - Документация папки `tests/` (тесты)
+- [FOLDER_SCHEMA.md](FOLDER_SCHEMA.md) - Документация папки `schema/` (CVE JSON 5.x схемы)
+- [FOLDER_ROOT_FILES.md](FOLDER_ROOT_FILES.md) - Документация корневых файлов проекта
 
 ## 🔍 По категориям
 
@@ -31,14 +44,47 @@
 
 ### Начало работы
 - [README.md](README.md) - Обзор документации
+- [FOLDER_ROOT_FILES.md](FOLDER_ROOT_FILES.md) - Корневые файлы проекта
 - [REDESIGN_PLAN.md](analysis/REDESIGN_PLAN.md) - План редизайна
 
 ### Архитектура
+- [FOLDER_SERVICES.md](FOLDER_SERVICES.md) - Структура сервисов
+- [FOLDER_MODELS.md](FOLDER_MODELS.md) - Модели данных
 - [PROJECT_REDESIGN_ANALYSIS.md](analysis/PROJECT_REDESIGN_ANALYSIS.md) - Полный анализ
-- [ORM_ANALYSIS.md](analysis/ORM_ANALYSIS.md) - Анализ ORM
+- [ORM_ANALYSIS.md](ORM_ANALYSIS.md) - Анализ ORM
 
 ### Развертывание
+- [FOLDER_SCRIPTS.md](FOLDER_SCRIPTS.md) - Скрипты развертывания
 - См. папку `deployment/`
 
+### ML и AI
+- [FOLDER_ML_PLATFORM.md](FOLDER_ML_PLATFORM.md) - ML платформа
+- [FOLDER_AGENTS.md](FOLDER_AGENTS.md) - Автономные агенты
+
+### Тестирование
+- [FOLDER_TESTS.md](FOLDER_TESTS.md) - Тесты проекта
+
+### Frontend
+- [FOLDER_TEMPLATES.md](FOLDER_TEMPLATES.md) - HTML шаблоны
+
+## 📋 Описание папок проекта
+
+| Папка | Описание | Документация |
+|-------|----------|--------------|
+| `agents/` | Автономные агенты для мониторинга и деплоя | [FOLDER_AGENTS.md](FOLDER_AGENTS.md) |
+| `services/` | Бизнес-логика, парсеры, интеграции | [FOLDER_SERVICES.md](FOLDER_SERVICES.md) |
+| `scripts/` | Скрипты развертывания и управления | [FOLDER_SCRIPTS.md](FOLDER_SCRIPTS.md) |
+| `models/` | Модели данных и репозитории | [FOLDER_MODELS.md](FOLDER_MODELS.md) |
+| `ml_platform/` | ML платформа для анализа уязвимостей | [FOLDER_ML_PLATFORM.md](FOLDER_ML_PLATFORM.md) |
+| `templates/` | HTML шаблоны веб-интерфейса | [FOLDER_TEMPLATES.md](FOLDER_TEMPLATES.md) |
+| `tests/` | Тесты проекта | [FOLDER_TESTS.md](FOLDER_TESTS.md) |
+| `schema/` | CVE JSON 5.x схемы | [FOLDER_SCHEMA.md](FOLDER_SCHEMA.md) |
+
 ## 📅 Последнее обновление
-2025-01-05
+2025-01-20
+
+## 📝 Примечания
+
+- Все документы по папкам содержат описание функционала, планы по доработке и статистику
+- Документация регулярно обновляется при изменениях в проекте
+- Для предложений по улучшению документации создавайте issues

@@ -63,31 +63,30 @@
 <body class="bg-gray-50 min-h-screen">
     <!-- НОВАЯ СТИЛЬНАЯ НАВИГАЦИОННАЯ ПАНЕЛЬ -->
     <nav class="nav-gradient nav-shadow sticky top-0 z-50">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex justify-between items-center h-16">
+        <!-- align navbar width with main content to avoid "shifted right" layouts -->
+        <div class="max-w-7xl mx-auto px-2 sm:px-4">
+            <div class="flex justify-between items-center h-12">
                 <!-- Логотип и название -->
-                <div class="flex items-center space-x-4">
-                    <div class="flex-shrink-0">
-                        <div class="flex items-center space-x-3">
-                            <i class="fas fa-shield-alt text-white text-2xl logo-glow"></i>
-                            <span class="text-white font-bold text-xl">Аналог</span>
-                        </div>
+                <div class="flex items-center space-x-2 flex-shrink-0">
+                    <div class="flex items-center space-x-2">
+                        <i class="fas fa-shield-alt text-white text-lg logo-glow"></i>
+                        <span class="text-white font-bold text-sm">Аналог</span>
                     </div>
 
                     <!-- Основные разделы -->
-                    <div class="hidden md:flex items-center space-x-1 ml-8">
+                    <div class="hidden lg:flex items-center space-x-0.5 ml-4">
                         <a href="{{ url_for('dashboard') }}"
-                           class="nav-item text-white px-4 py-2 rounded-lg font-medium flex items-center space-x-2 {% if request.path == '/' %}bg-white bg-opacity-20{% endif %}">
-                            <i class="fas fa-chart-dashboard"></i>
+                           class="nav-item text-white px-2 py-1 rounded text-xs font-medium flex items-center space-x-1 {% if request.path in ['/', '/dashboard'] %}bg-white bg-opacity-20{% endif %}">
+                            <i class="fas fa-chart-dashboard text-xs"></i>
                             <span>Дашборд</span>
                         </a>
 
                         <a href="{{ url_for('vulnerabilities_list') }}"
-                           class="nav-item text-white px-4 py-2 rounded-lg font-medium flex items-center space-x-2 {% if request.path == '/vulnerabilities' %}bg-white bg-opacity-20{% endif %}">
-                            <i class="fas fa-bug"></i>
+                           class="nav-item text-white px-2 py-1 rounded text-xs font-medium flex items-center space-x-1 {% if request.path == '/vulnerabilities' %}bg-white bg-opacity-20{% endif %}">
+                            <i class="fas fa-bug text-xs"></i>
                             <span>Уязвимости</span>
                             {% if vulnerabilities %}
-                            <span class="bg-red-500 text-white text-xs rounded-full px-2 py-1 notification-badge">
+                            <span class="bg-red-500 text-white text-xs rounded-full px-1 py-0.5 notification-badge">
                                 {{ vulnerabilities|selectattr('status', 'equalto', 'new')|list|length }}
                             </span>
                             {% endif %}
@@ -96,34 +95,34 @@
                         <!-- Только для админа -->
                         {% if session.role == 'admin' %}
                         <a href="{{ url_for('operators_page') }}"
-                           class="nav-item text-white px-4 py-2 rounded-lg font-medium flex items-center space-x-2 {% if request.path == '/operators' %}bg-white bg-opacity-20{% endif %}">
-                            <i class="fas fa-users"></i>
+                           class="nav-item text-white px-2 py-1 rounded text-xs font-medium flex items-center space-x-1 {% if request.path == '/operators' %}bg-white bg-opacity-20{% endif %}">
+                            <i class="fas fa-users text-xs"></i>
                             <span>Операторы</span>
                         </a>
                         {% endif %}
 
                         <a href="{{ url_for('performance_analytics') }}"
-                           class="nav-item text-white px-4 py-2 rounded-lg font-medium flex items-center space-x-2 {% if request.path == '/performance' %}bg-white bg-opacity-20{% endif %}">
-                            <i class="fas fa-chart-line"></i>
+                           class="nav-item text-white px-2 py-1 rounded text-xs font-medium flex items-center space-x-1 {% if request.path in ['/performance','/analytics'] %}bg-white bg-opacity-20{% endif %}">
+                            <i class="fas fa-chart-line text-xs"></i>
                             <span>Аналитика</span>
                         </a>
 
                         <!-- Только для админа -->
                         {% if session.role == 'admin' %}
                         <a href="{{ url_for('parsers_page') }}"
-                           class="nav-item text-white px-4 py-2 rounded-lg font-medium flex items-center space-x-2 {% if request.path == '/parsers' %}bg-white bg-opacity-20{% endif %}">
-                            <i class="fas fa-rocket"></i>
+                           class="nav-item text-white px-2 py-1 rounded text-xs font-medium flex items-center space-x-1 {% if request.path == '/parsers' %}bg-white bg-opacity-20{% endif %}">
+                            <i class="fas fa-rocket text-xs"></i>
                             <span>Парсеры</span>
                         </a>
 
                         <a href="{{ url_for('ai_dashboard') }}"
-                           class="nav-item text-white px-4 py-2 rounded-lg font-medium flex items-center space-x-2 {% if request.path.startswith('/ai') %}bg-white bg-opacity-20{% endif %}">
-                            <i class="fas fa-brain"></i>
+                           class="nav-item text-white px-2 py-1 rounded text-xs font-medium flex items-center space-x-1 {% if request.path.startswith('/ai') %}bg-white bg-opacity-20{% endif %}">
+                            <i class="fas fa-brain text-xs"></i>
                             <span>ИИ-Анализ</span>
                         </a>
                         <a href="{{ url_for('review_vulnerabilities') }}"
-                           class="nav-item text-white px-4 py-2 rounded-lg font-medium flex items-center space-x-2 {% if request.path == '/review' %}bg-white bg-opacity-20{% endif %}">
-                            <i class="fas fa-check-double"></i>
+                           class="nav-item text-white px-2 py-1 rounded text-xs font-medium flex items-center space-x-1 {% if request.path in ['/review','/check'] %}bg-white bg-opacity-20{% endif %}">
+                            <i class="fas fa-check-double text-xs"></i>
                             <span>Проверка</span>
                         </a>
                         {% endif %}
@@ -131,21 +130,21 @@
                 </div>
 
                 <!-- Правая часть: кнопки + меню пользователя -->
-                <div class="flex items-center space-x-4">
+                <div class="flex items-center space-x-2 flex-shrink-0">
                     <!-- Импорт Excel (доступен всем) -->
                     <a href="{{ url_for('import_excel_page') }}"
-                       class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg transition duration-300 flex items-center space-x-2">
-                        <i class="fas fa-file-excel"></i>
-                        <span>Импорт Excel</span>
+                       class="bg-green-500 hover:bg-green-600 text-white font-semibold py-1 px-2 rounded text-xs transition duration-300 flex items-center space-x-1">
+                        <i class="fas fa-file-excel text-xs"></i>
+                        <span class="hidden xl:inline">Импорт Excel</span>
                     </a>
 
                     <!-- Меню пользователя (если залогинен) -->
                     {% if session.user_id %}
                     <div class="relative" x-data="{ open: false }">
-                        <button @click="open = !open" class="flex items-center space-x-2 text-white hover:text-gray-200 focus:outline-none">
-                            <span>{{ session.full_name or session.username }}</span>
+                        <button @click="open = !open" class="flex items-center space-x-1 text-white hover:text-gray-200 focus:outline-none text-xs">
+                            <span class="hidden sm:inline">{{ session.full_name or session.username }}</span>
                             {% if session.role == 'admin' %}
-                            <span class="bg-red-500 text-white text-xs px-2 py-0.5 rounded ml-1">Admin</span>
+                            <span class="bg-red-500 text-white text-xs px-1 py-0.5 rounded">Admin</span>
                             {% endif %}
                             <i class="fas fa-chevron-down text-xs"></i>
                         </button>

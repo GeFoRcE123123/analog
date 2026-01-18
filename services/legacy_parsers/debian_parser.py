@@ -7,6 +7,7 @@ import re
 from typing import Dict, Any, List
 from bs4 import BeautifulSoup
 import requests
+from datetime import datetime
 
 from .base_legacy_parser import BaseLegacyParser
 from models.entities import Vulnerability
@@ -41,32 +42,26 @@ class DebianParser(BaseLegacyParser):
         try:
             vulnerabilities = []
             
-            # Получаем список DSA (Debian Security Advisories)
-            current_year = 2024  # Можно сделать динамическим
-            url = f'{self.base_url}/{current_year}/'
-            
+            # Получаем список DSA с основной страницы безопасности Debian.
+            # Важно: /security/<year>/ индексы могут отсутствовать (404), поэтому берем из /security/.
+            list_url = f"{self.base_url}/"
             try:
-                response = requests.get(url, timeout=30)
+                response = requests.get(list_url, timeout=30)
                 response.raise_for_status()
                 soup = BeautifulSoup(response.text, 'html.parser')
             except Exception as e:
-                self.logger.warning(f"⚠️ Не удалось получить данные: {e}")
-                return {
-                    'parsed': 0,
-                    'saved': 0,
-                    'errors': [f'Не удалось получить данные: {e}']
-                }
+                self.logger.warning(f"⚠️ Не удалось получить список DSA: {e}")
+                return {'parsed': 0, 'saved': 0, 'errors': [f'Не удалось получить список DSA: {e}']}
             
-            # Находим ссылки на DSA
-            dsa_links = []
-            for quote in soup.find_all('strong'):
-                lines = quote.find('a', href=re.compile("dsa"))
-                if lines is not None and 'href' in lines.attrs:
-                    href = lines.attrs['href']
-                    if href.startswith('http'):
-                        dsa_links.append(href)
-                    else:
-                        dsa_links.append(f'{self.base_url}/{current_year}/{href}')
+            # Находим ссылки на DSA (security-tracker)
+            dsa_links: List[str] = []
+            for a in soup.find_all('a', href=True):
+                href = a.get('href', '')
+                if 'security-tracker.debian.org/tracker/DSA-' in href:
+                    dsa_links.append(href)
+            # Уникализируем, сохраняя порядок
+            seen = set()
+            dsa_links = [x for x in dsa_links if not (x in seen or seen.add(x))]
             
             # Ограничиваем количество ссылок
             dsa_links = dsa_links[:limit]
@@ -75,20 +70,25 @@ class DebianParser(BaseLegacyParser):
             identifiers = []
             descriptions = []
             
-            # Парсим каждую DSA страницу
+            # Парсим каждую DSA страницу (security-tracker)
             for dsa_url in dsa_links:
                 try:
                     r = requests.get(dsa_url, timeout=30)
                     r.raise_for_status()
-                    soup = BeautifulSoup(r.text, 'lxml')
+                    # Не используем lxml, чтобы не зависеть от дополнительного пакета в контейнере
+                    soup = BeautifulSoup(r.text, 'html.parser')
                     
-                    # Ищем CVE ссылки
-                    for quote in soup.find_all('a', href=re.compile("CVE")):
+                    page_identifiers: List[str] = []
+                    page_descriptions: List[str] = []
+                    page_links: List[str] = []
+
+                    # Ищем CVE ссылки/тексты на странице DSA
+                    for quote in soup.find_all('a', href=re.compile("CVE", re.IGNORECASE)):
                         if quote is not None:
                             cve_id = self._normalize_cve_id(quote.text)
                             if cve_id:
-                                links.append(dsa_url)
-                                identifiers.append(cve_id)
+                                page_links.append(dsa_url)
+                                page_identifiers.append(cve_id)
                                 
                                 # Ищем описание
                                 description = ''
@@ -98,15 +98,16 @@ class DebianParser(BaseLegacyParser):
                                         description = self._clean_text(desc_lines.text)
                                         break
                                 
-                                descriptions.append(description or f"Debian security advisory for {cve_id}")
+                                # На tracker-странице DSA описание может быть коротким — но лучше, чем пусто.
+                                page_descriptions.append(description or f"Debian security advisory {dsa_url.split('/')[-1]} for {cve_id}")
                     
-                    # Если не нашли CVE, ищем bug ссылки
-                    if not identifiers:
+                    # Если не нашли CVE на этой странице — ищем bug ссылки
+                    if not page_identifiers:
                         for quote in soup.find_all('a', href=re.compile("bug")):
                             if quote is not None:
                                 bug_id = quote.text
-                                links.append(dsa_url)
-                                identifiers.append(f"DEBIAN-{bug_id}")
+                                page_links.append(dsa_url)
+                                page_identifiers.append(f"DEBIAN-{bug_id}")
                                 
                                 description = ''
                                 for desc_quote in soup.find_all('dd'):
@@ -115,7 +116,12 @@ class DebianParser(BaseLegacyParser):
                                         description = self._clean_text(desc_lines.text)
                                         break
                                 
-                                descriptions.append(description or f"Debian security advisory for bug {bug_id}")
+                                page_descriptions.append(description or f"Debian security advisory for bug {bug_id}")
+
+                    # Добавляем результаты страницы в общий список
+                    links.extend(page_links)
+                    identifiers.extend(page_identifiers)
+                    descriptions.extend(page_descriptions)
                 
                 except Exception as e:
                     self.logger.warning(f"⚠️ Ошибка парсинга DSA {dsa_url}: {e}")
@@ -139,7 +145,11 @@ class DebianParser(BaseLegacyParser):
                     description=description,
                     cvss_score=5.0,  # Debian не всегда предоставляет CVSS
                     source='Debian',
-                    link=link
+                    link=link,
+                    etc_data={
+                        "references": ([{"url": link, "type": "advisory", "label": "Debian Security Advisory"}] if link else []),
+                        "raw": {"debian_link": link} if link else {}
+                    }
                 )
                 
                 vulnerabilities.append(vuln)

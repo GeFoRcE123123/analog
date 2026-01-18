@@ -3,6 +3,7 @@ from typing import Dict, Any, List
 from datetime import datetime, timedelta
 from services.vulnerability_service import VulnerabilityService
 from services.operator_service import OperatorService
+from config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -23,11 +24,13 @@ class AnalyticsService:
             return self._cached_analytics
 
         try:
-            # Используем неограниченный метод для получения всех уязвимостей
-            vulnerabilities = self.vuln_service.get_all_vulnerabilities_unlimited()
-            operators = self.operator_service.get_all_operators()
-
-            analytics_data = self._calculate_analytics(vulnerabilities, operators)
+            # Для legacy схемы: нельзя грузить 100k+ строк в память — считаем агрегаты SQL-ом
+            if Config.USE_LEGACY_SCHEMA:
+                analytics_data = self._calculate_analytics_legacy_sql()
+            else:
+                vulnerabilities = self.vuln_service.get_all_vulnerabilities_unlimited()
+                operators = self.operator_service.get_all_operators()
+                analytics_data = self._calculate_analytics(vulnerabilities, operators)
 
             # Обновляем кэш
             self._cached_analytics = analytics_data
@@ -38,6 +41,130 @@ class AnalyticsService:
 
         except Exception as e:
             logger.error(f"Error calculating analytics: {e}")
+            return self._get_default_analytics()
+
+    def _calculate_analytics_legacy_sql(self) -> Dict[str, Any]:
+        """Аналитика через SQL агрегаты (legacy schema)."""
+        try:
+            from models.database import DatabaseManager
+            db = DatabaseManager()
+
+            total = db.execute_query("SELECT COUNT(*) FROM turn WHERE cve IS NOT NULL AND cve != ''")
+            total_vulnerabilities = int(total[0][0]) if total else 0
+
+            # severity via CVSS ranges
+            q_sev = db.execute_query(
+                """
+                SELECT
+                  SUM(CASE WHEN cvss >= 9 THEN 1 ELSE 0 END) AS critical,
+                  SUM(CASE WHEN cvss >= 7 AND cvss < 9 THEN 1 ELSE 0 END) AS high,
+                  SUM(CASE WHEN cvss >= 4 AND cvss < 7 THEN 1 ELSE 0 END) AS medium,
+                  SUM(CASE WHEN cvss < 4 THEN 1 ELSE 0 END) AS low
+                FROM turn
+                WHERE cve IS NOT NULL AND cve != ''
+                """
+            )
+            sev_row = q_sev[0] if q_sev else (0, 0, 0, 0)
+            severity_counts = {
+                "critical": int(sev_row[0] or 0),
+                "high": int(sev_row[1] or 0),
+                "medium": int(sev_row[2] or 0),
+                "low": int(sev_row[3] or 0),
+            }
+
+            q_status = db.execute_query(
+                """
+                SELECT
+                  SUM(CASE WHEN status = TRUE THEN 1 ELSE 0 END) AS new_cnt,
+                  SUM(CASE WHEN status = FALSE THEN 1 ELSE 0 END) AS completed_cnt
+                FROM turn
+                WHERE cve IS NOT NULL AND cve != ''
+                """
+            )
+            st_row = q_status[0] if q_status else (0, 0)
+
+            # in_progress approximated by active assignments
+            q_in = db.execute_query("SELECT COUNT(DISTINCT cve) FROM actids WHERE active = TRUE")
+            in_progress = int(q_in[0][0]) if q_in else 0
+
+            status_counts = {
+                "new": int(st_row[0] or 0),
+                "in_progress": in_progress,
+                "completed": int(st_row[1] or 0),
+                "approved": 0,
+            }
+
+            # cvss distribution
+            q_cvss = db.execute_query(
+                """
+                SELECT
+                  SUM(CASE WHEN cvss >= 0 AND cvss < 2 THEN 1 ELSE 0 END) AS b0,
+                  SUM(CASE WHEN cvss >= 2 AND cvss < 4 THEN 1 ELSE 0 END) AS b1,
+                  SUM(CASE WHEN cvss >= 4 AND cvss < 6 THEN 1 ELSE 0 END) AS b2,
+                  SUM(CASE WHEN cvss >= 6 AND cvss < 8 THEN 1 ELSE 0 END) AS b3,
+                  SUM(CASE WHEN cvss >= 8 THEN 1 ELSE 0 END) AS b4
+                FROM turn
+                WHERE cve IS NOT NULL AND cve != ''
+                """
+            )
+            c_row = q_cvss[0] if q_cvss else (0, 0, 0, 0, 0)
+            cvss_distribution = {
+                "0-2": int(c_row[0] or 0),
+                "2-4": int(c_row[1] or 0),
+                "4-6": int(c_row[2] or 0),
+                "6-8": int(c_row[3] or 0),
+                "8-10": int(c_row[4] or 0),
+            }
+
+            risk_levels = {
+                "critical": severity_counts["critical"],
+                "high": severity_counts["high"],
+                "medium": severity_counts["medium"],
+                "low": severity_counts["low"],
+            }
+
+            # operator stats (top 50)
+            q_ops = db.execute_query(
+                """
+                SELECT oper, COUNT(*) AS cnt
+                FROM actids
+                WHERE active = TRUE
+                GROUP BY oper
+                ORDER BY cnt DESC
+                LIMIT 50
+                """
+            )
+            operator_stats = [
+                {
+                    "name": str(r[0]),
+                    "total_assigned": int(r[1] or 0),
+                    "active_count": int(r[1] or 0),
+                    "completed_count": 0,
+                    "completion_rate": 0,
+                    "metric": 0,
+                }
+                for r in (q_ops or [])
+            ]
+
+            completed_vulnerabilities = status_counts["completed"] + status_counts["approved"]
+            active_operators = len(operator_stats)
+
+            return {
+                "severity_counts": severity_counts,
+                "status_counts": status_counts,
+                "category_counts": {},
+                "cvss_distribution": cvss_distribution,
+                "risk_levels": risk_levels,
+                "operator_stats": operator_stats,
+                "total_vulnerabilities": total_vulnerabilities,
+                "active_operators": active_operators,
+                "completed_vulnerabilities": completed_vulnerabilities,
+                "avg_performance": 0,
+                "trends": {},
+                "last_updated": datetime.now().isoformat(),
+            }
+        except Exception as e:
+            logger.error(f"Error calculating legacy analytics (SQL): {e}", exc_info=True)
             return self._get_default_analytics()
 
     def _is_cache_valid(self) -> bool:

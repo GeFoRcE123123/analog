@@ -181,3 +181,15 @@ Temporary Items
 
 # Ваши специфичные файлы
 migrate_to_new_schema.py
+
+# Логи и временные данные
+logs/
+*.log
+tags
+data/
+vulnerability_data/
+
+# Примеры и демо данные
+examples/*.json
+demo_*.json
+parsed_vulnerabilities.json

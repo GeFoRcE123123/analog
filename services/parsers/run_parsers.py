@@ -13,8 +13,18 @@ import sys
 import os
 
 # Добавляем путь к корню проекта для импортов
-project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.insert(0, project_root)
+# В контейнере файл находится в /app/run_parsers.py
+# Нужно добавить /app в путь для импорта services, models, config
+current_dir = os.path.dirname(os.path.abspath(__file__))
+# Если мы в контейнере (/app), добавляем /app в путь
+if current_dir.startswith('/app'):
+    sys.path.insert(0, '/app')
+    # Также добавляем родительские директории для совместимости
+    sys.path.insert(0, os.path.dirname(current_dir))
+else:
+    # Локальная разработка - добавляем корень проекта
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    sys.path.insert(0, project_root)
 
 from services.parsing_manager import AsyncParser, ParsingProgressManager
 from services.nvd_integration_service import NVDIntegrationService
@@ -69,16 +79,11 @@ def main():
     
     try:
         # Инициализация подключения к БД
+        # DatabaseManager автоматически подключается при создании (singleton pattern)
         db_manager = DatabaseManager()
-        db_manager.configure(
-            host=Config.DATABASE_CONFIG.host,
-            port=Config.DATABASE_CONFIG.port,
-            database=Config.DATABASE_CONFIG.database,
-            username=Config.DATABASE_CONFIG.username,
-            password=Config.DATABASE_CONFIG.password
-        )
         
-        if not db_manager.connect():
+        # Проверяем подключение
+        if db_manager.connection is None or db_manager.connection.closed:
             logger.error("Не удалось подключиться к базе данных")
             sys.exit(1)
         
@@ -146,8 +151,11 @@ def main():
         logger.info("Завершение работы сервиса парсеров...")
         if 'scheduler' in parsers:
             parsers['scheduler'].stop()
-        if db_manager:
-            db_manager.disconnect()
+        if db_manager and db_manager.connection:
+            try:
+                db_manager.connection.close()
+            except:
+                pass
         logger.info("Сервис парсеров остановлен")
 
 

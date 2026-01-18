@@ -73,7 +73,7 @@ class IBMParser(BaseLegacyParser):
                     try:
                         r = requests.get(article_url, timeout=30)
                         r.raise_for_status()
-                        soup_article = BeautifulSoup(r.text, 'lxml')
+                        soup_article = BeautifulSoup(r.text, 'html.parser')
                         
                         # Ищем CVE ссылки
                         for quote_ in soup_article.find_all('a', href=re.compile("cve.mitre")):

@@ -1,83 +1,71 @@
 #!/bin/bash
-# Скрипт для проверки статуса всех сервисов
-# Использование: ./check_services.sh
+# Проверка состояния сервисов
 
-# Цвета
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-BLUE='\033[0;34m'
-NC='\033[0m'
+BACKEND_VM="10.0.88.20"
+BACKEND_USER="user"
+PASSWORD="123"
 
-SSH_PASS='123'
-SSH_USER='user'
+export SSHPASS="$PASSWORD"
 
-FRONTEND_IP='10.0.88.10'
-BACKEND_IP='10.0.88.20'
-DATABASE_IP='10.0.88.11'
-PARSERS_IP='10.0.88.23'
-
-echo -e "${BLUE}🔍 Проверка статуса сервисов${NC}"
-echo "================================================"
+echo "╔══════════════════════════════════════════════════════════════╗"
+echo "║  🔍 ДИАГНОСТИКА СЕРВИСОВ                                      ║"
+echo "╚══════════════════════════════════════════════════════════════╝"
 echo ""
 
-# Проверка Database
-echo -e "${YELLOW}📊 Database (${DATABASE_IP})${NC}"
-if sshpass -p "$SSH_PASS" ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 \
-    "${SSH_USER}@${DATABASE_IP}" "echo '123' | sudo -S docker ps | grep vulnerability-db" > /dev/null 2>&1; then
-    echo -e "${GREEN}✅ Контейнер запущен${NC}"
-    if sshpass -p "$SSH_PASS" ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 \
-        "${SSH_USER}@${DATABASE_IP}" "echo '123' | sudo -S docker exec vulnerability-db pg_isready -U postgres" > /dev/null 2>&1; then
-        echo -e "${GREEN}✅ PostgreSQL доступен${NC}"
-    else
-        echo -e "${RED}❌ PostgreSQL не отвечает${NC}"
-    fi
-else
-    echo -e "${RED}❌ Контейнер не запущен${NC}"
-fi
+echo "1️⃣  Проверка процессов Python/Flask..."
+sshpass -e ssh -o StrictHostKeyChecking=no $BACKEND_USER@$BACKEND_VM "ps aux | grep -E 'python|flask|gunicorn' | grep -v grep" 2>&1
+
 echo ""
+echo "2️⃣  Проверка портов..."
+sshpass -e ssh -o StrictHostKeyChecking=no $BACKEND_USER@$BACKEND_VM "ss -tlnp 2>/dev/null | grep -E '5000|5432|80' || netstat -tlnp 2>/dev/null | grep -E '5000|5432|80'" 2>&1
 
-# Проверка Backend
-echo -e "${YELLOW}📊 Backend (${BACKEND_IP})${NC}"
-if sshpass -p "$SSH_PASS" ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 \
-    "${SSH_USER}@${BACKEND_IP}" "echo '123' | sudo -S docker ps | grep vulnerability-backend" > /dev/null 2>&1; then
-    echo -e "${GREEN}✅ Контейнер запущен${NC}"
-    if curl -s -f -m 3 "http://${BACKEND_IP}:5000/api/health" > /dev/null 2>&1; then
-        echo -e "${GREEN}✅ API доступен${NC}"
-    else
-        echo -e "${YELLOW}⚠️  API не отвечает${NC}"
-    fi
-else
-    echo -e "${RED}❌ Контейнер не запущен${NC}"
-fi
 echo ""
+echo "3️⃣  Проверка подключения к БД..."
+sshpass -e ssh -o StrictHostKeyChecking=no $BACKEND_USER@$BACKEND_VM "
+    cd /home/user/vulnerability_manager
+    python3 << 'PYTHON'
+import sys
+sys.path.insert(0, '/home/user/vulnerability_manager')
+try:
+    from models.database import DatabaseManager
+    db = DatabaseManager()
+    if db.connection:
+        print('✅ БД подключена')
+        with db.connection.cursor() as cursor:
+            cursor.execute('SELECT version()')
+            print('PostgreSQL версия:', cursor.fetchone()[0])
+    else:
+        print('❌ БД не подключена')
+except Exception as e:
+    print('❌ Ошибка подключения к БД:', str(e))
+PYTHON
+" 2>&1
 
-# Проверка Frontend
-echo -e "${YELLOW}📊 Frontend (${FRONTEND_IP})${NC}"
-if sshpass -p "$SSH_PASS" ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 \
-    "${SSH_USER}@${FRONTEND_IP}" "echo '123' | sudo -S docker ps | grep vulnerability-frontend" > /dev/null 2>&1; then
-    echo -e "${GREEN}✅ Контейнер запущен${NC}"
-    if curl -s -f -m 3 "http://${FRONTEND_IP}" > /dev/null 2>&1; then
-        echo -e "${GREEN}✅ Веб-интерфейс доступен${NC}"
-    else
-        echo -e "${YELLOW}⚠️  Веб-интерфейс не отвечает${NC}"
-    fi
-else
-    echo -e "${RED}❌ Контейнер не запущен${NC}"
-fi
 echo ""
+echo "4️⃣  Проверка конфигурации..."
+sshpass -e ssh -o StrictHostKeyChecking=no $BACKEND_USER@$BACKEND_VM "
+    cd /home/user/vulnerability_manager
+    python3 << 'PYTHON'
+import sys
+sys.path.insert(0, '/home/user/vulnerability_manager')
+try:
+    from config import Config
+    print('DB Host:', Config.DATABASE_CONFIG.host)
+    print('DB Port:', Config.DATABASE_CONFIG.port)
+    print('DB Name:', Config.DATABASE_CONFIG.database)
+    print('Backend URL:', getattr(Config, 'BACKEND_URL', 'N/A'))
+except Exception as e:
+    print('❌ Ошибка чтения конфига:', str(e))
+PYTHON
+" 2>&1
 
-# Проверка Parsers
-if ping -c 1 -W 2 "$PARSERS_IP" > /dev/null 2>&1; then
-    echo -e "${YELLOW}📊 Parsers (${PARSERS_IP})${NC}"
-    if sshpass -p "$SSH_PASS" ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 \
-        "${SSH_USER}@${PARSERS_IP}" "echo '123' | sudo -S docker ps | grep vulnerability-parsers" > /dev/null 2>&1; then
-        echo -e "${GREEN}✅ Контейнер запущен${NC}"
-    else
-        echo -e "${RED}❌ Контейнер не запущен${NC}"
+echo ""
+echo "5️⃣  Проверка последних ошибок в app.py..."
+sshpass -e ssh -o StrictHostKeyChecking=no $BACKEND_USER@$BACKEND_VM "
+    cd /home/user/vulnerability_manager/backend
+    if [ -f app.py ]; then
+        tail -50 app.py | grep -A 5 -B 5 'import\|from\|DatabaseManager' | head -20
     fi
-    echo ""
-fi
+" 2>&1
 
-echo -e "${BLUE}================================================${NC}"
-
+unset SSHPASS

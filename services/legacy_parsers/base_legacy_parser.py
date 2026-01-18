@@ -75,8 +75,8 @@ class BaseLegacyParser(ABC):
         # Определяем risk_level
         risk_level = severity
         
-        # Формируем etc данные
-        etc_dict = etc_data or {}
+        # Формируем etc данные (будут сохранены в turn.etc через LegacyVulnerabilityRepository)
+        etc_dict = dict(etc_data or {})
         etc_dict.update({
             'category': source.lower(),
             'risk_level': risk_level,
@@ -84,6 +84,10 @@ class BaseLegacyParser(ABC):
             'approved': False,
             'modifications': 0
         })
+        # Всегда добавляем базовые поля, чтобы можно было восстановить первоисточник
+        etc_dict.setdefault('parser', self.name)
+        etc_dict.setdefault('source', source)
+        etc_dict.setdefault('source_link', link)
         
         vulnerability = Vulnerability(
             id=0,  # БД назначит ID
@@ -95,9 +99,42 @@ class BaseLegacyParser(ABC):
             cvss_score=float(cvss_score),
             risk_level=risk_level,
             category=source.lower(),
-            source_identifier=source,
             created_date=datetime.now()
         )
+        # LegacyVulnerabilityRepository умеет читать source_identifier через getattr,
+        # но dataclass-конструктор Vulnerability не принимает этот аргумент.
+        # Поэтому задаём атрибут после создания объекта.
+        try:
+            setattr(vulnerability, 'source_identifier', source)
+        except Exception:
+            pass
+        # Сохраняем link и т.д. как атрибуты (Legacy repo их читает через getattr)
+        try:
+            setattr(vulnerability, 'link', link)
+            setattr(vulnerability, 'url', link)
+        except Exception:
+            pass
+        # Пробрасываем etc-данные парсера, чтобы repo мог их слить в turn.etc
+        try:
+            setattr(vulnerability, 'etc_data', etc_dict)
+        except Exception:
+            pass
+
+        # Если парсер уже подготовил нормализованные секции — сохраняем их как отдельные атрибуты,
+        # чтобы LegacyVulnerabilityRepository мог положить их в отдельные колонки (affected_products/nvd_references/...).
+        try:
+            if isinstance(etc_dict.get('references'), list):
+                setattr(vulnerability, 'references', etc_dict.get('references'))
+            if isinstance(etc_dict.get('affected_products'), list):
+                setattr(vulnerability, 'affected_products', etc_dict.get('affected_products'))
+            if isinstance(etc_dict.get('weaknesses'), list):
+                setattr(vulnerability, 'weaknesses', etc_dict.get('weaknesses'))
+            if isinstance(etc_dict.get('configurations'), list):
+                setattr(vulnerability, 'configurations', etc_dict.get('configurations'))
+            if isinstance(etc_dict.get('vendor_comments'), list):
+                setattr(vulnerability, 'vendor_comments', etc_dict.get('vendor_comments'))
+        except Exception:
+            pass
         
         return vulnerability
     
