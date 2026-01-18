@@ -7,7 +7,7 @@ set -e
 VM_IP="10.0.88.41"
 
 # Попробуем разные варианты пользователей
-USERS=("user" "admin" "ubuntu" "root" "test")
+USERS=("user" "test" "admin" "ubuntu" "root" "monitoring")
 PASSWORD="123"
 
 # Цвета
