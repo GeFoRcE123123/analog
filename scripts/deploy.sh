@@ -174,6 +174,8 @@ if [ "$DEPLOY_TARGET" == "backend" ] || [ "$DEPLOY_TARGET" == "all" ]; then
     cp services/html_vulnerability_parser.py /tmp/backend_deploy/services/ 2>/dev/null || true
     cp services/universal_vendor_parser.py /tmp/backend_deploy/services/ 2>/dev/null || true
     cp services/redhat_cve_importer.py /tmp/backend_deploy/services/ 2>/dev/null || true
+    cp services/redhat_db_importer.py /tmp/backend_deploy/services/ 2>/dev/null || true
+    cp services/redhat_full_downloader.py /tmp/backend_deploy/services/ 2>/dev/null || true
     cp services/nvd_integration_service.py /tmp/backend_deploy/services/ 2>/dev/null || true
     cp services/vendor_parsers.py /tmp/backend_deploy/services/ 2>/dev/null || true
     # ⭐ Копируем Legacy парсеры
@@ -188,7 +190,19 @@ if [ "$DEPLOY_TARGET" == "backend" ] || [ "$DEPLOY_TARGET" == "all" ]; then
     find /tmp/backend_deploy/models -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
     # Копируем templates и static для рендеринга страниц
     cp -r templates/* /tmp/backend_deploy/templates/ 2>/dev/null || true
-    cp -r static/* /tmp/backend_deploy/static/ 2>/dev/null || true
+    # static теперь может быть в services/frontend/static/ или в корне
+    if [ -d "services/frontend/static" ]; then
+        cp -r services/frontend/static/* /tmp/backend_deploy/static/ 2>/dev/null || true
+    elif [ -d "static" ]; then
+        cp -r static/* /tmp/backend_deploy/static/ 2>/dev/null || true
+    fi
+
+    # 3D graph libs fetcher script (optional on backend; static is served by frontend VM, but keep for direct backend access)
+    if [ -f "scripts/frontend/fetch_graph3d_libs.sh" ]; then
+        mkdir -p /tmp/backend_deploy/scripts/frontend
+        cp scripts/frontend/fetch_graph3d_libs.sh /tmp/backend_deploy/scripts/frontend/
+        chmod +x /tmp/backend_deploy/scripts/frontend/fetch_graph3d_libs.sh 2>/dev/null || true
+    fi
     # Копируем только нужные сервисы (без парсеров)
     cp services/vulnerability_service.py /tmp/backend_deploy/services/ 2>/dev/null || true
     cp services/operator_service.py /tmp/backend_deploy/services/ 2>/dev/null || true
@@ -205,12 +219,17 @@ if [ "$DEPLOY_TARGET" == "backend" ] || [ "$DEPLOY_TARGET" == "all" ]; then
     # Копируем CVE JSON 5.x адаптеры
     cp services/cve_json5_adapter.py /tmp/backend_deploy/services/ 2>/dev/null || true
     cp services/cve_json_loader.py /tmp/backend_deploy/services/ 2>/dev/null || true
-    # Копируем utils если есть
-    if [ -d "utils" ]; then
+    # Копируем utils если есть (новая структура: services/utils/)
+    if [ -d "services/utils" ]; then
+        cp -r services/utils/* /tmp/backend_deploy/utils/ 2>/dev/null || true
+    elif [ -d "utils" ]; then
         cp -r utils/* /tmp/backend_deploy/utils/ 2>/dev/null || true
     fi
     
     copy_files "$BACKEND_IP" "/tmp/backend_deploy" "~/vulnerability_manager/backend"
+
+    # (Optional) try to download vendor libs on backend VM too, for direct access to 10.0.88.20:5000
+    run_remote "$BACKEND_IP" "bash ~/vulnerability_manager/backend/scripts/frontend/fetch_graph3d_libs.sh" 2>/dev/null || true
     
     # Используем sudo для всех docker команд
     run_docker_compose "$BACKEND_IP" "~/vulnerability_manager/backend" "down"
@@ -230,8 +249,18 @@ if [ "$DEPLOY_TARGET" == "frontend" ] || [ "$DEPLOY_TARGET" == "all" ]; then
     cp -r services/frontend/* /tmp/frontend_deploy/
     cp -r templates /tmp/frontend_deploy/
     cp -r static /tmp/frontend_deploy/
+
+    # 3D graph libs fetcher script (required on frontend VM because it serves /static/*)
+    if [ -f "scripts/frontend/fetch_graph3d_libs.sh" ]; then
+        mkdir -p /tmp/frontend_deploy/scripts/frontend
+        cp scripts/frontend/fetch_graph3d_libs.sh /tmp/frontend_deploy/scripts/frontend/
+        chmod +x /tmp/frontend_deploy/scripts/frontend/fetch_graph3d_libs.sh 2>/dev/null || true
+    fi
     
     copy_files "$FRONTEND_IP" "/tmp/frontend_deploy" "~/vulnerability_manager/frontend"
+
+    # Download vendor libs for 3D graph (no more flaky CDN). Fail deploy if this step fails.
+    run_remote "$FRONTEND_IP" "bash ~/vulnerability_manager/frontend/scripts/frontend/fetch_graph3d_libs.sh"
     
     # Удаляем существующие контейнеры вручную перед запуском
     run_remote "$FRONTEND_IP" "echo '$PASSWORD' | sudo -S docker rm -f vulnerability-frontend 2>/dev/null || true"

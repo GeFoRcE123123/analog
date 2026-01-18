@@ -8,6 +8,7 @@ from flask_cors import CORS
 import json
 import time
 import logging
+import requests
 from datetime import datetime
 from typing import Optional
 
@@ -88,12 +89,14 @@ logger.info(f"Backend API запущен на {Config.BACKEND_HOST}:{Config.BACK
 def get_vulnerabilities_with_operators(page: int = 1, per_page: int = 50,
                                        status: Optional[str] = None, 
                                        severity: Optional[str] = None,
-                                       search: Optional[str] = None):
+                                       search: Optional[str] = None,
+                                       ai_only: Optional[bool] = None,
+                                       tags: Optional[List[str]] = None):
     """Получить уязвимости с операторами с пагинацией"""
     try:
         vulnerabilities, total_count = vuln_service.get_paginated_vulnerabilities(
             page=page, per_page=per_page,
-            status=status, severity=severity, search=search
+            status=status, severity=severity, search=search, ai_only=ai_only, tags=tags
         )
         operators = operator_service.get_all_operators()
         logger.info(f"📊 Получено уязвимостей: {len(vulnerabilities)} из {total_count} (страница {page})")
@@ -101,6 +104,57 @@ def get_vulnerabilities_with_operators(page: int = 1, per_page: int = 50,
     except Exception as e:
         logger.error(f"❌ Ошибка получения уязвимостей: {e}", exc_info=True)
         return [], [], 0
+
+
+def get_global_vulnerability_stats(per_page: int = 50) -> Dict[str, Any]:
+    """
+    Быстрые агрегаты по всей БД (НЕ по текущей странице).
+    Для legacy схемы считаем напрямую из turn/actids.
+    """
+    try:
+        dbm = DatabaseManager()
+        total = dbm.execute_query("SELECT COUNT(*) FROM turn WHERE cve IS NOT NULL AND cve != ''")
+        total_count = int(total[0][0]) if total else 0
+
+        high = dbm.execute_query(
+            "SELECT COUNT(*) FROM turn WHERE cve IS NOT NULL AND cve != '' AND cvss >= 7.0"
+        )
+        high_risk = int(high[0][0]) if high else 0
+
+        newq = dbm.execute_query(
+            "SELECT COUNT(*) FROM turn WHERE cve IS NOT NULL AND cve != '' AND status = TRUE"
+        )
+        new_count = int(newq[0][0]) if newq else 0
+
+        doneq = dbm.execute_query(
+            "SELECT COUNT(*) FROM turn WHERE cve IS NOT NULL AND cve != '' AND status = FALSE"
+        )
+        completed_count = int(doneq[0][0]) if doneq else 0
+
+        inworkq = dbm.execute_query(
+            "SELECT COUNT(DISTINCT cve) FROM actids WHERE active = TRUE"
+        )
+        in_work = int(inworkq[0][0]) if inworkq else 0
+
+        total_pages = (total_count + per_page - 1) // per_page if total_count else 0
+        return {
+            "total_count": total_count,
+            "high_risk": high_risk,
+            "new": new_count,
+            "in_work": in_work,
+            "completed": completed_count,
+            "total_pages": total_pages,
+        }
+    except Exception as e:
+        logger.error(f"❌ Ошибка глобальной статистики уязвимостей: {e}", exc_info=True)
+        return {
+            "total_count": 0,
+            "high_risk": 0,
+            "new": 0,
+            "in_work": 0,
+            "completed": 0,
+            "total_pages": 0,
+        }
 
 
 def save_parsing_history(sources, total_parsed, total_saved, total_errors, by_source, settings, status='completed', error_message=None, duration_seconds=0, parsing_id=None):
@@ -235,23 +289,80 @@ def get_vulnerabilities_with_operators_old():
 
 def get_dashboard_stats():
     """Получить статистику для дашборда"""
-    vulnerabilities, operators = get_vulnerabilities_with_operators_old()
-    return {
-        'total_vulnerabilities': len(vulnerabilities),
-        'high_risk': len([v for v in vulnerabilities if v.severity == 'high']),
-        'new_vulnerabilities': len([v for v in vulnerabilities if v.status == 'new']),
-        'completion_rate': (len([v for v in vulnerabilities if v.status in ['completed', 'approved']]) / len(vulnerabilities) * 100) if vulnerabilities else 0,
-        'active_operators': len(operators),
-        'total_operators': len(operators)
-    }
+    # В legacy БД (100k+ записей) нельзя тянуть все уязвимости в память ради статистики.
+    per_page = 50
+    try:
+        if Config.USE_LEGACY_SCHEMA:
+            from models.database import DatabaseManager
+            dbm = DatabaseManager()
+
+            total = dbm.execute_query("SELECT COUNT(*) FROM turn WHERE cve IS NOT NULL AND cve != ''")
+            total_vulnerabilities = int(total[0][0]) if total else 0
+
+            high = dbm.execute_query(
+                "SELECT COUNT(*) FROM turn WHERE cve IS NOT NULL AND cve != '' AND cvss >= 7.0"
+            )
+            high_risk = int(high[0][0]) if high else 0
+
+            newq = dbm.execute_query(
+                "SELECT COUNT(*) FROM turn WHERE cve IS NOT NULL AND cve != '' AND status = TRUE"
+            )
+            new_vulnerabilities = int(newq[0][0]) if newq else 0
+
+            doneq = dbm.execute_query(
+                "SELECT COUNT(*) FROM turn WHERE cve IS NOT NULL AND cve != '' AND status = FALSE"
+            )
+            completed_vulnerabilities = int(doneq[0][0]) if doneq else 0
+
+            completion_rate = (completed_vulnerabilities / total_vulnerabilities * 100.0) if total_vulnerabilities else 0.0
+
+            operators = operator_service.get_all_operators()
+            total_pages = (total_vulnerabilities + per_page - 1) // per_page if total_vulnerabilities else 0
+
+            return {
+                'total_vulnerabilities': total_vulnerabilities,
+                'high_risk': high_risk,
+                'new_vulnerabilities': new_vulnerabilities,
+                'completion_rate': completion_rate,
+                'active_operators': len(operators),
+                'total_operators': len(operators),
+                'per_page': per_page,
+                'total_pages': total_pages
+            }
+        else:
+            vulnerabilities, operators = get_vulnerabilities_with_operators_old()
+            total_vulnerabilities = len(vulnerabilities)
+            total_pages = (total_vulnerabilities + per_page - 1) // per_page if total_vulnerabilities else 0
+            return {
+                'total_vulnerabilities': total_vulnerabilities,
+                'high_risk': len([v for v in vulnerabilities if v.severity == 'high']),
+                'new_vulnerabilities': len([v for v in vulnerabilities if v.status == 'new']),
+                'completion_rate': (len([v for v in vulnerabilities if v.status in ['completed', 'approved']]) / len(vulnerabilities) * 100) if vulnerabilities else 0,
+                'active_operators': len(operators),
+                'total_operators': len(operators),
+                'per_page': per_page,
+                'total_pages': total_pages
+            }
+    except Exception as e:
+        logger.error(f"❌ Ошибка get_dashboard_stats: {e}", exc_info=True)
+        return {
+            'total_vulnerabilities': 0,
+            'high_risk': 0,
+            'new_vulnerabilities': 0,
+            'completion_rate': 0,
+            'active_operators': 0,
+            'total_operators': 0,
+            'per_page': per_page,
+            'total_pages': 0
+        }
 
 def get_analytics_data():
     """Получить данные для аналитики"""
     from services.analytics_service import analytics_service
     analytics_data = analytics_service.get_analytics_data()
-    vulnerabilities, operators = get_vulnerabilities_with_operators_old()
+    # В legacy схеме не тянем все уязвимости в память — только агрегаты + список операторов.
+    operators = operator_service.get_all_operators()
     result = {
-        'vulnerabilities': vulnerabilities,
         'operators': operators,
         'severity_counts': analytics_data.get('severity_counts', {}),
         'status_counts': analytics_data.get('status_counts', {}),
@@ -280,7 +391,9 @@ def serialize_vulnerability(vuln):
         'status': vuln.status,
         'cvss_score': vuln.cvss_score,
         'category': vuln.category,
-        'assigned_operator': operator_name
+        'assigned_operator': operator_name,
+        'cve_id': getattr(vuln, 'cve_id', None),
+        'tags': getattr(vuln, 'tags', []) or []
     }
 
 
@@ -359,6 +472,12 @@ def vulnerabilities_list():
     status = request.args.get('status', None)
     severity = request.args.get('severity', None)
     search = request.args.get('search', None)
+    ai_only = request.args.get('ai_only', None)
+    ai_only = True if str(ai_only).lower() in ('1', 'true', 'yes', 'on') else None
+    tags_q = request.args.get('tags', None)
+    tags = None
+    if tags_q:
+        tags = [t.strip() for t in str(tags_q).split(',') if t.strip()]
     
     # Поддержка параметра filter для обратной совместимости
     filter_param = request.args.get('filter', None)
@@ -369,20 +488,24 @@ def vulnerabilities_list():
     
     vulnerabilities, operators, total_count = get_vulnerabilities_with_operators(
         page=page, per_page=per_page,
-        status=status, severity=severity, search=search
+        status=status, severity=severity, search=search, ai_only=ai_only, tags=tags
     )
     total_pages = (total_count + per_page - 1) // per_page
+    global_stats = get_global_vulnerability_stats(per_page=per_page)
     
     return render_template('vulnerabilities_list.html',
                            vulnerabilities=vulnerabilities,
                            operators=operators,
+                           global_stats=global_stats,
                            current_page=page,
                            total_pages=total_pages,
                            total_count=total_count,
                            per_page=per_page,
                            status=status,
                            severity=severity,
-                           search=search)
+                           search=search,
+                           ai_only=ai_only,
+                           tags=tags_q)
 
 @app.route('/operators')
 @login_required
@@ -423,6 +546,13 @@ def performance_analytics():
     except Exception as e:
         flash(f'Ошибка при загрузке аналитики: {str(e)}', 'error')
         return redirect(url_for('dashboard'))
+
+
+@app.route('/analytics')
+@login_required
+def analytics_alias():
+    """Alias for analytics page (compatibility with older/expected URL)."""
+    return redirect(url_for('performance_analytics'))
 
 @app.route('/review')
 @login_required
@@ -708,8 +838,20 @@ def get_vulnerability(vuln_id):
                 'nvd_descriptions': getattr(vulnerability, 'descriptions', []),
                 'metrics': getattr(vulnerability, 'metrics', {}),
                 'has_kev': getattr(vulnerability, 'has_kev', False),
-                'has_cert_alerts': getattr(vulnerability, 'has_cert_alerts', False)
+                'has_cert_alerts': getattr(vulnerability, 'has_cert_alerts', False),
+                'tags': getattr(vulnerability, 'tags', []) or []
             }
+
+            # AI analysis is stored in turn.etc (TEXT JSON) — pull it for transparency UI
+            try:
+                rows = db_manager.execute_query("SELECT etc FROM turn WHERE id = %s", (vuln_id,))
+                etc_text = rows[0][0] if rows else None
+                etc_data = json.loads(etc_text) if etc_text else {}
+                if not isinstance(etc_data, dict):
+                    etc_data = {}
+                vuln_data['ai_analysis'] = etc_data.get('ai_analysis')
+            except Exception:
+                vuln_data['ai_analysis'] = None
             
             return jsonify({
                 'success': True,
@@ -742,6 +884,148 @@ def api_update_vulnerability(vuln_id):
         return jsonify({'success': success})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# === TAGS API ===
+
+@app.route('/api/vulnerabilities/<int:vuln_id>/tags', methods=['GET'])
+@csrf.exempt
+@login_required
+def api_get_vulnerability_tags(vuln_id: int):
+    """Получить теги уязвимости."""
+    try:
+        tags = vulnerability_repo.get_tags(vuln_id) if hasattr(vulnerability_repo, 'get_tags') else []
+        return jsonify({'success': True, 'tags': tags})
+    except Exception as e:
+        logger.error(f"❌ Ошибка получения тегов vuln_id={vuln_id}: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/vulnerabilities/<int:vuln_id>/tags', methods=['PUT'])
+@csrf.exempt
+@login_required
+@admin_required
+def api_set_vulnerability_tags(vuln_id: int):
+    """Полностью заменить теги уязвимости."""
+    try:
+        data = request.get_json() or {}
+        tags = data.get('tags', [])
+        ok = vulnerability_repo.set_tags(vuln_id, tags)
+        return jsonify({'success': True, 'tags': vulnerability_repo.get_tags(vuln_id), 'updated': ok})
+    except Exception as e:
+        logger.error(f"❌ Ошибка обновления тегов vuln_id={vuln_id}: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/vulnerabilities/<int:vuln_id>/tags', methods=['POST'])
+@csrf.exempt
+@login_required
+@admin_required
+def api_add_vulnerability_tag(vuln_id: int):
+    """Добавить один тег."""
+    try:
+        data = request.get_json() or {}
+        tag = (data.get('tag') or '').strip()
+        if not tag:
+            return jsonify({'success': False, 'error': 'tag required'}), 400
+        tags = vulnerability_repo.add_tag(vuln_id, tag)
+        return jsonify({'success': True, 'tags': tags})
+    except Exception as e:
+        logger.error(f"❌ Ошибка добавления тега vuln_id={vuln_id}: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/vulnerabilities/<int:vuln_id>/tags', methods=['DELETE'])
+@csrf.exempt
+@login_required
+@admin_required
+def api_remove_vulnerability_tag(vuln_id: int):
+    """Удалить один тег."""
+    try:
+        data = request.get_json() or {}
+        tag = (data.get('tag') or '').strip()
+        if not tag:
+            return jsonify({'success': False, 'error': 'tag required'}), 400
+        tags = vulnerability_repo.remove_tag(vuln_id, tag)
+        return jsonify({'success': True, 'tags': tags})
+    except Exception as e:
+        logger.error(f"❌ Ошибка удаления тега vuln_id={vuln_id}: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# === AI PASSPORT (stored in turn.etc) ===
+
+@app.route('/api/vulnerabilities/<int:vuln_id>/ai-passport', methods=['GET'])
+@login_required
+def api_get_ai_passport(vuln_id: int):
+    """Get stored AI passport from turn.etc (if exists)."""
+    try:
+        import json as _json
+        dbm = DatabaseManager()
+        rows = dbm.execute_query("SELECT etc FROM turn WHERE id = %s", (vuln_id,))
+        etc = rows[0][0] if rows else None
+        try:
+            etc_data = _json.loads(etc) if etc else {}
+        except Exception:
+            etc_data = {}
+        passport = etc_data.get("ai_passport")
+        if not passport:
+            return jsonify({"success": False, "error": "AI passport not found"}), 404
+        return jsonify({"success": True, "passport": passport})
+    except Exception as e:
+        logger.error(f"AI passport get error: {e}", exc_info=True)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/api/vulnerabilities/<int:vuln_id>/ai-passport', methods=['POST'])
+@login_required
+@admin_required
+def api_generate_ai_passport(vuln_id: int):
+    """
+    Generate AI passport via k8s-worker and save into turn.etc.ai_passport.
+    Uses REAL vulnerability data from DB.
+    """
+    try:
+        import json as _json
+        dbm = DatabaseManager()
+        repo = LegacyVulnerabilityRepository(dbm.connection)
+        v = repo.get_by_id(vuln_id)
+        if not v:
+            return jsonify({"success": False, "error": "Vulnerability not found"}), 404
+
+        payload = {
+            "cve_id": getattr(v, "cve_id", None),
+            "title": getattr(v, "title", ""),
+            "description": getattr(v, "description", ""),
+            "cvss_score": getattr(v, "cvss_score", 0.0),
+            "epss_score": getattr(v, "epss_score", None),
+            "source": getattr(v, "source_identifier", None),
+        }
+
+        base = f"http://{getattr(Config, 'ML_VM_IP', '10.0.88.25')}:{getattr(Config, 'ML_API_PORT', 8000)}"
+        resp = requests.post(f"{base}/api/passport", json=payload, timeout=30)
+        resp.raise_for_status()
+        passport = resp.json() or {}
+        if not passport.get("success"):
+            return jsonify({"success": False, "error": passport.get("error", "passport failed")}), 502
+
+        rows = dbm.execute_query("SELECT etc FROM turn WHERE id = %s", (vuln_id,))
+        etc_text = rows[0][0] if rows else None
+        try:
+            etc_data = _json.loads(etc_text) if etc_text else {}
+        except Exception:
+            etc_data = {}
+        if not isinstance(etc_data, dict):
+            etc_data = {}
+
+        etc_data["ai_passport"] = passport
+        etc_data["ai_passport_generated_at"] = passport.get("generated_at")
+
+        dbm.execute_query("UPDATE turn SET etc = %s WHERE id = %s", (_json.dumps(etc_data, ensure_ascii=False), vuln_id))
+        return jsonify({"success": True, "passport": passport})
+    except Exception as e:
+        logger.error(f"AI passport generate error: {e}", exc_info=True)
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 # === API МАРШРУТЫ ДЛЯ ОПЕРАТОРОВ ===
@@ -1786,6 +2070,25 @@ def api_ml_platform_connection():
         return jsonify({'success': True, 'status': status})
     except Exception as e:
         logger.error(f"Ошибка проверки подключения: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/diagnostics/connectivity', methods=['GET'])
+@csrf.exempt
+@login_required
+@admin_required
+def api_diagnostics_connectivity():
+    """
+    Серверная диагностика связности между VM:
+    - backend->DB (SQL/TCP)
+    - backend->ML API (HTTP) + SSH to k8s-worker
+    - k8s-worker->DB/back (TCP) через SSH
+    """
+    try:
+        report = ml_platform_client.diagnose_connectivity()
+        return jsonify({'success': True, 'report': report})
+    except Exception as e:
+        logger.error(f"❌ Ошибка диагностики связности: {e}", exc_info=True)
         return jsonify({'success': False, 'error': str(e)}), 500
 
 

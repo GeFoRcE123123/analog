@@ -91,6 +91,15 @@
             <div>
                 <p class="text-2xl font-bold text-gray-800">{{ stats.total_vulnerabilities }}</p>
                 <p class="text-sm text-gray-600">Всего уязвимостей</p>
+                {% if stats.total_pages and stats.total_pages > 0 %}
+                <div class="text-xs text-gray-500 mt-1">
+                    Страниц: <span class="font-semibold">{{ stats.total_pages }}</span>
+                    <span class="mx-1">•</span>
+                    <a class="text-blue-600 hover:underline" href="{{ url_for('vulnerabilities_list') }}?page=1&per_page={{ stats.per_page }}">первая</a>
+                    <span class="mx-1">•</span>
+                    <a class="text-blue-600 hover:underline" href="{{ url_for('vulnerabilities_list') }}?page={{ stats.total_pages }}&per_page={{ stats.per_page }}">последняя</a>
+                </div>
+                {% endif %}
             </div>
         </div>
     </a>
@@ -495,102 +504,9 @@
             notification.remove();
         }, 5000);
     }
-
-    // Функция для обновления уязвимостей в реальном времени
-    function startLiveVulnerabilitiesUpdate() {
-        const eventSource = new EventSource('/api/live-vulnerabilities');
-
-        eventSource.onmessage = function(event) {
-            const data = JSON.parse(event.data);
-
-            if (data.type === 'initial' || data.type === 'update') {
-                updateVulnerabilitiesList(data.vulnerabilities);
-            }
-        };
-
-        eventSource.onerror = function(event) {
-            console.error('Live updates error:', event);
-            // Пытаемся переподключиться через 5 секунд
-            setTimeout(startLiveVulnerabilitiesUpdate, 5000);
-        };
-    }
-
-    // Функция обновления списка уязвимостей
-    function updateVulnerabilitiesList(vulnerabilities) {
-        // Обновляем счетчики на дашборде
-        updateDashboardCounters(vulnerabilities);
-
-        // Если мы на странице уязвимостей, обновляем таблицу
-        if (window.location.pathname === '/vulnerabilities') {
-            updateVulnerabilitiesTable(vulnerabilities);
-        }
-    }
-
-    // Запускаем при загрузке страницы
-    document.addEventListener('DOMContentLoaded', function() {
-        startLiveVulnerabilitiesUpdate();
-    });
-    // В функции, которая назначает уязвимости
-    fetch('/assign-vulnerabilities', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': window.appData.csrf_token  // ← добавьте этот заголовок
-        },
-        body: JSON.stringify({
-            operator_id: currentOperatorId,
-            vulnerability_ids: selectedVulns
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            showNotification('Уязвимости успешно назначены', 'success');
-        } else {
-            showNotification('Ошибка: ' + data.error, 'error');
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        showNotification('Сетевая ошибка', 'error');
-    });
-    // Функция для обновления счетчиков на дашборде
-    function updateDashboardCounters(vulnerabilities) {
-        // Обновляем общее количество уязвимостей - используем более гибкий селектор
-        const totalVulns = document.querySelector('a[href*="/vulnerabilities"]:not([href*="filter"])');
-        if (totalVulns) {
-            const countElement = totalVulns.querySelector('.text-2xl');
-            if (countElement) {
-                countElement.textContent = vulnerabilities.length;
-            }
-        }
-
-        // Обновляем новые уязвимости
-        const newVulns = document.querySelector('a[href*="/vulnerabilities"][href*="filter=new"]');
-        if (newVulns) {
-            const countElement = newVulns.querySelector('.text-2xl');
-            if (countElement) {
-                const newCount = vulnerabilities.filter(v => v.status === 'new').length;
-                countElement.textContent = newCount;
-            }
-        }
-
-        // Обновляем высокий риск
-        const highRisk = document.querySelector('a[href*="/vulnerabilities"][href*="filter=high"]');
-        if (highRisk) {
-            const countElement = highRisk.querySelector('.text-2xl');
-            if (countElement) {
-                const highCount = vulnerabilities.filter(v => v.severity === 'high' || v.severity === 'critical').length;
-                countElement.textContent = highCount;
-            }
-        }
-    }
-
-    // Функция для обновления таблицы уязвимостей
-    function updateVulnerabilitiesTable(vulnerabilities) {
-        // Это пример — вы можете адаптировать под свою логику
-        console.log('Updating vulnerabilities table...');
-    }
+    // ВАЖНО: на прод-сервере SSE /api/live-vulnerabilities может быть выключен.
+    // Эта страница не должна падать из-за отсутствия эндпоинта или переменных операторов.
+    // Поэтому оставляем только безопасные функции, относящиеся к парсингу.
 
     // Функция для проверки статуса парсинга при загрузке
     document.addEventListener('DOMContentLoaded', function () {

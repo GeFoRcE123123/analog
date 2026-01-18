@@ -46,7 +46,7 @@ class PaloAltoParser(BaseLegacyParser):
             try:
                 response = requests.get(url, timeout=30)
                 response.raise_for_status()
-                soup = BeautifulSoup(response.text, 'lxml')
+                soup = BeautifulSoup(response.text, 'html.parser')
             except Exception as e:
                 self.logger.warning(f"⚠️ Не удалось получить данные: {e}")
                 return {

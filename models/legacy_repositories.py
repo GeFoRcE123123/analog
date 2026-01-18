@@ -130,8 +130,10 @@ class LegacyVulnerabilityRepository:
                 # Сохраняем как есть, если это валидное значение
                 source = str(source)
 
-            # Формируем link
-            link = f"https://nvd.nist.gov/vuln/detail/{cve_id}" if cve_id.startswith('CVE-') else getattr(vulnerability, 'url', '')
+            # Формируем link: предпочитаем link/url из парсера, иначе NVD
+            link = getattr(vulnerability, 'link', None) or getattr(vulnerability, 'url', None)
+            if not link:
+                link = f"https://nvd.nist.gov/vuln/detail/{cve_id}" if cve_id.startswith('CVE-') else ''
 
             # Определяем name (title или описание)
             name = vulnerability.title[:500] if len(vulnerability.title) <= 500 else vulnerability.title[:497] + '...'
@@ -168,6 +170,20 @@ class LegacyVulnerabilityRepository:
                 'approved': vulnerability.approved,
                 'modifications': vulnerability.modifications
             }
+            # merge extra etc data from parser/services (stored as TEXT JSON in legacy schema)
+            extra_etc = getattr(vulnerability, 'etc_data', None)
+            if extra_etc:
+                try:
+                    if isinstance(extra_etc, str):
+                        extra_etc = json.loads(extra_etc)
+                except Exception:
+                    extra_etc = None
+            if isinstance(extra_etc, dict):
+                # do not overwrite required keys with None
+                for k, v in extra_etc.items():
+                    if v is None:
+                        continue
+                    etc_data[k] = v
             # ЗАКОММЕНТИРОВАНО: Логика ИИ уязвимостей
             # if hasattr(vulnerability, 'is_ai_related'):
             #     etc_data['is_ai_related'] = vulnerability.is_ai_related
@@ -655,6 +671,8 @@ class LegacyVulnerabilityRepository:
                         etc_data = json.loads(row[11]) if row[11] else {}
                     except:
                         etc_data = {}
+                    tags = self._normalize_tags(etc_data.get('tags', []))
+                    tags = self._normalize_tags(etc_data.get('tags', []))
                     
                     # Загружаем описание из nvd_descriptions (приоритет) или cvelist (fallback)
                     description = ''
@@ -724,6 +742,7 @@ class LegacyVulnerabilityRepository:
                         cve_id=cve_id
                     )
                     vuln.source_identifier = row[1] or 'NVD'
+                    setattr(vuln, 'tags', tags)
                     vulnerabilities.append(vuln)
             
             logger.info(f"✅ [get_vulnerabilities_by_operator] Возвращаем {len(vulnerabilities)} уязвимостей для оператора {operator_name} (ID: {operator_id})")
@@ -756,6 +775,7 @@ class LegacyVulnerabilityRepository:
                     etc_data = json.loads(row[11]) if row[11] else {}
                 except:
                     etc_data = {}
+                tags = self._normalize_tags(etc_data.get('tags', []))
                 
                 # Загружаем описание из nvd_descriptions (приоритет) или cvelist (fallback)
                 description = ''
@@ -849,6 +869,8 @@ class LegacyVulnerabilityRepository:
                     cve_id=cve_id
                 )
                 vulnerability.source_identifier = row[1] or 'NVD'
+                # Теги уязвимости (храним в turn.etc->tags)
+                setattr(vulnerability, 'tags', tags)
                 
                 logger.info(f"✅ [get_by_id] Уязвимость ID {vuln_id} загружена: CVE={cve_id}, title={title}, описание={len(description)} символов")
                 return vulnerability
@@ -868,6 +890,7 @@ class LegacyVulnerabilityRepository:
         import json
         
         etc_data = json.loads(turn_data.get('etc', '{}')) if turn_data.get('etc') else {}
+        tags = self._normalize_tags(etc_data.get('tags', []))
         
         vulnerability = Vulnerability(
             id=turn_data.get('id', 0),
@@ -885,6 +908,7 @@ class LegacyVulnerabilityRepository:
             category=etc_data.get('category', 'security'),
             cve_id=cve_id
         )
+        setattr(vulnerability, 'tags', tags)
         
         # Загружаем описание из cvelist
         try:
@@ -897,6 +921,92 @@ class LegacyVulnerabilityRepository:
             pass
         
         return vulnerability
+
+    # === TAGS (turn.etc->tags) ===
+
+    @staticmethod
+    def _normalize_tags(tags: Any) -> List[str]:
+        """Нормализация тегов: список уникальных строк, trim, ограничение по длине."""
+        if tags is None:
+            return []
+        if isinstance(tags, str):
+            tags = [t.strip() for t in tags.split(',')]
+        if not isinstance(tags, list):
+            return []
+        out: List[str] = []
+        seen = set()
+        for t in tags:
+            if t is None:
+                continue
+            s = str(t).strip()
+            if not s:
+                continue
+            if len(s) > 40:
+                s = s[:40]
+            key = s.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append(s)
+        return out
+
+    def get_tags(self, vuln_id: int) -> List[str]:
+        """Получить теги уязвимости из turn.etc."""
+        with self.db.cursor() as cursor:
+            cursor.execute("SELECT etc FROM turn WHERE id = %s", (vuln_id,))
+            row = cursor.fetchone()
+            if not row:
+                return []
+            try:
+                etc_data = json.loads(row[0]) if row[0] else {}
+            except Exception:
+                etc_data = {}
+            return self._normalize_tags(etc_data.get('tags', []))
+
+    def set_tags(self, vuln_id: int, tags: Any) -> bool:
+        """Полностью заменить теги уязвимости."""
+        tags_list = self._normalize_tags(tags)
+        self._merge_into_etc(vuln_id, {"tags": tags_list})
+        return True
+
+    def add_tag(self, vuln_id: int, tag: str) -> List[str]:
+        """Добавить один тег (если его нет). Возвращает итоговый список."""
+        current = self.get_tags(vuln_id)
+        merged = self._normalize_tags(current + [tag])
+        self.set_tags(vuln_id, merged)
+        return merged
+
+    def remove_tag(self, vuln_id: int, tag: str) -> List[str]:
+        """Удалить один тег. Возвращает итоговый список."""
+        current = self.get_tags(vuln_id)
+        rm = str(tag).strip().lower()
+        merged = [t for t in current if t.lower() != rm]
+        self.set_tags(vuln_id, merged)
+        return merged
+
+    def _merge_into_etc(self, vuln_id: int, patch: Dict[str, Any]) -> None:
+        """
+        turn.etc в этой БД хранится как TEXT (JSON-строка), а не JSONB.
+        Поэтому обновляем безопасно: читаем -> merge -> пишем обратно.
+        """
+        current = {}
+        with self.db.cursor() as cursor:
+            cursor.execute("SELECT etc FROM turn WHERE id = %s", (vuln_id,))
+            row = cursor.fetchone()
+            if row and row[0]:
+                try:
+                    current = json.loads(row[0]) if isinstance(row[0], str) else (row[0] or {})
+                    if not isinstance(current, dict):
+                        current = {}
+                except Exception:
+                    current = {}
+
+            # merge
+            for k, v in (patch or {}).items():
+                current[k] = v
+
+            cursor.execute("UPDATE turn SET etc = %s WHERE id = %s", (json.dumps(current, ensure_ascii=False), vuln_id))
+        self.db.commit()
 
     def get_by_cve(self, cve_id: str) -> Optional[Dict]:
         """Получение уязвимости по CVE из таблицы turn"""
@@ -1066,6 +1176,7 @@ class LegacyVulnerabilityRepository:
                         etc_data = json.loads(row[11]) if row[11] else {}
                     except:
                         etc_data = {}
+                    tags = self._normalize_tags(etc_data.get('tags', []))
                     
                     # Загружаем описание из nvd_descriptions (приоритет) или cvelist (fallback)
                     description = ''
@@ -1154,16 +1265,21 @@ class LegacyVulnerabilityRepository:
                         cve_id=cve_id
                     )
                     vuln.source_identifier = row[1] or 'NVD'
+                    setattr(vuln, 'tags', tags)
                     vulnerabilities.append(vuln)
             
+            logger.info(f"✅ [get_all_vulnerabilities] Получено {len(vulnerabilities)} уязвимостей (limit={limit})")
             return vulnerabilities
         except Exception as e:
-            logger.error(f"Ошибка получения всех уязвимостей: {e}", exc_info=True)
+            logger.error(f"❌ Ошибка получения всех уязвимостей: {e}", exc_info=True)
+            import traceback
+            logger.error(traceback.format_exc())
             return []
 
     def get_paginated(self, page: int = 1, per_page: int = 50,
                      status: Optional[str] = None, severity: Optional[str] = None,
-                     search: Optional[str] = None) -> Tuple[List[Vulnerability], int]:
+                     search: Optional[str] = None, ai_only: Optional[bool] = None,
+                     tags: Optional[List[str]] = None) -> Tuple[List[Vulnerability], int]:
         """Получить уязвимости с пагинацией и фильтрацией"""
         try:
             from models.entities import Vulnerability
@@ -1199,6 +1315,28 @@ class LegacyVulnerabilityRepository:
                 where_conditions.append("(cve ILIKE %s OR name ILIKE %s)")
                 search_pattern = f"%{search}%"
                 params.extend([search_pattern, search_pattern])
+
+            if ai_only:
+                # etc is TEXT JSON; use LIKE to avoid jsonb casting errors
+                where_conditions.append("etc ILIKE %s")
+                params.append('%"is_ai_related": true%')
+
+            # Tag filtering (turn.etc is TEXT JSON). We match quoted tag values, best-effort.
+            if tags:
+                safe_tags = []
+                for t in tags:
+                    if t is None:
+                        continue
+                    s = str(t).strip()
+                    if not s:
+                        continue
+                    if len(s) > 40:
+                        s = s[:40]
+                    safe_tags.append(s.lower())
+                # require ALL tags
+                for t in safe_tags:
+                    where_conditions.append("etc ILIKE %s")
+                    params.append(f'%"{t}"%')
             
             where_clause = " AND ".join(where_conditions) if where_conditions else "1=1"
             logger.debug(f"🔍 [get_paginated] WHERE clause: {where_clause}, params={params}")
@@ -1241,6 +1379,18 @@ class LegacyVulnerabilityRepository:
                         etc_data = json.loads(row[11]) if row[11] else {}
                     except:
                         etc_data = {}
+
+                    # Tags хранятся в turn.etc как JSON-строка (TEXT колонка)
+                    tags = []
+                    try:
+                        if isinstance(etc_data, dict):
+                            raw_tags = etc_data.get('tags', []) or []
+                            if isinstance(raw_tags, list):
+                                tags = [str(t).strip() for t in raw_tags if str(t).strip()]
+                            elif isinstance(raw_tags, str):
+                                tags = [t.strip() for t in raw_tags.split(',') if t.strip()]
+                    except Exception as e:
+                        logger.debug(f"⚠️ [get_paginated] Ошибка парсинга tags для {row[3]}: {e}")
                     
                     # Загружаем описание из nvd_descriptions (приоритет) или cvelist (fallback)
                     description = ''
@@ -1335,6 +1485,7 @@ class LegacyVulnerabilityRepository:
                         cve_id=cve_id
                     )
                     vuln.source_identifier = row[1] or 'NVD'
+                    setattr(vuln, 'tags', tags)
                     vulnerabilities.append(vuln)
             
             logger.info(f"✅ [get_paginated] Возвращаем {len(vulnerabilities)} уязвимостей из {total_count}")

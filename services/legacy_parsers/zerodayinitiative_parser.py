@@ -98,7 +98,7 @@ class ZeroDayInitiativeParser(BaseLegacyParser):
                 try:
                     r = requests.get(link, timeout=30)
                     r.raise_for_status()
-                    soup_page = BeautifulSoup(r.text, 'lxml')
+                    soup_page = BeautifulSoup(r.text, 'html.parser')
                     
                     links.append(link)
                     
