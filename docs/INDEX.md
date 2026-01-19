@@ -64,6 +64,8 @@
 - [QUICK_START_DEVELOPER.md](QUICK_START_DEVELOPER.md) - ⚡ Быстрый старт
 - [ONBOARDING.md](ONBOARDING.md) - 👋 Онбординг нового разработчика
 - [EXCEL_IMPORT_EXPORT_GUIDE.md](EXCEL_IMPORT_EXPORT_GUIDE.md) - 📊 Руководство по импорту и экспорту Excel (полное описание функциональности)
+- [ROUTES_DOCUMENTATION.md](ROUTES_DOCUMENTATION.md) - 🛣️ Полная документация по маршрутам (все API endpoints и HTML страницы)
+- [HOW_TO_VIEW_ROUTES.md](HOW_TO_VIEW_ROUTES.md) - 🔍 Как посмотреть маршруты и разделить на JSON/XML
 
 ### Архитектура
 - [FOLDER_SERVICES.md](FOLDER_SERVICES.md) - Структура сервисов
