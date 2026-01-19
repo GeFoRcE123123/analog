@@ -63,6 +63,7 @@
 - [SSH_SETUP.md](SSH_SETUP.md) - 🔐 Настройка SSH подключений к VM
 - [QUICK_START_DEVELOPER.md](QUICK_START_DEVELOPER.md) - ⚡ Быстрый старт
 - [ONBOARDING.md](ONBOARDING.md) - 👋 Онбординг нового разработчика
+- [EXCEL_IMPORT_EXPORT_GUIDE.md](EXCEL_IMPORT_EXPORT_GUIDE.md) - 📊 Руководство по импорту и экспорту Excel (полное описание функциональности)
 
 ### Архитектура
 - [FOLDER_SERVICES.md](FOLDER_SERVICES.md) - Структура сервисов
