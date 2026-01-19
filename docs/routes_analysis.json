@@ -1,0 +1,2359 @@
+{
+  "total": 234,
+  "by_type": {
+    "json": 146,
+    "html": 39,
+    "redirect": 23,
+    "file": 2,
+    "unknown": 24
+  },
+  "routes": [
+    {
+      "path": "/",
+      "methods": [
+        "GET"
+      ],
+      "function": "index",
+      "response_type": "REDIRECT",
+      "file": "app.py",
+      "line": 406
+    },
+    {
+      "path": "/auth/login",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "function": "auth_login",
+      "response_type": "unknown",
+      "file": "app.py",
+      "line": 413
+    },
+    {
+      "path": "/dashboard",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "HTML",
+      "file": "app.py",
+      "line": 439
+    },
+    {
+      "path": "/profile",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "HTML",
+      "file": "app.py",
+      "line": 456
+    },
+    {
+      "path": "/vulnerabilities",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "unknown",
+      "file": "app.py",
+      "line": 470
+    },
+    {
+      "path": "/operators",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "HTML",
+      "file": "app.py",
+      "line": 515
+    },
+    {
+      "path": "/admin/users",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "HTML",
+      "file": "app.py",
+      "line": 525
+    },
+    {
+      "path": "/performance",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "HTML",
+      "file": "app.py",
+      "line": 544
+    },
+    {
+      "path": "/analytics",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "REDIRECT",
+      "file": "app.py",
+      "line": 556
+    },
+    {
+      "path": "/review",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "HTML",
+      "file": "app.py",
+      "line": 562
+    },
+    {
+      "path": "/import-excel",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "HTML",
+      "file": "app.py",
+      "line": 570
+    },
+    {
+      "path": "/parsers",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "HTML",
+      "file": "app.py",
+      "line": 576
+    },
+    {
+      "path": "/ai/dashboard",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "HTML",
+      "file": "app.py",
+      "line": 585
+    },
+    {
+      "path": "/ai/statistics",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "HTML",
+      "file": "app.py",
+      "line": 591
+    },
+    {
+      "path": "/ai/training",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "HTML",
+      "file": "app.py",
+      "line": 597
+    },
+    {
+      "path": "/ai/graph3d",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "HTML",
+      "file": "app.py",
+      "line": 605
+    },
+    {
+      "path": "/api/ai/graph3d/data",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 615
+    },
+    {
+      "path": "/ai/monitoring",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "HTML",
+      "file": "app.py",
+      "line": 677
+    },
+    {
+      "path": "/ai/passports",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "HTML",
+      "file": "app.py",
+      "line": 684
+    },
+    {
+      "path": "/my-assignments",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "HTML",
+      "file": "app.py",
+      "line": 690
+    },
+    {
+      "path": "/create-operator",
+      "methods": [
+        "POST"
+      ],
+      "function": null,
+      "response_type": "REDIRECT",
+      "file": "app.py",
+      "line": 697
+    },
+    {
+      "path": "/export/operator-vulnerabilities",
+      "methods": [
+        "POST"
+      ],
+      "function": null,
+      "response_type": "REDIRECT",
+      "file": "app.py",
+      "line": 720
+    },
+    {
+      "path": "/export/operator/<int:operator_id>",
+      "methods": [
+        "POST"
+      ],
+      "function": null,
+      "response_type": "REDIRECT",
+      "file": "app.py",
+      "line": 735
+    },
+    {
+      "path": "/auth/logout",
+      "methods": [
+        "GET"
+      ],
+      "function": "auth_logout",
+      "response_type": "REDIRECT",
+      "file": "app.py",
+      "line": 753
+    },
+    {
+      "path": "/api/auth/login",
+      "methods": [
+        "POST"
+      ],
+      "function": "api_auth_login",
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 763
+    },
+    {
+      "path": "/api/auth/logout",
+      "methods": [
+        "POST"
+      ],
+      "function": "api_auth_logout",
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 798
+    },
+    {
+      "path": "/api/auth/check",
+      "methods": [
+        "GET"
+      ],
+      "function": "api_auth_check",
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 805
+    },
+    {
+      "path": "/api/dashboard-stats",
+      "methods": [
+        "GET"
+      ],
+      "function": "api_dashboard_stats",
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 824
+    },
+    {
+      "path": "/api/vulnerabilities",
+      "methods": [
+        "GET"
+      ],
+      "function": "api_vulnerabilities",
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 837
+    },
+    {
+      "path": "/get-vulnerability/<int:vuln_id>",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "unknown",
+      "file": "app.py",
+      "line": 866
+    },
+    {
+      "path": "/api/vulnerabilities/<int:vuln_id>",
+      "methods": [
+        "GET"
+      ],
+      "function": "api_get_vulnerability",
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 945
+    },
+    {
+      "path": "/api/vulnerabilities/<int:vuln_id>",
+      "methods": [
+        "PUT"
+      ],
+      "function": "api_update_vulnerability",
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 957
+    },
+    {
+      "path": "/api/vulnerabilities/<int:vuln_id>/tags",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 971
+    },
+    {
+      "path": "/api/vulnerabilities/<int:vuln_id>/tags",
+      "methods": [
+        "PUT"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 984
+    },
+    {
+      "path": "/api/vulnerabilities/<int:vuln_id>/tags",
+      "methods": [
+        "POST"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 1000
+    },
+    {
+      "path": "/api/vulnerabilities/<int:vuln_id>/tags",
+      "methods": [
+        "DELETE"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 1018
+    },
+    {
+      "path": "/api/vulnerabilities/<int:vuln_id>/ai-passport",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 1036
+    },
+    {
+      "path": "/api/vulnerabilities/<int:vuln_id>/ai-passport",
+      "methods": [
+        "POST"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 1060
+    },
+    {
+      "path": "/api/operators",
+      "methods": [
+        "GET"
+      ],
+      "function": "api_operators",
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 1118
+    },
+    {
+      "path": "/api/operators",
+      "methods": [
+        "POST"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 1137
+    },
+    {
+      "path": "/api/assign-operator",
+      "methods": [
+        "POST"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 1165
+    },
+    {
+      "path": "/api/assign-multiple",
+      "methods": [
+        "POST"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 1204
+    },
+    {
+      "path": "/assign-vulnerabilities",
+      "methods": [
+        "POST"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 1243
+    },
+    {
+      "path": "/api/unassign-vulnerability",
+      "methods": [
+        "POST"
+      ],
+      "function": "api_unassign_vulnerability",
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 1283
+    },
+    {
+      "path": "/api/analytics/refresh",
+      "methods": [
+        "GET"
+      ],
+      "function": "api_refresh_analytics",
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 1301
+    },
+    {
+      "path": "/api/analytics/current",
+      "methods": [
+        "GET"
+      ],
+      "function": "api_current_analytics",
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 1312
+    },
+    {
+      "path": "/api/parsers/run-all",
+      "methods": [
+        "POST"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 1324
+    },
+    {
+      "path": "/api/parsing-status",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 1474
+    },
+    {
+      "path": "/api/parsers/stats",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "unknown",
+      "file": "app.py",
+      "line": 1500
+    },
+    {
+      "path": "/api/parsers/history",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "unknown",
+      "file": "app.py",
+      "line": 1642
+    },
+    {
+      "path": "/api/html-parser/parse",
+      "methods": [
+        "POST"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 1682
+    },
+    {
+      "path": "/api/vendors/parse",
+      "methods": [
+        "POST"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 1707
+    },
+    {
+      "path": "/api/ai-tagger/scan-all",
+      "methods": [
+        "POST"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 1727
+    },
+    {
+      "path": "/api/parsers/status",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 1743
+    },
+    {
+      "path": "/api/redhat/import",
+      "methods": [
+        "POST"
+      ],
+      "function": null,
+      "response_type": "unknown",
+      "file": "app.py",
+      "line": 1762
+    },
+    {
+      "path": "/api/redhat/import-sync",
+      "methods": [
+        "POST"
+      ],
+      "function": null,
+      "response_type": "unknown",
+      "file": "app.py",
+      "line": 1832
+    },
+    {
+      "path": "/api/parsers/debug",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "unknown",
+      "file": "app.py",
+      "line": 1904
+    },
+    {
+      "path": "/api/health",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 1988
+    },
+    {
+      "path": "/api/vulnerabilities/clear",
+      "methods": [
+        "POST"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 2015
+    },
+    {
+      "path": "/api/ai/analyze",
+      "methods": [
+        "POST"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 2112
+    },
+    {
+      "path": "/api/ai/classify/<int:vulnerability_id>",
+      "methods": [
+        "POST"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 2132
+    },
+    {
+      "path": "/api/ml-platform/connection",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 2148
+    },
+    {
+      "path": "/api/diagnostics/connectivity",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 2161
+    },
+    {
+      "path": "/api/ai/batch-analyze",
+      "methods": [
+        "POST"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 2180
+    },
+    {
+      "path": "/api/ai/statistics",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 2216
+    },
+    {
+      "path": "/api/ai/keywords",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 2235
+    },
+    {
+      "path": "/api/ai/train",
+      "methods": [
+        "POST"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 2253
+    },
+    {
+      "path": "/api/ai/generate-passport/<int:vulnerability_id>",
+      "methods": [
+        "POST"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 2288
+    },
+    {
+      "path": "/api/ai/passport/<int:vulnerability_id>",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "unknown",
+      "file": "app.py",
+      "line": 2304
+    },
+    {
+      "path": "/api/ai/monitor-start",
+      "methods": [
+        "POST"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 2336
+    },
+    {
+      "path": "/api/ai/monitor-stop",
+      "methods": [
+        "POST"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 2360
+    },
+    {
+      "path": "/api/ai/monitor-status",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 2372
+    },
+    {
+      "path": "/api/ml-platform/training/start",
+      "methods": [
+        "POST"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 2389
+    },
+    {
+      "path": "/api/ml-platform/training/status/<task_id>",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 2412
+    },
+    {
+      "path": "/api/ml-platform/training/history",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 2427
+    },
+    {
+      "path": "/api/ml-platform/passports/<cve_id>",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 2442
+    },
+    {
+      "path": "/api/ml-platform/passports",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 2457
+    },
+    {
+      "path": "/api/risk/calculate",
+      "methods": [
+        "POST"
+      ],
+      "function": null,
+      "response_type": "unknown",
+      "file": "app.py",
+      "line": 2473
+    },
+    {
+      "path": "/api/security/methodologies",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 2550
+    },
+    {
+      "path": "/api/security/methodologies/<int:methodology_id>",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 2562
+    },
+    {
+      "path": "/api/security/methodologies/<int:methodology_id>/tests",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 2585
+    },
+    {
+      "path": "/api/security/projects",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 2597
+    },
+    {
+      "path": "/api/security/projects/<int:project_id>",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 2626
+    },
+    {
+      "path": "/api/security/projects/<int:project_id>/results",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 2649
+    },
+    {
+      "path": "/api/security/projects/<int:project_id>/metrics",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 2680
+    },
+    {
+      "path": "/api/cve-sync/status",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 2703
+    },
+    {
+      "path": "/api/cve-sync/reset",
+      "methods": [
+        "POST"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 2724
+    },
+    {
+      "path": "/",
+      "methods": [
+        "GET"
+      ],
+      "function": "index",
+      "response_type": "REDIRECT",
+      "file": "app.py",
+      "line": 402
+    },
+    {
+      "path": "/auth/login",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "function": "auth_login",
+      "response_type": "unknown",
+      "file": "app.py",
+      "line": 409
+    },
+    {
+      "path": "/dashboard",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "HTML",
+      "file": "app.py",
+      "line": 435
+    },
+    {
+      "path": "/profile",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "HTML",
+      "file": "app.py",
+      "line": 452
+    },
+    {
+      "path": "/vulnerabilities",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "unknown",
+      "file": "app.py",
+      "line": 466
+    },
+    {
+      "path": "/operators",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "HTML",
+      "file": "app.py",
+      "line": 510
+    },
+    {
+      "path": "/admin/users",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "HTML",
+      "file": "app.py",
+      "line": 520
+    },
+    {
+      "path": "/performance",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "HTML",
+      "file": "app.py",
+      "line": 539
+    },
+    {
+      "path": "/analytics",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "REDIRECT",
+      "file": "app.py",
+      "line": 551
+    },
+    {
+      "path": "/review",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "HTML",
+      "file": "app.py",
+      "line": 557
+    },
+    {
+      "path": "/import-excel",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "HTML",
+      "file": "app.py",
+      "line": 565
+    },
+    {
+      "path": "/parsers",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "HTML",
+      "file": "app.py",
+      "line": 571
+    },
+    {
+      "path": "/ai/dashboard",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "HTML",
+      "file": "app.py",
+      "line": 580
+    },
+    {
+      "path": "/ai/statistics",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "HTML",
+      "file": "app.py",
+      "line": 586
+    },
+    {
+      "path": "/ai/training",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "HTML",
+      "file": "app.py",
+      "line": 592
+    },
+    {
+      "path": "/ai/monitoring",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "HTML",
+      "file": "app.py",
+      "line": 599
+    },
+    {
+      "path": "/ai/passports",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "HTML",
+      "file": "app.py",
+      "line": 606
+    },
+    {
+      "path": "/my-assignments",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "HTML",
+      "file": "app.py",
+      "line": 612
+    },
+    {
+      "path": "/create-operator",
+      "methods": [
+        "POST"
+      ],
+      "function": null,
+      "response_type": "REDIRECT",
+      "file": "app.py",
+      "line": 619
+    },
+    {
+      "path": "/export/operator-vulnerabilities",
+      "methods": [
+        "POST"
+      ],
+      "function": null,
+      "response_type": "REDIRECT",
+      "file": "app.py",
+      "line": 642
+    },
+    {
+      "path": "/export/operator/<int:operator_id>",
+      "methods": [
+        "POST"
+      ],
+      "function": null,
+      "response_type": "REDIRECT",
+      "file": "app.py",
+      "line": 657
+    },
+    {
+      "path": "/auth/logout",
+      "methods": [
+        "GET"
+      ],
+      "function": "auth_logout",
+      "response_type": "REDIRECT",
+      "file": "app.py",
+      "line": 675
+    },
+    {
+      "path": "/api/auth/login",
+      "methods": [
+        "POST"
+      ],
+      "function": "api_auth_login",
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 685
+    },
+    {
+      "path": "/api/auth/logout",
+      "methods": [
+        "POST"
+      ],
+      "function": "api_auth_logout",
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 720
+    },
+    {
+      "path": "/api/auth/check",
+      "methods": [
+        "GET"
+      ],
+      "function": "api_auth_check",
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 727
+    },
+    {
+      "path": "/api/dashboard-stats",
+      "methods": [
+        "GET"
+      ],
+      "function": "api_dashboard_stats",
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 746
+    },
+    {
+      "path": "/api/vulnerabilities",
+      "methods": [
+        "GET"
+      ],
+      "function": "api_vulnerabilities",
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 759
+    },
+    {
+      "path": "/get-vulnerability/<int:vuln_id>",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "unknown",
+      "file": "app.py",
+      "line": 788
+    },
+    {
+      "path": "/api/vulnerabilities/<int:vuln_id>",
+      "methods": [
+        "GET"
+      ],
+      "function": "api_get_vulnerability",
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 865
+    },
+    {
+      "path": "/api/vulnerabilities/<int:vuln_id>",
+      "methods": [
+        "PUT"
+      ],
+      "function": "api_update_vulnerability",
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 877
+    },
+    {
+      "path": "/api/vulnerabilities/<int:vuln_id>/tags",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 891
+    },
+    {
+      "path": "/api/vulnerabilities/<int:vuln_id>/tags",
+      "methods": [
+        "PUT"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 904
+    },
+    {
+      "path": "/api/vulnerabilities/<int:vuln_id>/tags",
+      "methods": [
+        "POST"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 920
+    },
+    {
+      "path": "/api/vulnerabilities/<int:vuln_id>/tags",
+      "methods": [
+        "DELETE"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 938
+    },
+    {
+      "path": "/api/vulnerabilities/<int:vuln_id>/ai-passport",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 958
+    },
+    {
+      "path": "/api/vulnerabilities/<int:vuln_id>/ai-passport",
+      "methods": [
+        "POST"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 980
+    },
+    {
+      "path": "/api/operators",
+      "methods": [
+        "GET"
+      ],
+      "function": "api_operators",
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 1033
+    },
+    {
+      "path": "/api/operators",
+      "methods": [
+        "POST"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 1052
+    },
+    {
+      "path": "/api/assign-operator",
+      "methods": [
+        "POST"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 1080
+    },
+    {
+      "path": "/api/assign-multiple",
+      "methods": [
+        "POST"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 1119
+    },
+    {
+      "path": "/assign-vulnerabilities",
+      "methods": [
+        "POST"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 1158
+    },
+    {
+      "path": "/api/unassign-vulnerability",
+      "methods": [
+        "POST"
+      ],
+      "function": "api_unassign_vulnerability",
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 1198
+    },
+    {
+      "path": "/api/analytics/refresh",
+      "methods": [
+        "GET"
+      ],
+      "function": "api_refresh_analytics",
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 1216
+    },
+    {
+      "path": "/api/analytics/current",
+      "methods": [
+        "GET"
+      ],
+      "function": "api_current_analytics",
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 1227
+    },
+    {
+      "path": "/api/parsers/run-all",
+      "methods": [
+        "POST"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 1239
+    },
+    {
+      "path": "/api/parsing-status",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 1389
+    },
+    {
+      "path": "/api/parsers/stats",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "unknown",
+      "file": "app.py",
+      "line": 1415
+    },
+    {
+      "path": "/api/parsers/history",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "unknown",
+      "file": "app.py",
+      "line": 1557
+    },
+    {
+      "path": "/api/html-parser/parse",
+      "methods": [
+        "POST"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 1597
+    },
+    {
+      "path": "/api/vendors/parse",
+      "methods": [
+        "POST"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 1622
+    },
+    {
+      "path": "/api/ai-tagger/scan-all",
+      "methods": [
+        "POST"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 1642
+    },
+    {
+      "path": "/api/parsers/status",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 1658
+    },
+    {
+      "path": "/api/redhat/import",
+      "methods": [
+        "POST"
+      ],
+      "function": null,
+      "response_type": "unknown",
+      "file": "app.py",
+      "line": 1677
+    },
+    {
+      "path": "/api/redhat/import-sync",
+      "methods": [
+        "POST"
+      ],
+      "function": null,
+      "response_type": "unknown",
+      "file": "app.py",
+      "line": 1747
+    },
+    {
+      "path": "/api/parsers/debug",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "unknown",
+      "file": "app.py",
+      "line": 1819
+    },
+    {
+      "path": "/api/health",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 1903
+    },
+    {
+      "path": "/api/vulnerabilities/clear",
+      "methods": [
+        "POST"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 1930
+    },
+    {
+      "path": "/api/ai/analyze",
+      "methods": [
+        "POST"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 2027
+    },
+    {
+      "path": "/api/ai/classify/<int:vulnerability_id>",
+      "methods": [
+        "POST"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 2047
+    },
+    {
+      "path": "/api/ml-platform/connection",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 2063
+    },
+    {
+      "path": "/api/diagnostics/connectivity",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 2076
+    },
+    {
+      "path": "/api/ai/batch-analyze",
+      "methods": [
+        "POST"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 2095
+    },
+    {
+      "path": "/api/ai/statistics",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 2131
+    },
+    {
+      "path": "/api/ai/keywords",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 2150
+    },
+    {
+      "path": "/api/ai/train",
+      "methods": [
+        "POST"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 2168
+    },
+    {
+      "path": "/api/ai/generate-passport/<int:vulnerability_id>",
+      "methods": [
+        "POST"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 2203
+    },
+    {
+      "path": "/api/ai/passport/<int:vulnerability_id>",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "unknown",
+      "file": "app.py",
+      "line": 2219
+    },
+    {
+      "path": "/api/ai/monitor-start",
+      "methods": [
+        "POST"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 2251
+    },
+    {
+      "path": "/api/ai/monitor-stop",
+      "methods": [
+        "POST"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 2275
+    },
+    {
+      "path": "/api/ai/monitor-status",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 2287
+    },
+    {
+      "path": "/api/ml-platform/training/start",
+      "methods": [
+        "POST"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 2304
+    },
+    {
+      "path": "/api/ml-platform/training/status/<task_id>",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 2327
+    },
+    {
+      "path": "/api/ml-platform/training/history",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 2342
+    },
+    {
+      "path": "/api/ml-platform/passports/<cve_id>",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 2357
+    },
+    {
+      "path": "/api/ml-platform/passports",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 2372
+    },
+    {
+      "path": "/api/security/methodologies",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 2400
+    },
+    {
+      "path": "/api/security/methodologies/<int:methodology_id>",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 2412
+    },
+    {
+      "path": "/api/security/methodologies/<int:methodology_id>/tests",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 2435
+    },
+    {
+      "path": "/api/security/projects",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 2447
+    },
+    {
+      "path": "/api/security/projects/<int:project_id>",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 2476
+    },
+    {
+      "path": "/api/security/projects/<int:project_id>/results",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 2499
+    },
+    {
+      "path": "/api/security/projects/<int:project_id>/metrics",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 2530
+    },
+    {
+      "path": "/api/cve-sync/status",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 2553
+    },
+    {
+      "path": "/api/cve-sync/reset",
+      "methods": [
+        "POST"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 2574
+    },
+    {
+      "path": "/",
+      "methods": [
+        "GET"
+      ],
+      "function": "index",
+      "response_type": "REDIRECT",
+      "file": "app.py",
+      "line": 149
+    },
+    {
+      "path": "/auth/login",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "function": "auth_login",
+      "response_type": "REDIRECT",
+      "file": "app.py",
+      "line": 155
+    },
+    {
+      "path": "/parsers",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "HTML",
+      "file": "app.py",
+      "line": 177
+    },
+    {
+      "path": "/dashboard",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "HTML",
+      "file": "app.py",
+      "line": 189
+    },
+    {
+      "path": "/profile",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "HTML",
+      "file": "app.py",
+      "line": 206
+    },
+    {
+      "path": "/import-excel",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "HTML",
+      "file": "app.py",
+      "line": 213
+    },
+    {
+      "path": "/vulnerabilities",
+      "methods": [
+        "GET"
+      ],
+      "function": "vulnerabilities_list",
+      "response_type": "HTML",
+      "file": "app.py",
+      "line": 219
+    },
+    {
+      "path": "/admin/users",
+      "methods": [
+        "GET"
+      ],
+      "function": null,
+      "response_type": "HTML",
+      "file": "app.py",
+      "line": 243
+    },
+    {
+      "path": "/api/admin/users/<int:user_id>",
+      "methods": [
+        "DELETE"
+      ],
+      "function": null,
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 262
+    },
+    {
+      "path": "/operators",
+      "methods": [
+        "GET"
+      ],
+      "function": "operators_page",
+      "response_type": "HTML",
+      "file": "app.py",
+      "line": 276
+    },
+    {
+      "path": "/performance",
+      "methods": [
+        "GET"
+      ],
+      "function": "performance_analytics",
+      "response_type": "HTML",
+      "file": "app.py",
+      "line": 284
+    },
+    {
+      "path": "/review",
+      "methods": [
+        "GET"
+      ],
+      "function": "review_vulnerabilities",
+      "response_type": "HTML",
+      "file": "app.py",
+      "line": 294
+    },
+    {
+      "path": "/auth/logout",
+      "methods": [
+        "GET"
+      ],
+      "function": "auth_logout",
+      "response_type": "REDIRECT",
+      "file": "app.py",
+      "line": 300
+    },
+    {
+      "path": "/api/start-parsing",
+      "methods": [
+        "POST"
+      ],
+      "function": "start_parsing",
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 307
+    },
+    {
+      "path": "/api/nvd/sync/full",
+      "methods": [
+        "POST"
+      ],
+      "function": "nvd_full_sync",
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 326
+    },
+    {
+      "path": "/api/nvd/sync/incremental",
+      "methods": [
+        "POST"
+      ],
+      "function": "nvd_incremental_sync",
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 338
+    },
+    {
+      "path": "/api/nvd/sync/ai",
+      "methods": [
+        "POST"
+      ],
+      "function": "nvd_ai_sync",
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 351
+    },
+    {
+      "path": "/api/nvd/status",
+      "methods": [
+        "GET"
+      ],
+      "function": "nvd_status",
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 363
+    },
+    {
+      "path": "/api/nvd/scheduler/start",
+      "methods": [
+        "POST"
+      ],
+      "function": "nvd_scheduler_start",
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 380
+    },
+    {
+      "path": "/api/nvd/scheduler/stop",
+      "methods": [
+        "POST"
+      ],
+      "function": "nvd_scheduler_stop",
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 396
+    },
+    {
+      "path": "/api/nvd/scheduler/status",
+      "methods": [
+        "GET"
+      ],
+      "function": "nvd_scheduler_status",
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 404
+    },
+    {
+      "path": "/api/redhat/import",
+      "methods": [
+        "POST"
+      ],
+      "function": "redhat_import",
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 412
+    },
+    {
+      "path": "/api/parsers/status",
+      "methods": [
+        "GET"
+      ],
+      "function": "get_parsers_status",
+      "response_type": "unknown",
+      "file": "app.py",
+      "line": 436
+    },
+    {
+      "path": "/api/parsing-progress",
+      "methods": [
+        "GET"
+      ],
+      "function": "parsing_progress",
+      "response_type": "FILE",
+      "file": "app.py",
+      "line": 611
+    },
+    {
+      "path": "/api/parsing-status",
+      "methods": [
+        "GET"
+      ],
+      "function": "get_parsing_status",
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 624
+    },
+    {
+      "path": "/parse_vulnerabilities",
+      "methods": [
+        "GET"
+      ],
+      "function": "parse_vulnerabilities",
+      "response_type": "REDIRECT",
+      "file": "app.py",
+      "line": 634
+    },
+    {
+      "path": "/parse_and_show",
+      "methods": [
+        "GET"
+      ],
+      "function": "parse_and_show",
+      "response_type": "REDIRECT",
+      "file": "app.py",
+      "line": 638
+    },
+    {
+      "path": "/parsing_status",
+      "methods": [
+        "GET"
+      ],
+      "function": "parsing_status",
+      "response_type": "HTML",
+      "file": "app.py",
+      "line": 655
+    },
+    {
+      "path": "/api/assign-operator",
+      "methods": [
+        "POST"
+      ],
+      "function": "assign_operator",
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 664
+    },
+    {
+      "path": "/api/assign-multiple",
+      "methods": [
+        "POST"
+      ],
+      "function": "assign_multiple",
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 674
+    },
+    {
+      "path": "/api/operator-workload/<int:operator_id>",
+      "methods": [
+        "GET"
+      ],
+      "function": "get_operator_workload",
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 684
+    },
+    {
+      "path": "/api/unassign-vulnerability",
+      "methods": [
+        "POST"
+      ],
+      "function": "unassign_vulnerability",
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 689
+    },
+    {
+      "path": "/api/analytics/refresh",
+      "methods": [
+        "GET"
+      ],
+      "function": "refresh_analytics",
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 699
+    },
+    {
+      "path": "/api/analytics/current",
+      "methods": [
+        "GET"
+      ],
+      "function": "get_current_analytics",
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 708
+    },
+    {
+      "path": "/api/excel/import/preview",
+      "methods": [
+        "POST"
+      ],
+      "function": "preview_excel_import",
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 717
+    },
+    {
+      "path": "/api/excel/import",
+      "methods": [
+        "POST"
+      ],
+      "function": "import_excel_vulnerabilities",
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 744
+    },
+    {
+      "path": "/assign-operator",
+      "methods": [
+        "POST"
+      ],
+      "function": "assign_operator_old",
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 803
+    },
+    {
+      "path": "/update-vulnerability-status",
+      "methods": [
+        "POST"
+      ],
+      "function": "update_vulnerability_status",
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 816
+    },
+    {
+      "path": "/get-operator/<int:operator_id>",
+      "methods": [
+        "GET"
+      ],
+      "function": "get_operator_api",
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 828
+    },
+    {
+      "path": "/get-operator/<string:operator_name>",
+      "methods": [
+        "GET"
+      ],
+      "function": "get_operator_by_name_api",
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 843
+    },
+    {
+      "path": "/get-vulnerability/<int:vuln_id>",
+      "methods": [
+        "GET"
+      ],
+      "function": "get_vulnerability",
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 860
+    },
+    {
+      "path": "/update-vulnerability",
+      "methods": [
+        "POST"
+      ],
+      "function": "update_vulnerability",
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 890
+    },
+    {
+      "path": "/export/operator-vulnerabilities",
+      "methods": [
+        "POST"
+      ],
+      "function": "export_operator_vulnerabilities",
+      "response_type": "REDIRECT",
+      "file": "app.py",
+      "line": 899
+    },
+    {
+      "path": "/export/operator/<int:operator_id>",
+      "methods": [
+        "POST"
+      ],
+      "function": "export_single_operator",
+      "response_type": "REDIRECT",
+      "file": "app.py",
+      "line": 906
+    },
+    {
+      "path": "/export/performance",
+      "methods": [
+        "POST"
+      ],
+      "function": "export_performance",
+      "response_type": "REDIRECT",
+      "file": "app.py",
+      "line": 916
+    },
+    {
+      "path": "/export/vulnerabilities",
+      "methods": [
+        "POST"
+      ],
+      "function": "export_vulnerabilities",
+      "response_type": "REDIRECT",
+      "file": "app.py",
+      "line": 923
+    },
+    {
+      "path": "/create-operator",
+      "methods": [
+        "POST"
+      ],
+      "function": "create_operator",
+      "response_type": "REDIRECT",
+      "file": "app.py",
+      "line": 931
+    },
+    {
+      "path": "/assign-vulnerabilities",
+      "methods": [
+        "POST"
+      ],
+      "function": "assign_vulnerabilities",
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 947
+    },
+    {
+      "path": "/api/live-vulnerabilities",
+      "methods": [
+        "GET"
+      ],
+      "function": "live_vulnerabilities",
+      "response_type": "FILE",
+      "file": "app.py",
+      "line": 961
+    },
+    {
+      "path": "/api/operators",
+      "methods": [
+        "GET"
+      ],
+      "function": "get_all_operators_api",
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 978
+    },
+    {
+      "path": "/api/ai-tagger/analyze",
+      "methods": [
+        "POST"
+      ],
+      "function": "ai_tagger_analyze",
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 997
+    },
+    {
+      "path": "/api/ai-tagger/scan-all",
+      "methods": [
+        "POST"
+      ],
+      "function": "ai_tagger_scan_all",
+      "response_type": "unknown",
+      "file": "app.py",
+      "line": 1024
+    },
+    {
+      "path": "/api/vendors/parse",
+      "methods": [
+        "POST"
+      ],
+      "function": "vendors_parse",
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 1079
+    },
+    {
+      "path": "/api/html-parser/parse",
+      "methods": [
+        "POST"
+      ],
+      "function": "html_parser_parse",
+      "response_type": "unknown",
+      "file": "app.py",
+      "line": 1101
+    },
+    {
+      "path": "/my_assignments",
+      "methods": [
+        "GET"
+      ],
+      "function": "my_assignments",
+      "response_type": "REDIRECT",
+      "file": "app.py",
+      "line": 1140
+    },
+    {
+      "path": "/api/vendors/sources",
+      "methods": [
+        "GET"
+      ],
+      "function": "vendors_sources",
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 1153
+    },
+    {
+      "path": "/update-metric",
+      "methods": [
+        "POST"
+      ],
+      "function": "update_metric",
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 1165
+    },
+    {
+      "path": "/review-vulnerability",
+      "methods": [
+        "POST"
+      ],
+      "function": "review_vulnerability",
+      "response_type": "unknown",
+      "file": "app.py",
+      "line": 1173
+    },
+    {
+      "path": "/api/dashboard-stats",
+      "methods": [
+        "GET"
+      ],
+      "function": "get_dashboard_stats_api",
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 1197
+    },
+    {
+      "path": "/api/live-parsing-vulnerabilities",
+      "methods": [
+        "GET"
+      ],
+      "function": "live_parsing_vulnerabilities",
+      "response_type": "unknown",
+      "file": "app.py",
+      "line": 1202
+    },
+    {
+      "path": "/api/recent-vulnerabilities",
+      "methods": [
+        "GET"
+      ],
+      "function": "get_recent_vulnerabilities",
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 1228
+    },
+    {
+      "path": "/api/parse_nvd",
+      "methods": [
+        "POST"
+      ],
+      "function": "parse_nvd_vulnerabilities",
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 1235
+    },
+    {
+      "path": "/get-vulnerability/<int:vuln_id>",
+      "methods": [
+        "GET"
+      ],
+      "function": "get_vulnerability_api",
+      "response_type": "JSON",
+      "file": "app.py",
+      "line": 1243
+    }
+  ]
+}
