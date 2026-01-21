@@ -323,7 +323,11 @@ def get_active_parsing_status():
 
 def get_vulnerabilities_with_operators_old():
     """Получить уязвимости с операторами (старый API)"""
-    vulnerabilities = vuln_service.get_all_vulnerabilities()
+    # Получаем только последние 10 уязвимостей для отображения на страницах
+    vulnerabilities, _ = vuln_service.get_paginated_vulnerabilities(
+        page=1, per_page=10,
+        status=None, severity=None, search=None, ai_only=None, tags=None
+    )
     operators = operator_service.get_all_operators()
     return vulnerabilities, operators
 
