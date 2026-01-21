@@ -1,26 +1,26 @@
-# 🛡️ БДУ ФСТЭК - Центр документации
+# 🛡️ БДУ ФСТЭК - Документация
 
 **Полная интеграция структуры паспорта уязвимости БДУ ФСТЭК**
 
 ---
 
-## 📚 Навигация по документам
+## 📚 Документы в этой папке
 
 ### 🚀 Быстрый старт
 
-1. **[BDU_QUICK_SUMMARY.md](BDU_QUICK_SUMMARY.md)** ⭐ **НАЧНИТЕ ЗДЕСЬ!**
+1. **[QUICK_SUMMARY.md](QUICK_SUMMARY.md)** ⭐ **НАЧНИТЕ ЗДЕСЬ!**
    - Краткое резюме (5 мин чтения)
    - Что отсутствует в системе
    - Минимально необходимые изменения
    - Быстрый чек-лист
 
-2. **[BDU_ACTION_PLAN.md](BDU_ACTION_PLAN.md)** ⭐ **ПЛАН ДЕЙСТВИЙ**
+2. **[ACTION_PLAN.md](ACTION_PLAN.md)** ⭐ **ПЛАН ДЕЙСТВИЙ**
    - Пошаговый план внедрения (3 недели)
    - Фазы и milestone'ы
    - Чек-листы для каждого этапа
    - Оценка рисков
 
-3. **[../scripts/migration/README_MIGRATION.md](../scripts/migration/README_MIGRATION.md)**
+3. **[../../scripts/migration/README_MIGRATION.md](../../scripts/migration/README_MIGRATION.md)**
    - Руководство по миграции БД
    - Команды для выполнения
    - Проверка результатов
@@ -30,37 +30,42 @@
 
 ### 📖 Детальная документация
 
-4. **[BDU_STRUCTURE_ANALYSIS_2026.md](BDU_STRUCTURE_ANALYSIS_2026.md)** (70+ страниц)
+4. **[STRUCTURE_ANALYSIS.md](STRUCTURE_ANALYSIS.md)** (70+ страниц)
    - Полный анализ структуры паспорта БДУ ФСТЭК
    - Сравнительная таблица полей
    - Детальное описание изменений в каждом слое
    - Примеры кода для всех компонентов
    - Приоритизация задач
 
-5. **[BDU_COMPARISON_DIAGRAM.md](BDU_COMPARISON_DIAGRAM.md)**
+5. **[COMPARISON_DIAGRAM.md](COMPARISON_DIAGRAM.md)**
    - Визуальное сравнение структуры таблицы ДО и ПОСЛЕ
    - Схемы индексов
    - Примеры запросов (старые vs новые)
    - Сравнение производительности
 
+6. **[FILES_LIST.md](FILES_LIST.md)**
+   - Список всех созданных файлов
+   - Описание каждого файла
+   - Структура документации
+
 ---
 
 ### 🔧 Технические скрипты
 
-6. **[../scripts/migration/add_bdu_fields.sql](../scripts/migration/add_bdu_fields.sql)**
+7. **[../../scripts/migration/add_bdu_fields.sql](../../scripts/migration/add_bdu_fields.sql)**
    - SQL миграция: добавление 17 полей
    - 10 новых индексов
    - Check constraints
    - Комментарии к полям
    - Секция отката (rollback)
 
-7. **[../scripts/migration/backfill_bdu_data.py](../scripts/migration/backfill_bdu_data.py)**
+8. **[../../scripts/migration/backfill_bdu_data.py](../../scripts/migration/backfill_bdu_data.py)**
    - Python скрипт обратного заполнения
    - Извлечение БДУ данных из существующих записей
    - Режим dry-run для тестирования
    - Подробная статистика
 
-8. **[../scripts/migration/check_bdu_stats.sql](../scripts/migration/check_bdu_stats.sql)**
+9. **[../../scripts/migration/check_bdu_stats.sql](../../scripts/migration/check_bdu_stats.sql)**
    - SQL скрипт проверки статистики
    - 10 разделов аналитики
    - Топ вендоров и продуктов
@@ -72,8 +77,8 @@
 ## 🎯 Для разных ролей
 
 ### Для менеджера проекта
-1. Прочитать **BDU_QUICK_SUMMARY.md** (5 мин)
-2. Изучить **BDU_ACTION_PLAN.md** (15 мин)
+1. Прочитать **QUICK_SUMMARY.md** (5 мин)
+2. Изучить **ACTION_PLAN.md** (15 мин)
 3. Оценить сроки и ресурсы
 
 **Время:** 20 минут  
@@ -82,13 +87,13 @@
 ---
 
 ### Для разработчика Backend
-1. Прочитать **BDU_QUICK_SUMMARY.md** (5 мин)
-2. Изучить секции в **BDU_STRUCTURE_ANALYSIS_2026.md**:
+1. Прочитать **QUICK_SUMMARY.md** (5 мин)
+2. Изучить секции в **STRUCTURE_ANALYSIS.md**:
    - Раздел 3: Изменения в БД
    - Раздел 4: Изменения в парсере
    - Раздел 6: API изменения
    - Раздел 7: Сервисный слой
-3. Посмотреть примеры в **BDU_COMPARISON_DIAGRAM.md**
+3. Посмотреть примеры в **COMPARISON_DIAGRAM.md**
 
 **Время:** 1-2 часа  
 **Результат:** Полное понимание backend изменений
@@ -96,13 +101,13 @@
 ---
 
 ### Для разработчика Frontend
-1. Прочитать **BDU_QUICK_SUMMARY.md** (5 мин)
-2. Изучить секцию 5 в **BDU_STRUCTURE_ANALYSIS_2026.md**:
+1. Прочитать **QUICK_SUMMARY.md** (5 мин)
+2. Изучить секцию 5 в **STRUCTURE_ANALYSIS.md**:
    - Изменения в UI
    - Новые блоки модального окна
    - Фильтры
    - JavaScript функции
-3. Посмотреть примеры UI в **BDU_COMPARISON_DIAGRAM.md**
+3. Посмотреть примеры UI в **COMPARISON_DIAGRAM.md**
 
 **Время:** 1 час  
 **Результат:** Понимание UI изменений
@@ -110,9 +115,9 @@
 ---
 
 ### Для DBA (администратора БД)
-1. Изучить **../scripts/migration/README_MIGRATION.md**
-2. Просмотреть **../scripts/migration/add_bdu_fields.sql**
-3. Изучить секцию индексов в **BDU_COMPARISON_DIAGRAM.md**
+1. Изучить **../../scripts/migration/README_MIGRATION.md**
+2. Просмотреть **../../scripts/migration/add_bdu_fields.sql**
+3. Изучить секцию индексов в **COMPARISON_DIAGRAM.md**
 4. Подготовить план бэкапа и отката
 
 **Время:** 1-2 часа  
@@ -121,9 +126,9 @@
 ---
 
 ### Для QA инженера
-1. Прочитать **BDU_QUICK_SUMMARY.md**
-2. Изучить раздел 11 "Тестирование" в **BDU_STRUCTURE_ANALYSIS_2026.md**
-3. Изучить **BDU_ACTION_PLAN.md** фазу 5 "Тестирование"
+1. Прочитать **QUICK_SUMMARY.md**
+2. Изучить раздел 11 "Тестирование" в **STRUCTURE_ANALYSIS.md**
+3. Изучить **ACTION_PLAN.md** фазу 5 "Тестирование"
 4. Подготовить тест-кейсы
 
 **Время:** 2 часа  
@@ -222,7 +227,7 @@
 ### При возникновении вопросов:
 
 1. **Документация** - проверьте соответствующий раздел выше
-2. **Troubleshooting** - см. `scripts/migration/README_MIGRATION.md`
+2. **Troubleshooting** - см. `../../scripts/migration/README_MIGRATION.md`
 3. **Логи** - проверьте логи PostgreSQL и приложения
 4. **Rollback** - используйте бэкап для отката
 
@@ -240,10 +245,10 @@
 
 ```bash
 # Шаг 1: Ознакомление
-cat docs/BDU_QUICK_SUMMARY.md
+cat docs/bdu/QUICK_SUMMARY.md
 
 # Шаг 2: План действий
-cat docs/BDU_ACTION_PLAN.md
+cat docs/bdu/ACTION_PLAN.md
 
 # Шаг 3: Тестовая миграция
 # (см. scripts/migration/README_MIGRATION.md)
@@ -277,5 +282,5 @@ cat docs/BDU_ACTION_PLAN.md
 **Дата создания документации:** 22 января 2026  
 **Версия:** 1.0
 
-**Следующий шаг:** Прочитайте [BDU_QUICK_SUMMARY.md](BDU_QUICK_SUMMARY.md) ⭐
+**Следующий шаг:** Прочитайте [QUICK_SUMMARY.md](QUICK_SUMMARY.md) ⭐
 

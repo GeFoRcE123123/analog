@@ -236,9 +236,11 @@ GET /api/vulnerabilities/<id>
 
 ## 📚 ДОКУМЕНТЫ
 
-- **Полный анализ:** `docs/BDU_STRUCTURE_ANALYSIS_2026.md` (70+ страниц)
-- **Это резюме:** `docs/BDU_QUICK_SUMMARY.md`
-- **Миграция:** `scripts/migration/add_bdu_fields.sql`
+- **Полный анализ:** `STRUCTURE_ANALYSIS.md` (70+ страниц)
+- **Это резюме:** `QUICK_SUMMARY.md`
+- **План действий:** `ACTION_PLAN.md`
+- **Визуальное сравнение:** `COMPARISON_DIAGRAM.md`
+- **Миграция:** `../../scripts/migration/add_bdu_fields.sql`
 
 ---
 

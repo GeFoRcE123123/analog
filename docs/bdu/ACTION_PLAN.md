@@ -8,9 +8,9 @@
 ## 📅 ФАЗА 1: Подготовка (1-2 дня)
 
 ### День 1: Изучение и планирование
-- [ ] Прочитать `BDU_STRUCTURE_ANALYSIS_2026.md` (детальный анализ)
-- [ ] Прочитать `BDU_QUICK_SUMMARY.md` (краткое резюме)
-- [ ] Изучить `BDU_COMPARISON_DIAGRAM.md` (сравнение до/после)
+- [ ] Прочитать `STRUCTURE_ANALYSIS.md` (детальный анализ)
+- [ ] Прочитать `QUICK_SUMMARY.md` (краткое резюме)
+- [ ] Изучить `COMPARISON_DIAGRAM.md` (сравнение до/после)
 - [ ] Обсудить план с командой
 - [ ] Определить ответственных
 
@@ -363,10 +363,10 @@ function showVulnerabilityDetails(vulnId) {
 ## 📞 Контакты и ресурсы
 
 **Документы:**
-- Детальный анализ: `docs/BDU_STRUCTURE_ANALYSIS_2026.md`
-- Краткое резюме: `docs/BDU_QUICK_SUMMARY.md`
-- Сравнение: `docs/BDU_COMPARISON_DIAGRAM.md`
-- Миграция: `scripts/migration/README_MIGRATION.md`
+- Детальный анализ: `STRUCTURE_ANALYSIS.md`
+- Краткое резюме: `QUICK_SUMMARY.md`
+- Сравнение: `COMPARISON_DIAGRAM.md`
+- Миграция: `../../scripts/migration/README_MIGRATION.md`
 
 **Скрипты:**
 - SQL миграция: `scripts/migration/add_bdu_fields.sql`
