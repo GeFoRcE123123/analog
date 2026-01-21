@@ -112,9 +112,7 @@ def get_vulnerabilities_with_operators(page: int = 1, per_page: int = 50,
     try:
         vulnerabilities, total_count = vuln_service.get_paginated_vulnerabilities(
             page=page, per_page=per_page,
-            status=status, severity=severity, search=search, source=source, ai_only=ai_only, tags=tags,
-            vendor=vendor, product=product, exploit_status=exploit_status,
-            bdu_only=bdu_only, cve_id=cve_id, bdu_id=bdu_id
+            status=status, severity=severity, search=search, source=source, ai_only=ai_only, tags=tags
         )
         operators = operator_service.get_all_operators()
         logger.info(f"📊 Получено уязвимостей: {len(vulnerabilities)} из {total_count} (страница {page})")
