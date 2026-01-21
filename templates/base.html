@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vulnerability Management System</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Custom Styles -->
+    <style>
+        .nav-gradient {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .nav-shadow {
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        }
+        .nav-item {
+            position: relative;
+            transition: all 0.3s ease;
+        }
+        .nav-item::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 50%;
+            width: 0;
+            height: 2px;
+            background: white;
+            transition: all 0.3s ease;
+            transform: translateX(-50%);
+        }
+        .nav-item:hover::after {
+            width: 100%;
+        }
+        .logo-glow {
+            text-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
+        }
+        .notification-badge {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        .import-btn-glow {
+            animation: importGlow 3s infinite;
+        }
+        @keyframes importGlow {
+            0%, 100% {
+                box-shadow: 0 0 20px rgba(59, 130, 246, 0.5);
+            }
+            50% {
+                box-shadow: 0 0 30px rgba(59, 130, 246, 0.8), 0 0 40px rgba(59, 130, 246, 0.6);
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- НОВАЯ СТИЛЬНАЯ НАВИГАЦИОННАЯ ПАНЕЛЬ -->
+    <nav class="nav-gradient nav-shadow sticky top-0 z-50">
+        <!-- align navbar width with main content to avoid "shifted right" layouts -->
+        <div class="max-w-7xl mx-auto px-2 sm:px-4">
+            <div class="flex justify-between items-center h-12">
+                <!-- Логотип и название -->
+                <div class="flex items-center space-x-2 flex-shrink-0">
+                    <div class="flex items-center space-x-2">
+                        <i class="fas fa-shield-alt text-white text-lg logo-glow"></i>
+                        <span class="text-white font-bold text-sm">Аналог</span>
+                    </div>
+
+                    <!-- Основные разделы -->
+                    <div class="hidden lg:flex items-center space-x-0.5 ml-4">
+                        <a href="{{ url_for('dashboard') }}"
+                           class="nav-item text-white px-2 py-1 rounded text-xs font-medium flex items-center space-x-1 {% if request.path in ['/', '/dashboard'] %}bg-white bg-opacity-20{% endif %}">
+                            <i class="fas fa-chart-dashboard text-xs"></i>
+                            <span>Дашборд</span>
+                        </a>
+
+                        <a href="{{ url_for('vulnerabilities_list') }}"
+                           class="nav-item text-white px-2 py-1 rounded text-xs font-medium flex items-center space-x-1 {% if request.path == '/vulnerabilities' %}bg-white bg-opacity-20{% endif %}">
+                            <i class="fas fa-bug text-xs"></i>
+                            <span>Уязвимости</span>
+                            {% if vulnerabilities %}
+                            <span class="bg-red-500 text-white text-xs rounded-full px-1 py-0.5 notification-badge">
+                                {{ vulnerabilities|selectattr('status', 'equalto', 'new')|list|length }}
+                            </span>
+                            {% endif %}
+                        </a>
+
+                        <!-- Только для админа -->
+                        {% if session.role == 'admin' %}
+                        <a href="{{ url_for('operators_page') }}"
+                           class="nav-item text-white px-2 py-1 rounded text-xs font-medium flex items-center space-x-1 {% if request.path == '/operators' %}bg-white bg-opacity-20{% endif %}">
+                            <i class="fas fa-users text-xs"></i>
+                            <span>Операторы</span>
+                        </a>
+                        {% endif %}
+
+                        <a href="{{ url_for('performance_analytics') }}"
+                           class="nav-item text-white px-2 py-1 rounded text-xs font-medium flex items-center space-x-1 {% if request.path in ['/performance','/analytics'] %}bg-white bg-opacity-20{% endif %}">
+                            <i class="fas fa-chart-line text-xs"></i>
+                            <span>Аналитика</span>
+                        </a>
+
+                        <!-- Только для админа -->
+                        {% if session.role == 'admin' %}
+                        <a href="{{ url_for('parsers_page') }}"
+                           class="nav-item text-white px-2 py-1 rounded text-xs font-medium flex items-center space-x-1 {% if request.path == '/parsers' %}bg-white bg-opacity-20{% endif %}">
+                            <i class="fas fa-rocket text-xs"></i>
+                            <span>Парсеры</span>
+                        </a>
+
+                        <a href="{{ url_for('ai_dashboard') }}"
+                           class="nav-item text-white px-2 py-1 rounded text-xs font-medium flex items-center space-x-1 {% if request.path.startswith('/ai') %}bg-white bg-opacity-20{% endif %}">
+                            <i class="fas fa-brain text-xs"></i>
+                            <span>ИИ-Анализ</span>
+                        </a>
+                        <a href="{{ url_for('review_vulnerabilities') }}"
+                           class="nav-item text-white px-2 py-1 rounded text-xs font-medium flex items-center space-x-1 {% if request.path in ['/review','/check'] %}bg-white bg-opacity-20{% endif %}">
+                            <i class="fas fa-check-double text-xs"></i>
+                            <span>Проверка</span>
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Импорт/Экспорт файлов (модальное окно) -->
+                <div class="relative" x-data="{ importModalOpen: false }">
+                    <!-- Кнопка в navbar -->
+                    <button  @click="importModalOpen = true"
+                            class="bg-green-500 hover:bg-green-600 text-white font-semibold py-1 px-2 rounded text-xs transition duration-300 flex items-center space-x-1">
+                            <a href="{{ url_for('import_excel_page') }}">
+                        <i class="fas fa-file-import text-xs"></i>
+                        <span class="hidden xl:inline">Импорт/Экспорт</span>
+                        </a>
+                    </button>
+
+                    <!-- Меню пользователя (если залогинен) -->
+                    {% if session.user_id %}
+                    <div class="relative" x-data="{ open: false }">
+                        <button @click="open = !open" class="flex items-center space-x-1 text-white hover:text-gray-200 focus:outline-none text-xs">
+                            <span class="hidden sm:inline">{{ session.full_name or session.username }}</span>
+                            {% if session.role == 'admin' %}
+                            <span class="bg-red-500 text-white text-xs px-1 py-0.5 rounded">Admin</span>
+                            {% endif %}
+                            <i class="fas fa-chevron-down text-xs"></i>
+                        </button>
+
+                        <!-- Выпадающее меню -->
+                        <div x-show="open" @click.away="open = false" class="absolute right-0 mt-2 w-56 bg-white rounded-md shadow-lg py-1 z-50">
+                            <a href="{{ url_for('profile') }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                <i class="fas fa-user-circle mr-2 text-gray-500"></i>Мой профиль
+                            </a>
+                            <a href="{{ url_for('my_assignments') }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                <i class="fas fa-tasks mr-2 text-gray-500"></i>Назначения
+                            </a>
+                            <a href="{{ url_for('performance_analytics') }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                <i class="fas fa-chart-line mr-2 text-gray-500"></i>Статистика
+                            </a>
+
+                            <!-- Только для админа -->
+                            {% if session.role == 'admin' %}
+                            <a href="{{ url_for('admin_users') }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                <i class="fas fa-users-gear mr-2 text-gray-500"></i>Управление пользователями
+                            </a>
+                            {% endif %}
+
+                            <hr class="my-1">
+
+                            <a href="{{ url_for('auth_logout') }}" class="block px-4 py-2 text-sm text-red-600 hover:bg-red-50">
+                                <i class="fas fa-sign-out-alt mr-2 text-red-500"></i>Выйти
+                            </a>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Мобильное меню -->
+                    <div class="md:hidden">
+                        <button id="mobile-menu-button" class="text-white hover:text-gray-200">
+                            <i class="fas fa-bars text-xl"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Мобильное меню -->
+        <div id="mobile-menu" class="md:hidden hidden bg-indigo-700">
+            <div class="px-2 pt-2 pb-3 space-y-1">
+                <a href="{{ url_for('dashboard') }}" class="text-white block px-3 py-2 rounded-lg font-medium flex items-center space-x-2">
+                    <i class="fas fa-chart-dashboard w-5"></i> Дашборд
+                </a>
+                <a href="{{ url_for('vulnerabilities_list') }}" class="text-white block px-3 py-2 rounded-lg font-medium flex items-center space-x-2">
+                    <i class="fas fa-bug w-5"></i> Уязвимости
+                </a>
+
+                {% if session.role == 'admin' %}
+                <a href="{{ url_for('parsers_page') }}" class="text-white block px-3 py-2 rounded-lg font-medium flex items-center space-x-2">
+                    <i class="fas fa-rocket w-5"></i> Парсеры
+                </a>
+                <a href="{{ url_for('operators_page') }}" class="text-white block px-3 py-2 rounded-lg font-medium flex items-center space-x-2">
+                    <i class="fas fa-users w-5"></i> Операторы
+                </a>
+                <a href="{{ url_for('review_vulnerabilities') }}" class="text-white block px-3 py-2 rounded-lg font-medium flex items-center space-x-2">
+                    <i class="fas fa-check-double w-5"></i> Проверка
+                </a>
+                {% endif %}
+
+                <a href="{{ url_for('performance_analytics') }}" class="text-white block px-3 py-2 rounded-lg font-medium flex items-center space-x-2">
+                    <i class="fas fa-chart-line w-5"></i> Аналитика
+                </a>
+                <a href="{{ url_for('import_excel_page') }}" class="text-white block px-3 py-2 rounded-lg font-medium flex items-center space-x-2">
+                    <i class="fas fa-file-excel w-5"></i> Импорт Excel
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Основной контент -->
+    <main class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="mb-6 space-y-2">
+                    {% for category, message in messages %}
+                        <div class="p-4 rounded-lg {% if category == 'error' %}bg-red-100 text-red-700 border border-red-300
+                                           {% elif category == 'success' %}bg-green-100 text-green-700 border border-green-300
+                                           {% else %}bg-blue-100 text-blue-700 border border-blue-300{% endif %}">
+                            <div class="flex items-center">
+                                <i class="fas {% if category == 'error' %}fa-exclamation-circle
+                                            {% elif category == 'success' %}fa-check-circle
+                                            {% else %}fa-info-circle{% endif %} mr-2"></i>
+                                {{ message }}
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+
+    <!-- Модальное окно импорта -->
+    <div x-show="importModalOpen" @click.away="importModalOpen = false" 
+         class="fixed inset-0 z-50 overflow-y-auto" style="display: none;">
+        <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <!-- Overlay -->
+            <div class="fixed inset-0 transition-opacity" aria-hidden="true">
+                <div class="absolute inset-0 bg-gray-500 opacity-75"></div>
+            </div>
+
+            <!-- Модальное окно -->
+            <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+                <!-- Заголовок -->
+                <div class="bg-indigo-600 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                    <button @click="importModalOpen = false" type="button" 
+                            class="text-white hover:text-gray-200 focus:outline-none">
+                        <i class="fas fa-times"></i>
+                    </button>
+                    <div class="flex-1">
+                        <h3 class="text-lg font-medium text-white">
+                            <i class="fas fa-file-import mr-2"></i>Импорт уязвимостей
+                        </h3>
+                    </div>
+                </div>
+
+                <!-- Содержимое -->
+                <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                    <!-- Форма импорта -->
+                    <div id="import-section">
+                        <!-- Выбор формата -->
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                Формат файла:
+                            </label>
+                            <div class="grid grid-cols-2 gap-2">
+                                <button type="button" id="format-xml-btn" onclick="selectFormat('xml')"
+                                        class="flex items-center justify-center p-3 border-2 border-blue-300 rounded-lg bg-blue-50 hover:bg-blue-100">
+                                    <i class="fas fa-file-code text-blue-600 mr-2"></i>
+                                    <span class="text-sm font-medium">XML</span>
+                                </button>
+                                <button type="button" id="format-json-btn" onclick="selectFormat('json')"
+                                        class="flex items-center justify-center p-3 border-2 border-gray-200 rounded-lg hover:bg-gray-50">
+                                    <i class="fas fa-file-alt text-yellow-600 mr-2"></i>
+                                    <span class="text-sm font-medium">JSON</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Загрузка файла -->
+                        <div class="mb-4">
+                            <div class="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-blue-400 transition-colors duration-300">
+                                <i class="fas fa-file-upload text-3xl text-gray-400 mb-2"></i>
+                                <p class="text-sm text-gray-600 mb-2" id="file-hint">
+                                    Нажмите для выбора XML файла
+                                </p>
+                                <input type="file" id="import-file" accept=".xml" class="hidden" 
+                                       onchange="handleFileSelect(this)">
+                                <button type="button" onclick="document.getElementById('import-file').click()"
+                                        class="inline-flex items-center px-3 py-1 border border-transparent text-xs font-medium rounded shadow-sm text-white bg-blue-600 hover:bg-blue-700">
+                                    <i class="fas fa-folder-open mr-1"></i> Выбрать файл
+                                </button>
+                                <div id="selected-file" class="mt-2 hidden">
+                                    <div class="inline-flex items-center px-2 py-1 rounded bg-gray-100">
+                                        <i class="fas fa-file text-xs text-gray-600 mr-1"></i>
+                                        <span id="file-name" class="text-xs"></span>
+                                        <button onclick="clearFile()" class="ml-1 text-gray-500 hover:text-gray-700">
+                                            <i class="fas fa-times text-xs"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Настройки -->
+                        <div class="mb-4">
+                            <div class="flex items-center mb-2">
+                                <input type="checkbox" id="skip-duplicates" checked 
+                                       class="h-4 w-4 text-blue-600 rounded">
+                                <label for="skip-duplicates" class="ml-2 text-xs text-gray-700">
+                                    Пропускать дубликаты CVE
+                                </label>
+                            </div>
+                            <div class="flex items-center">
+                                <input type="checkbox" id="auto-cve" 
+                                       class="h-4 w-4 text-blue-600 rounded">
+                                <label for="auto-cve" class="ml-2 text-xs text-gray-700">
+                                    Автогенерация CVE
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Прогресс -->
+                        <div id="import-progress" class="hidden mb-4">
+                            <div class="mb-1 flex justify-between text-xs">
+                                <span>Импорт...</span>
+                                <span id="progress-percent">0%</span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-1">
+                                <div id="progress-bar" class="bg-green-500 h-1 rounded-full" style="width: 0%"></div>
+                            </div>
+                        </div>
+
+                        <!-- Результат -->
+                        <div id="import-result" class="hidden mb-4">
+                            <div class="rounded-md bg-green-50 p-3">
+                                <div class="flex">
+                                    <i class="fas fa-check-circle text-green-400 mt-0.5 mr-2"></i>
+                                    <div>
+                                        <p class="text-xs font-medium text-green-800" id="result-message"></p>
+                                        <div class="mt-1 flex space-x-2">
+                                            <span class="text-xs text-green-700">
+                                                <span id="imported-count" class="font-bold">0</span> импортировано
+                                            </span>
+                                            <span class="text-xs text-green-700">
+                                                <span id="skipped-count" class="font-bold">0</span> пропущено
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Ошибка -->
+                        <div id="import-error" class="hidden mb-4">
+                            <div class="rounded-md bg-red-50 p-3">
+                                <div class="flex">
+                                    <i class="fas fa-exclamation-circle text-red-400 mt-0.5 mr-2"></i>
+                                    <p class="text-xs text-red-700" id="error-message"></p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Кнопки -->
+                <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                    <button type="button" onclick="startImport()" id="import-btn"
+                            class="w-full inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                        <i class="fas fa-file-import mr-2"></i>
+                        <span>Импортировать XML</span>
+                    </button>
+                    <button @click="importModalOpen = false" type="button" 
+                            class="mt-3 w-full inline-flex justify-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 sm:mt-0 sm:ml-3 sm:w-auto">
+                        Закрыть
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно экспорта -->
+    <div x-show="exportModalOpen" @click.away="exportModalOpen = false" 
+         class="fixed inset-0 z-50 overflow-y-auto" style="display: none;">
+        <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div class="fixed inset-0 transition-opacity" aria-hidden="true">
+                <div class="absolute inset-0 bg-gray-500 opacity-75"></div>
+            </div>
+
+            <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-md sm:w-full">
+                <div class="bg-blue-600 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                    <button @click="exportModalOpen = false" type="button" 
+                            class="text-white hover:text-gray-200 focus:outline-none">
+                        <i class="fas fa-times"></i>
+                    </button>
+                    <div class="flex-1">
+                        <h3 class="text-lg font-medium text-white">
+                            <i class="fas fa-file-export mr-2"></i>Экспорт уязвимостей
+                        </h3>
+                    </div>
+                </div>
+
+                <div class="bg-white px-4 pt-5 pb-4 sm:p-6">
+                    <!-- Формат экспорта -->
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                            Формат экспорта:
+                        </label>
+                        <div class="grid grid-cols-2 gap-2">
+                            <button type="button" onclick="selectExportFormat('json')" id="export-json-btn"
+                                    class="flex items-center justify-center p-3 border-2 border-green-300 rounded-lg bg-green-50 hover:bg-green-100">
+                                <i class="fas fa-file-code text-green-600 mr-2"></i>
+                                <span class="text-sm font-medium">JSON</span>
+                            </button>
+                            <button type="button" onclick="selectExportFormat('xml')" id="export-xml-btn"
+                                    class="flex items-center justify-center p-3 border-2 border-gray-200 rounded-lg hover:bg-gray-50">
+                                <i class="fas fa-file-alt text-blue-600 mr-2"></i>
+                                <span class="text-sm font-medium">XML</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Количество записей -->
+                    <div class="mb-4">
+                        <label for="export-limit" class="block text-sm font-medium text-gray-700 mb-1">
+                            Количество записей:
+                        </label>
+                        <select id="export-limit" class="w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm">
+                            <option value="100">100 записей</option>
+                            <option value="500">500 записей</option>
+                            <option value="1000" selected>1000 записей</option>
+                            <option value="5000">5000 записей</option>
+                        </select>
+                    </div>
+
+                    <!-- Фильтры -->
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            Фильтры:
+                        </label>
+                        <div class="space-y-2">
+                            <div class="flex items-center">
+                                <input type="checkbox" id="export-active" checked 
+                                       class="h-4 w-4 text-blue-600 rounded">
+                                <label for="export-active" class="ml-2 text-xs text-gray-700">
+                                    Только активные
+                                </label>
+                            </div>
+                            <div class="flex items-center">
+                                <input type="checkbox" id="export-high" 
+                                       class="h-4 w-4 text-blue-600 rounded">
+                                <label for="export-high" class="ml-2 text-xs text-gray-700">
+                                    Только высокий риск (CVSS ≥ 7.0)
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                    <button type="button" onclick="startExport()"
+                            class="w-full inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700">
+                        <i class="fas fa-download mr-2"></i>
+                        <span>Скачать экспорт</span>
+                    </button>
+                    <button @click="exportModalOpen = false" type="button" 
+                            class="mt-3 w-full inline-flex justify-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 sm:mt-0 sm:ml-3 sm:w-auto">
+                        Закрыть
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+    </main>
+
+        <!-- JavaScript для импорта/экспорта -->
+    <script>
+    // ========== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ==========
+    let currentFormat = 'xml';
+    let selectedFile = null;
+    let exportFormat = 'json';
+
+    // ========== ИМПОРТ ==========
+
+    // Выбор формата импорта
+    function selectFormat(format) {
+        currentFormat = format;
+        const fileInput = document.getElementById('import-file');
+        
+        // Обновляем UI кнопок
+        document.getElementById('format-xml-btn').classList.remove('border-blue-300', 'bg-blue-50');
+        document.getElementById('format-xml-btn').classList.add('border-gray-200', 'hover:bg-gray-50');
+        document.getElementById('format-json-btn').classList.remove('border-blue-300', 'bg-blue-50');
+        document.getElementById('format-json-btn').classList.add('border-gray-200', 'hover:bg-gray-50');
+        
+        if (format === 'xml') {
+            document.getElementById('format-xml-btn').classList.add('border-blue-300', 'bg-blue-50');
+            document.getElementById('format-xml-btn').classList.remove('border-gray-200', 'hover:bg-gray-50');
+            document.getElementById('file-hint').textContent = 'Нажмите для выбора XML файла';
+            document.getElementById('import-btn').innerHTML = '<i class="fas fa-file-import mr-2"></i><span>Импортировать XML</span>';
+            fileInput.accept = '.xml';
+        } else {
+            document.getElementById('format-json-btn').classList.add('border-blue-300', 'bg-blue-50');
+            document.getElementById('format-json-btn').classList.remove('border-gray-200', 'hover:bg-gray-50');
+            document.getElementById('file-hint').textContent = 'Нажмите для выбора JSON файла';
+            document.getElementById('import-btn').innerHTML = '<i class="fas fa-file-import mr-2"></i><span>Импортировать JSON</span>';
+            fileInput.accept = '.json';
+        }
+        
+        // Сбрасываем выбранный файл
+        clearFile();
+    }
+
+    // Обработка выбора файла
+    function handleFileSelect(input) {
+        if (input.files.length > 0) {
+            selectedFile = input.files[0];
+            
+            // Проверяем расширение
+            const fileName = selectedFile.name.toLowerCase();
+            const expectedExt = currentFormat === 'xml' ? '.xml' : '.json';
+            
+            if (!fileName.endsWith(expectedExt)) {
+                showImportError(`Ожидается файл ${expectedExt}, получен: ${fileName.split('.').pop()}`);
+                input.value = '';
+                selectedFile = null;
+                return;
+            }
+            
+            // Показываем выбранный файл
+            document.getElementById('file-name').textContent = selectedFile.name;
+            document.getElementById('selected-file').classList.remove('hidden');
+            
+            // Активируем кнопку импорта
+            document.getElementById('import-btn').disabled = false;
+        }
+    }
+
+    // Очистка файла
+    function clearFile() {
+        selectedFile = null;
+        document.getElementById('import-file').value = '';
+        document.getElementById('selected-file').classList.add('hidden');
+        document.getElementById('import-btn').disabled = true;
+        hideImportResult();
+        hideImportError();
+    }
+
+    // Начать импорт
+    async function startImport() {
+        if (!selectedFile) return;
+        
+        // Показываем прогресс
+        showImportProgress();
+        updateProgress(10, 'Начало импорта...');
+        
+        // Собираем данные
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+        formData.append('format', currentFormat);
+        formData.append('skip_duplicates', document.getElementById('skip-duplicates').checked);
+        formData.append('auto_generate_cve', document.getElementById('auto-cve').checked);
+        
+        try {
+            updateProgress(30, 'Отправка на сервер...');
+            
+            const response = await fetch('/api/import/unified', {
+                method: 'POST',
+                body: formData
+            });
+            
+            updateProgress(70, 'Обработка на сервере...');
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                updateProgress(100, 'Завершение...');
+                setTimeout(() => {
+                    showImportResult(data.message, data.imported || 0, data.skipped || 0);
+                }, 500);
+            } else {
+                showImportError(data.error || 'Ошибка импорта');
+            }
+        } catch (error) {
+            showImportError('Ошибка сети: ' + error.message);
+        }
+    }
+
+    // Показать прогресс
+    function showImportProgress() {
+        document.getElementById('import-progress').classList.remove('hidden');
+        document.getElementById('import-btn').disabled = true;
+        hideImportResult();
+        hideImportError();
+    }
+
+    // Обновить прогресс
+    function updateProgress(percent, message) {
+        document.getElementById('progress-bar').style.width = percent + '%';
+        document.getElementById('progress-percent').textContent = percent + '%';
+        document.getElementById('import-progress').querySelector('span:first-child').textContent = message;
+    }
+
+    // Показать результат
+    function showImportResult(message, imported, skipped) {
+        document.getElementById('import-progress').classList.add('hidden');
+        document.getElementById('import-result').classList.remove('hidden');
+        document.getElementById('result-message').textContent = message;
+        document.getElementById('imported-count').textContent = imported;
+        document.getElementById('skipped-count').textContent = skipped;
+        document.getElementById('import-btn').disabled = true;
+    }
+
+    // Показать ошибку
+    function showImportError(message) {
+        document.getElementById('import-progress').classList.add('hidden');
+        document.getElementById('import-error').classList.remove('hidden');
+        document.getElementById('error-message').textContent = message;
+        document.getElementById('import-btn').disabled = false;
+    }
+
+    // Скрыть результат
+    function hideImportResult() {
+        document.getElementById('import-result').classList.add('hidden');
+    }
+
+    // Скрыть ошибку
+    function hideImportError() {
+        document.getElementById('import-error').classList.add('hidden');
+    }
+
+    // ========== ЭКСПОРТ ==========
+
+    // Выбор формата экспорта
+    function selectExportFormat(format) {
+        exportFormat = format;
+        
+        // Обновляем UI кнопок
+        document.getElementById('export-json-btn').classList.remove('border-green-300', 'bg-green-50');
+        document.getElementById('export-json-btn').classList.add('border-gray-200', 'hover:bg-gray-50');
+        document.getElementById('export-xml-btn').classList.remove('border-green-300', 'bg-green-50');
+        document.getElementById('export-xml-btn').classList.add('border-gray-200', 'hover:bg-gray-50');
+        
+        if (format === 'json') {
+            document.getElementById('export-json-btn').classList.add('border-green-300', 'bg-green-50');
+            document.getElementById('export-json-btn').classList.remove('border-gray-200', 'hover:bg-gray-50');
+        } else {
+            document.getElementById('export-xml-btn').classList.add('border-green-300', 'bg-green-50');
+            document.getElementById('export-xml-btn').classList.remove('border-gray-200', 'hover:bg-gray-50');
+        }
+    }
+
+    // Начать экспорт
+    function startExport() {
+        const limit = document.getElementById('export-limit').value;
+        const activeOnly = document.getElementById('export-active').checked;
+        const highOnly = document.getElementById('export-high').checked;
+        
+        // Собираем параметры
+        let params = new URLSearchParams();
+        params.append('limit', limit);
+        if (activeOnly) params.append('status', 'active');
+        if (highOnly) params.append('min_cvss', '7.0');
+        
+        // Создаем URL для скачивания
+        const url = `/api/export/${exportFormat}?${params.toString()}`;
+        
+        // Открываем в новом окне для скачивания
+        window.open(url, '_blank');
+        
+        // Закрываем модальное окно
+        Alpine.store('app').exportModalOpen = false;
+    }
+
+    // ========== ИНИЦИАЛИЗАЦИЯ ==========
+    document.addEventListener('DOMContentLoaded', function() {
+        // Инициализация Alpine store
+        if (typeof Alpine === 'undefined') {
+            console.error('Alpine.js не загружен');
+        } else {
+            Alpine.store('app', {
+                importModalOpen: false,
+                exportModalOpen: false
+            });
+        }
+        
+        // Инициализация формата по умолчанию
+        if (typeof selectFormat === 'function'){
+            selectFormat('xml');
+        }
+        if (typeof selectExportFormat === 'function') {
+            selectExportFormat('json');
+        }
+    });
+    </script>
+
+    <!-- Alpine.js для выпадающего меню -->
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+
+    <!-- Скрипт для мобильного меню -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const mobileMenuButton = document.getElementById('mobile-menu-button');
+            const mobileMenu = document.getElementById('mobile-menu');
+            
+            if (mobileMenuButton && mobileMenu) {
+                mobileMenuButton.addEventListener('click', function() {
+                    mobileMenu.classList.toggle('hidden');
+                });
+            }
+        });
+    </script>
+
+    <!-- Глобальные JS-функции (парсинг и уведомления) -->
+    <script>
+        // ... ваш существующий JS-код для парсинга (startGlobalParsing, showNotification и т.д.)
+        // (оставьте его без изменений — он уже внизу base.html)
+    </script>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>
