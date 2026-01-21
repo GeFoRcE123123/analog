@@ -1,0 +1,265 @@
+{% extends "base.html" %}
+
+{% block content %}
+<!-- ВСПЛЫВАЮЩЕЕ ОКНО С ИНФОРМАЦИЕЙ О ПОЛЬЗОВАТЕЛЕ -->
+<div id="userModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-xl font-bold text-gray-800">Профиль пользователя</h3>
+            <button onclick="closeUserModal()" class="text-gray-400 hover:text-gray-600">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <div class="space-y-4">
+            <div class="flex items-center space-x-3">
+                <i class="fas fa-user text-blue-500"></i>
+                <span class="font-medium">{{ session.full_name or session.username }}</span>
+            </div>
+
+            <div class="flex items-center space-x-3">
+                <i class="fas fa-envelope text-blue-500"></i>
+                <span>{{ session.username }} ({{ session.email }})</span>
+            </div>
+
+            <div class="flex items-center space-x-3">
+                <i class="fas fa-shield-alt text-blue-500"></i>
+                <span>Роль: <span class="font-semibold {% if session.role == 'admin' %}text-red-600{% else %}text-green-600{% endif %}">
+                    {{ session.role|upper }}
+                </span></span>
+            </div>
+
+            <div class="border-t pt-4 mt-4">
+                <h4 class="font-semibold mb-2">Доступные функции:</h4>
+                <ul class="space-y-1">
+                    <li class="flex items-center space-x-2">
+                        <i class="fas fa-check text-green-500"></i>
+                        <span>Просмотр уязвимостей</span>
+                    </li>
+                    <li class="flex items-center space-x-2">
+                        <i class="fas fa-check text-green-500"></i>
+                        <span>Просмотр своих назначенных уязвимостей</span>
+                    </li>
+                    {% if session.role == 'admin' %}
+                    <li class="flex items-center space-x-2">
+                        <i class="fas fa-check text-green-500"></i>
+                        <span>Управление операторами</span>
+                    </li>
+                    <li class="flex items-center space-x-2">
+                        <i class="fas fa-check text-green-500"></i>
+                        <span>Запуск парсинга</span>
+                    </li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+
+        <div class="mt-6 flex justify-end">
+            <button onclick="closeUserModal()"
+                    class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition duration-300">
+                Закрыть
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- СТАТУС ПАРСИНГА -->
+<div id="parsingStatus" class="hidden mb-6">
+    <div class="bg-blue-50 border border-blue-200 rounded-xl p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-semibold text-blue-800">
+                <i class="fas fa-sync-alt fa-spin mr-2"></i>Идет парсинг уязвимостей...
+            </h3>
+            <span id="parsingProgress" class="text-blue-600 font-medium">0%</span>
+        </div>
+        <div class="w-full bg-blue-200 rounded-full h-2">
+            <div id="progressBar" class="bg-blue-600 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+        </div>
+        <p id="parsingMessage" class="text-sm text-blue-600 mt-2">Подготовка к парсингу...</p>
+    </div>
+</div>
+
+<!-- КАРТОЧКИ СТАТИСТИКИ (СОВРЕМЕННЫЙ ДИЗАЙН) -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    <!-- Всего уязвимостей -->
+    <a href="{{ url_for('vulnerabilities_list') }}"
+       class="stat-card group cursor-pointer animate-fade-in-up" style="animation-delay: 0.1s">
+        <div class="stat-card-icon bg-blue-100 text-blue-600">
+            <i class="fas fa-bug text-xl"></i>
+        </div>
+        <div class="stat-card-value">{{ stats.total_vulnerabilities }}</div>
+        <div class="stat-card-label">Всего уязвимостей</div>
+        {% if stats.total_pages and stats.total_pages > 0 %}
+        <div class="text-xs text-gray-500 mt-2 flex items-center space-x-2">
+            <span>Страниц: <strong>{{ stats.total_pages }}</strong></span>
+            <span>•</span>
+            <a class="text-blue-600 hover:text-blue-700 font-medium" href="{{ url_for('vulnerabilities_list') }}?page=1&per_page={{ stats.per_page }}">первая</a>
+            <span>•</span>
+            <a class="text-blue-600 hover:text-blue-700 font-medium" href="{{ url_for('vulnerabilities_list') }}?page={{ stats.total_pages }}&per_page={{ stats.per_page }}">последняя</a>
+        </div>
+        {% endif %}
+    </a>
+
+    <!-- Высокий риск -->
+    <a href="{{ url_for('vulnerabilities_list') }}?filter=high"
+       class="stat-card group cursor-pointer animate-fade-in-up" style="animation-delay: 0.2s">
+        <div class="stat-card-icon bg-red-100 text-red-600">
+            <i class="fas fa-exclamation-triangle text-xl"></i>
+        </div>
+        <div class="stat-card-value text-red-600">{{ stats.high_risk }}</div>
+        <div class="stat-card-label">Высокий риск</div>
+    </a>
+
+    <!-- Новые уязвимости -->
+    <a href="{{ url_for('vulnerabilities_list') }}?filter=new"
+       class="stat-card group cursor-pointer animate-fade-in-up" style="animation-delay: 0.3s">
+        <div class="stat-card-icon bg-yellow-100 text-yellow-600">
+            <i class="fas fa-clock text-xl"></i>
+        </div>
+        <div class="stat-card-value text-yellow-600">{{ stats.new_vulnerabilities }}</div>
+        <div class="stat-card-label">Новые</div>
+    </a>
+
+    <!-- Завершено -->
+    <a href="{{ url_for('performance_analytics') }}"
+       class="stat-card group cursor-pointer animate-fade-in-up" style="animation-delay: 0.4s">
+        <div class="stat-card-icon bg-green-100 text-green-600">
+            <i class="fas fa-check-circle text-xl"></i>
+        </div>
+        <div class="stat-card-value text-green-600">{{ stats.completion_rate|int }}%</div>
+        <div class="stat-card-label">Завершено</div>
+    </a>
+</div>
+
+<!-- БЫСТРЫЕ ДЕЙСТВИЯ (ТОЛЬКО ДЛЯ ADMIN) -->
+{% if session.role == 'admin' %}
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+    <!-- Парсеры -->
+    <a href="{{ url_for('parsers_page') }}"
+       class="card-modern gradient-primary text-white hover:shadow-2xl transition-all duration-300 transform hover:scale-[1.02] block group relative overflow-hidden">
+        <div class="absolute inset-0 bg-gradient-to-r from-blue-700 to-blue-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+        <div class="relative z-10 p-6">
+            <div class="flex items-center justify-between mb-4">
+                <div class="w-16 h-16 bg-white bg-opacity-20 rounded-xl flex items-center justify-center backdrop-blur-sm group-hover:bg-opacity-30 transition-all group-hover:rotate-6">
+                    <i class="fas fa-rocket text-white text-2xl"></i>
+                </div>
+                <span class="px-3 py-1 bg-white bg-opacity-20 rounded-full text-xs font-bold backdrop-blur-sm">Новый</span>
+            </div>
+            <h3 class="text-2xl font-bold mb-2">Парсеры уязвимостей</h3>
+            <p class="text-blue-100 mb-6 text-sm leading-relaxed">Автоматический сбор данных из всех источников одной кнопкой</p>
+            <div class="bg-white text-blue-600 hover:bg-blue-50 font-bold py-3 px-6 rounded-lg transition duration-300 transform group-hover:scale-105 shadow-lg w-full text-center">
+                <i class="fas fa-play mr-2"></i>Запустить парсинг
+            </div>
+        </div>
+    </a>
+
+    <!-- Управление операторами -->
+    <a href="{{ url_for('operators_page') }}"
+       class="card-modern gradient-success text-white hover:shadow-2xl transition-all duration-300 transform hover:scale-[1.02] block group">
+        <div class="p-6">
+            <div class="w-16 h-16 bg-white bg-opacity-20 rounded-xl flex items-center justify-center backdrop-blur-sm mb-4 group-hover:bg-opacity-30 transition-all group-hover:rotate-6">
+                <i class="fas fa-users text-white text-2xl"></i>
+            </div>
+            <h3 class="text-2xl font-bold mb-2">Управление командой</h3>
+            <p class="text-green-100 mb-6 text-sm leading-relaxed">Назначьте операторов и отслеживайте прогресс</p>
+            <div class="bg-white text-green-600 hover:bg-green-50 font-bold py-3 px-6 rounded-lg transition duration-300 transform group-hover:scale-105 shadow-lg inline-block w-full text-center">
+                <i class="fas fa-users mr-2"></i>К операторам
+            </div>
+        </div>
+    </a>
+</div>
+{% endif %}
+
+<!-- ПОСЛЕДНИЕ УЯЗВИМОСТИ -->
+<div class="bg-white rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-300 overflow-hidden">
+    <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+        <div>
+            <h2 class="text-xl font-semibold text-gray-800">Последние уязвимости</h2>
+            <p class="text-sm text-gray-600 mt-1">Показаны 5 последних добавленных CVE</p>
+        </div>
+        <a href="{{ url_for('vulnerabilities_list') }}"
+           class="text-blue-600 hover:text-blue-700 font-medium text-sm flex items-center space-x-1">
+            <span>Все уязвимости</span>
+            <i class="fas fa-arrow-right text-xs"></i>
+        </a>
+    </div>
+
+    <div class="divide-y divide-gray-100">
+        {% for vulnerability in recent_vulnerabilities %}
+        <div class="p-6 hover:bg-blue-50 transition-all duration-200 cursor-pointer group"
+             onclick="window.location.href='{{ url_for('vulnerabilities_list') }}'">
+            <div class="flex items-center justify-between">
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center space-x-3 mb-2">
+                        <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold severity-{{ vulnerability.severity }}">
+                            {% if vulnerability.severity == 'critical' %}🔴 Критический
+                            {% elif vulnerability.severity == 'high' %}🟠 Высокий
+                            {% elif vulnerability.severity == 'medium' %}🟡 Средний
+                            {% else %}🟢 Низкий{% endif %}
+                        </span>
+                        {% if vulnerability.cve_id %}
+                        <span class="font-mono text-blue-600 text-sm font-semibold group-hover:underline">
+                            {{ vulnerability.cve_id }}
+                        </span>
+                        {% endif %}
+                        <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold status-{{ vulnerability.status }}">
+                            {% if vulnerability.status == 'new' %}🆕 Новый
+                            {% elif vulnerability.status == 'in_progress' %}🔄 В работе
+                            {% elif vulnerability.status == 'completed' %}✅ Завершено
+                            {% else %}📝 На модификации{% endif %}
+                        </span>
+                    </div>
+                    <p class="text-sm text-gray-900 font-medium mb-1 line-clamp-1">{{ vulnerability.title }}</p>
+                    <p class="text-sm text-gray-600 line-clamp-2">{{ vulnerability.description }}</p>
+                </div>
+                <div class="ml-6 flex-shrink-0 text-right">
+                    <div class="text-2xl font-bold {% if vulnerability.cvss_score >= 9 %}text-red-600{% elif vulnerability.cvss_score >= 7 %}text-orange-600{% elif vulnerability.cvss_score >= 4 %}text-yellow-600{% else %}text-green-600{% endif %}">
+                        {{ "%.1f"|format(vulnerability.cvss_score) }}
+                    </div>
+                    <div class="text-xs text-gray-500">CVSS</div>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="p-12 text-center">
+            <i class="fas fa-database text-6xl text-gray-200 mb-4"></i>
+            <p class="text-gray-500 text-lg font-medium">Нет уязвимостей</p>
+            <p class="text-gray-400 text-sm mt-2">Запустите парсинг, чтобы добавить уязвимости</p>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<script>
+function showUserModal() {
+    document.getElementById('userModal').classList.remove('hidden');
+}
+
+function closeUserModal() {
+    document.getElementById('userModal').classList.add('hidden');
+}
+
+// Poll for parsing status every 3 seconds
+function pollParsingStatus() {
+    fetch('/api/parsing/status')
+        .then(response => response.json())
+        .then(data => {
+            if (data.is_active) {
+                document.getElementById('parsingStatus').classList.remove('hidden');
+                document.getElementById('progressBar').style.width = data.progress + '%';
+                document.getElementById('parsingProgress').innerText = data.progress + '%';
+                document.getElementById('parsingMessage').innerText = data.message || 'Идет парсинг...';
+            } else {
+                document.getElementById('parsingStatus').classList.add('hidden');
+            }
+        })
+        .catch(error => {
+            console.error('Error polling parsing status:', error);
+        });
+}
+
+setInterval(pollParsingStatus, 3000);
+pollParsingStatus(); // Initial call
+</script>
+{% endblock %}
+
