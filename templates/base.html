@@ -16,21 +16,8 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 
-    <!-- Animate.css (входные анимации) -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" integrity="sha512-bUgAq8xNvFqNQ4d1FqvS5m9Q6I0Wp7H1QF5F8V0vZVQyG3x7G9S7FxN6Yd0H2U+nH2vZ1q3hN5w3iV6k9fU2AA==" crossorigin="anonymous" referrerpolicy="no-referrer">
-
-    <!-- Hover.css (эффекты наведения) -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/hover.css/2.3.2/css/hover-min.css" integrity="sha512-0JjVJbVd6Gf4XP7dZt1w9gVqT+G9z3gEw9mV2xj5E1eXvQXZt9YB1K8D7phZpX9Adz0uZN8xg0y3f5G0N5mE3g==" crossorigin="anonymous" referrerpolicy="no-referrer">
-
-    <!-- Magic Animations (эффекты для hero/фоновых блоков) -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/magic/1.1.0/magic.min.css" integrity="sha512-HqjK3Cq5pGZpC3p2+P3H6rT2zU5oE0lM9mC8xGgq7xB4YzMZfQX+KZK6c7xX2qv5s4rJ7dL8oQF6wYtJr3Rj3w==" crossorigin="anonymous" referrerpolicy="no-referrer">
-
-    <!-- AOS (анимации при скролле) -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/aos/2.3.4/aos.css" integrity="sha512-GYbjmO3rtWZ/6mrzk7H4wG9ZlqPp5j5Y6a4YzH9qR9z0qZV4x6f7Aq7B5a5s7X0n2V5X1F2Z9z2Gd6G0x5o1w==" crossorigin="anonymous" referrerpolicy="no-referrer">
-
     <!-- Custom Styles -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/animations-enhanced.css') }}">
     
     <style>
         body {
@@ -99,12 +86,9 @@
         }
     </style>
 </head>
-<body class="min-h-screen {% if request.endpoint == 'dashboard' %}dashboard-page{% endif %}">
-    <!-- Фон с частицами (отображается только там, где инициализирован particles.js) -->
-    <div id="particles-bg" class="fixed inset-0 -z-10 opacity-60 pointer-events-none hidden md:block"></div>
-
+<body class="min-h-screen">
     <!-- Современная навигационная панель -->
-    <nav class="nav-modern navbar-animated sticky top-0 z-50">
+    <nav class="nav-modern sticky top-0 z-50">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between items-center h-16">
                 <!-- Логотип и навигация -->
@@ -310,26 +294,9 @@
     <!-- Alpine.js для выпадающего меню -->
     <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
 
-    <!-- AOS (анимации при скролле) -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/aos/2.3.4/aos.js" integrity="sha512-GkvG3y+96p2eW1zj2TlnYc8zG6r2Gz5IEHwJKP1uUhbM0ZboDqI+YwYI1mV6gyhL+AzrprXWSpIhwzNjE2T5mA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-
-    <!-- Particles.js (фоновые частицы) -->
-    <script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script>
-
-    <!-- GSAP + ScrollTrigger + ScrollTo Plugin -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" integrity="sha512-BgUU5+L+yPqkvp6G9vYyZ7w7Wg8vRbHNqM1D8kO3+Yv9E2m2k7p3U0j7v9f0C0c5nL0d1t9m3p7q4u5q9w2Yw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js" integrity="sha512-ky4G6oVqvO9T4R7u3lV9m7O1n5lT2B9I2zP9m1G4xV7F0l3u9s6H7y6zj4N1u5n2k1m0t7q5r8s6v4w2p3b1g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollToPlugin.min.js" integrity="sha512-1PKqXBz2ju2JcAerHKL0ldg0PT/1vr3LghYAtc59+9xy8e19QEzbE25g+TGVfxiqIqp3c1Xq3p2c5V3Qx2Z3Mw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-
-    <!-- Custom Animation Scripts -->
-    <script src="{{ url_for('static', filename='js/particles-config.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/react-bits-vanilla.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/gsap-animations.js') }}"></script>
-
-    <!-- Скрипты для навигации, анимаций и глобальных эффектов -->
+    <!-- Скрипт для мобильного меню -->
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // Мобильное меню
             const mobileMenuButton = document.getElementById('mobile-menu-button');
             const mobileMenu = document.getElementById('mobile-menu');
             
@@ -337,74 +304,6 @@
                 mobileMenuButton.addEventListener('click', function() {
                     mobileMenu.classList.toggle('hidden');
                 });
-            }
-
-            // AOS (анимации при скролле)
-            if (window.AOS) {
-                AOS.init({
-                    duration: 700,
-                    easing: 'ease-out-quart',
-                    once: true,
-                    offset: 80
-                });
-            }
-
-            // Particles фон (только если есть контейнер)
-            const particlesContainer = document.getElementById('particles-bg');
-            if (particlesContainer && window.particlesJS) {
-                particlesJS('particles-bg', {
-                    particles: {
-                        number: { value: 40, density: { enable: true, value_area: 800 } },
-                        color: { value: '#60a5fa' },
-                        shape: { type: 'circle' },
-                        opacity: { value: 0.4 },
-                        size: { value: 3, random: true },
-                        line_linked: { enable: true, distance: 150, color: '#3b82f6', opacity: 0.3, width: 1 },
-                        move: { enable: true, speed: 2, out_mode: 'out' }
-                    },
-                    interactivity: {
-                        detect_on: 'canvas',
-                        events: { onhover: { enable: true, mode: 'grab' }, onclick: { enable: false }, resize: true },
-                        modes: { grab: { distance: 140, line_linked: { opacity: 0.6 } } }
-                    },
-                    retina_detect: true
-                });
-            }
-
-            // GSAP анимации
-            if (window.gsap && window.ScrollTrigger) {
-                gsap.registerPlugin(ScrollTrigger);
-
-                // Появление навбара
-                gsap.from('.navbar-animated', {
-                    y: -40,
-                    opacity: 0,
-                    duration: 0.6,
-                    ease: 'power2.out'
-                });
-
-                // Плавное появление hero-блока (если есть)
-                gsap.from('.page-header-hero', {
-                    y: 20,
-                    opacity: 0,
-                    duration: 0.8,
-                    ease: 'power2.out'
-                });
-
-                // Лёгкий parallax для hero-секции (если есть)
-                const heroSection = document.querySelector('.page-hero-parallax');
-                if (heroSection) {
-                    gsap.to(heroSection, {
-                        yPercent: 10,
-                        ease: 'none',
-                        scrollTrigger: {
-                            trigger: heroSection,
-                            start: 'top top',
-                            end: 'bottom top',
-                            scrub: true
-                        }
-                    });
-                }
             }
         });
     </script>

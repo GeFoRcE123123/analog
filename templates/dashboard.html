@@ -1,41 +1,6 @@
 {% extends "base.html" %}
 
 {% block content %}
-<!-- HERO SECTION С PARTICLES -->
-<section class="hero-section relative overflow-hidden py-12 mb-8 rounded-2xl page-hero-parallax" data-aos="fade-in">
-    <div id="hero-particles" class="absolute inset-0" data-particles="hero"></div>
-    <div class="hero-bg absolute inset-0 bg-gradient-to-br from-blue-600/20 via-purple-600/20 to-pink-500/20"></div>
-    
-    <div class="relative z-10 container mx-auto px-6">
-        <div class="flex items-center justify-between">
-            <div>
-                <h1 class="text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600 mb-4 text-reveal magictime puffIn" data-text-reveal>
-                    Vulnerability Manager
-                </h1>
-                <p class="text-xl text-gray-700 mb-6 animate__animated animate__fadeInUp animate__delay-1s">
-                    🛡️ Управление безопасностью нового поколения
-                </p>
-                {% if session.role == 'admin' %}
-                <a href="{{ url_for('parsers_page') }}" 
-                   class="magnetic-btn cta-button particle-btn hvr-icon-forward inline-flex items-center px-8 py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-bold text-lg shadow-2xl transition-all duration-300 animate__animated animate__bounceIn animate__delay-2s"
-                   data-magnetic-btn
-                   data-particle-btn
-                   data-ripple>
-                    <i class="fas fa-rocket hvr-icon mr-2"></i>
-                    Запустить парсинг
-                    <div class="ripple-container"></div>
-                </a>
-                {% endif %}
-            </div>
-            <div class="hidden lg:block animate__animated animate__zoomIn animate__delay-1s">
-                <div class="w-48 h-48 bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-full flex items-center justify-center backdrop-blur-sm">
-                    <i class="fas fa-shield-alt text-blue-600 text-8xl counter-icon"></i>
-                </div>
-            </div>
-        </div>
-    </div>
-</section>
-
 <!-- ВСПЛЫВАЮЩЕЕ ОКНО С ИНФОРМАЦИЕЙ О ПОЛЬЗОВАТЕЛЕ -->
 <div id="userModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
     <div class="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
@@ -114,19 +79,15 @@
     </div>
 </div>
 
-<!-- КАРТОЧКИ СТАТИСТИКИ (СОВРЕМЕННЫЙ ДИЗАЙН С АНИМАЦИЯМИ) -->
-<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8 stats-container">
+<!-- КАРТОЧКИ СТАТИСТИКИ (СОВРЕМЕННЫЙ ДИЗАЙН) -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
     <!-- Всего уязвимостей -->
     <a href="{{ url_for('vulnerabilities_list') }}"
-       class="stat-card spotlight-card hvr-float group cursor-pointer" 
-       data-aos="fade-up" 
-       data-aos-delay="100"
-       data-spotlight
-       data-tilt>
-        <div class="stat-card-icon bg-blue-100 text-blue-600 animate__animated animate__bounceIn counter-icon">
+       class="stat-card group cursor-pointer animate-fade-in-up" style="animation-delay: 0.1s">
+        <div class="stat-card-icon bg-blue-100 text-blue-600">
             <i class="fas fa-bug text-xl"></i>
         </div>
-        <div class="stat-card-value counter" data-value="{{ stats.total_vulnerabilities }}" data-duration="2">0</div>
+        <div class="stat-card-value">{{ stats.total_vulnerabilities }}</div>
         <div class="stat-card-label">Всего уязвимостей</div>
         {% if stats.total_pages and stats.total_pages > 0 %}
         <div class="text-xs text-gray-500 mt-2 flex items-center space-x-2">
@@ -141,54 +102,41 @@
 
     <!-- Высокий риск -->
     <a href="{{ url_for('vulnerabilities_list') }}?filter=high"
-       class="stat-card spotlight-card hvr-float group cursor-pointer"
-       data-aos="fade-up"
-       data-aos-delay="200"
-       data-spotlight
-       data-tilt>
-        <div class="stat-card-icon bg-red-100 text-red-600 animate__animated animate__bounceIn counter-icon animate__delay-1s">
+       class="stat-card group cursor-pointer animate-fade-in-up" style="animation-delay: 0.2s">
+        <div class="stat-card-icon bg-red-100 text-red-600">
             <i class="fas fa-exclamation-triangle text-xl"></i>
         </div>
-        <div class="stat-card-value text-red-600 counter" data-value="{{ stats.high_risk }}" data-duration="2">0</div>
+        <div class="stat-card-value text-red-600">{{ stats.high_risk }}</div>
         <div class="stat-card-label">Высокий риск</div>
     </a>
 
     <!-- Новые уязвимости -->
     <a href="{{ url_for('vulnerabilities_list') }}?filter=new"
-       class="stat-card spotlight-card hvr-float group cursor-pointer"
-       data-aos="fade-up"
-       data-aos-delay="300"
-       data-spotlight
-       data-tilt>
-        <div class="stat-card-icon bg-yellow-100 text-yellow-600 animate__animated animate__bounceIn counter-icon animate__delay-2s">
+       class="stat-card group cursor-pointer animate-fade-in-up" style="animation-delay: 0.3s">
+        <div class="stat-card-icon bg-yellow-100 text-yellow-600">
             <i class="fas fa-clock text-xl"></i>
         </div>
-        <div class="stat-card-value text-yellow-600 counter" data-value="{{ stats.new_vulnerabilities }}" data-duration="2">0</div>
+        <div class="stat-card-value text-yellow-600">{{ stats.new_vulnerabilities }}</div>
         <div class="stat-card-label">Новые</div>
     </a>
 
     <!-- Завершено -->
     <a href="{{ url_for('performance_analytics') }}"
-       class="stat-card spotlight-card hvr-float group cursor-pointer"
-       data-aos="fade-up"
-       data-aos-delay="400"
-       data-spotlight
-       data-tilt>
-        <div class="stat-card-icon bg-green-100 text-green-600 animate__animated animate__bounceIn counter-icon animate__delay-3s">
+       class="stat-card group cursor-pointer animate-fade-in-up" style="animation-delay: 0.4s">
+        <div class="stat-card-icon bg-green-100 text-green-600">
             <i class="fas fa-check-circle text-xl"></i>
         </div>
-        <div class="stat-card-value text-green-600 counter" data-value="{{ stats.completion_rate|int }}" data-duration="2">0</div>
+        <div class="stat-card-value text-green-600">{{ stats.completion_rate|int }}%</div>
         <div class="stat-card-label">Завершено</div>
     </a>
 </div>
 
 <!-- БЫСТРЫЕ ДЕЙСТВИЯ (ТОЛЬКО ДЛЯ ADMIN) -->
 {% if session.role == 'admin' %}
-<div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8" data-aos="zoom-in" data-aos-delay="500">
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
     <!-- Парсеры -->
     <a href="{{ url_for('parsers_page') }}"
-       class="card-modern gradient-primary text-white hover:shadow-2xl transition-all duration-300 transform hover:scale-[1.02] block group relative overflow-hidden hvr-grow"
-       data-tilt>
+       class="card-modern gradient-primary text-white hover:shadow-2xl transition-all duration-300 transform hover:scale-[1.02] block group relative overflow-hidden">
         <div class="absolute inset-0 bg-gradient-to-r from-blue-700 to-blue-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
         <div class="relative z-10 p-6">
             <div class="flex items-center justify-between mb-4">
@@ -207,8 +155,7 @@
 
     <!-- Управление операторами -->
     <a href="{{ url_for('operators_page') }}"
-       class="card-modern gradient-success text-white hover:shadow-2xl transition-all duration-300 transform hover:scale-[1.02] block group hvr-grow"
-       data-tilt>
+       class="card-modern gradient-success text-white hover:shadow-2xl transition-all duration-300 transform hover:scale-[1.02] block group">
         <div class="p-6">
             <div class="w-16 h-16 bg-white bg-opacity-20 rounded-xl flex items-center justify-center backdrop-blur-sm mb-4 group-hover:bg-opacity-30 transition-all group-hover:rotate-6">
                 <i class="fas fa-users text-white text-2xl"></i>
@@ -223,434 +170,96 @@
 </div>
 {% endif %}
 
-<!-- ПОСЛЕДНИЕ УЯЗВИМОСТИ (кликабельные) -->
-<div class="card-modern mb-6 scroll-reveal" data-reveal-direction="up" data-aos="fade-up" data-aos-delay="600">
-    <div class="card-header-modern">
-        <div class="flex justify-between items-center">
-            <h2 class="text-xl font-bold text-gray-800 flex items-center space-x-2">
-                <i class="fas fa-bug text-blue-600"></i>
-                <span>Последние уязвимости</span>
-            </h2>
-            <a href="{{ url_for('vulnerabilities_list') }}"
-               class="text-blue-600 hover:text-blue-700 text-sm font-semibold flex items-center space-x-1 group transition-colors">
-                <span>Все уязвимости</span>
-                <i class="fas fa-arrow-right group-hover:translate-x-1 transition-transform duration-300"></i>
-            </a>
+<!-- ПОСЛЕДНИЕ УЯЗВИМОСТИ -->
+<div class="bg-white rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-300 overflow-hidden">
+    <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+        <div>
+            <h2 class="text-xl font-semibold text-gray-800">Последние уязвимости</h2>
+            <p class="text-sm text-gray-600 mt-1">Показаны 5 последних добавленных CVE</p>
         </div>
+        <a href="{{ url_for('vulnerabilities_list') }}"
+           class="text-blue-600 hover:text-blue-700 font-medium text-sm flex items-center space-x-1">
+            <span>Все уязвимости</span>
+            <i class="fas fa-arrow-right text-xs"></i>
+        </a>
     </div>
-    <div class="card-body-modern">
-        {% if vulnerabilities %}
-        <div class="space-y-3">
-            {% for vuln in vulnerabilities[:5] %}
-            <a href="{{ url_for('vulnerabilities_list') }}#vuln-{{ vuln.id }}"
-               class="flex items-center justify-between p-4 bg-gray-50 border border-gray-200 rounded-lg hover:bg-white hover:shadow-md transition-all duration-200 group cursor-pointer hvr-underline-from-center"
-               data-ripple>
-                <div class="flex items-center space-x-4 flex-1 min-w-0">
-                    <div class="flex-shrink-0">
-                        <span class="badge-modern {% if vuln.severity == 'critical' %}badge-critical
-                            {% elif vuln.severity == 'high' %}badge-high
-                            {% elif vuln.severity == 'medium' %}badge-medium
-                            {% else %}badge-low{% endif %}">
-                            {{ vuln.severity|upper }}
-                        </span>
-                    </div>
-                    <div class="flex-1 min-w-0">
-                        <h3 class="text-sm font-semibold text-gray-900 group-hover:text-blue-600 transition-colors truncate">{{ vuln.title }}</h3>
-                        <p class="text-xs text-gray-500 truncate mt-1">{{ vuln.description }}</p>
-                    </div>
-                </div>
-                <div class="flex items-center space-x-3 flex-shrink-0 ml-4">
-                    <span class="px-2.5 py-1 text-xs font-semibold rounded-full
-                        {% if vuln.status == 'new' %}bg-blue-100 text-blue-800
-                        {% elif vuln.status == 'in_progress' %}bg-yellow-100 text-yellow-800
-                        {% elif vuln.status == 'completed' %}bg-green-100 text-green-800
-                        {% elif vuln.status == 'approved' %}bg-green-200 text-green-900
-                        {% else %}bg-gray-100 text-gray-800{% endif %}">
-                        {{ vuln.status }}
-                    </span>
-                    <span class="text-xs font-medium text-gray-600 bg-gray-100 px-2 py-1 rounded">CVSS: {{ vuln.cvss_score }}</span>
-                    <i class="fas fa-chevron-right text-gray-400 group-hover:text-blue-600 group-hover:translate-x-1 transition-all duration-200"></i>
-                </div>
-            </a>
-            {% endfor %}
-        </div>
-        {% else %}
-        <div class="text-center py-12">
-            <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <i class="fas fa-bug text-gray-400 text-2xl"></i>
-            </div>
-            <p class="text-gray-600 font-medium mb-2">Уязвимости не найдены</p>
-            {% if session.role == 'admin' %}
-            <a href="{{ url_for('parsers_page') }}" class="inline-flex items-center px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all duration-200 text-sm font-semibold mt-4 shadow-md hover:shadow-lg transform hover:scale-105">
-                <i class="fas fa-rocket mr-2"></i>
-                Запустить парсинг уязвимостей
-            </a>
-            {% else %}
-            <span class="text-gray-400 text-sm mt-2 block">Для просмотра уязвимостей обратитесь к администратору</span>
-            {% endif %}
-        </div>
-        {% endif %}
-    </div>
-</div>
 
-<!-- СТАТУС ОПЕРАТОРОВ (кликабельные карточки) -->
-{% if session.role == 'admin' %}
-<div class="card-modern scroll-reveal" data-reveal-direction="up" data-aos="fade-up" data-aos-delay="700">
-    <div class="card-header-modern">
-        <div class="flex justify-between items-center">
-            <h2 class="text-xl font-bold text-gray-800 flex items-center space-x-2">
-                <i class="fas fa-users text-blue-600"></i>
-                <span>Статус операторов</span>
-            </h2>
-            <a href="{{ url_for('operators_page') }}"
-               class="text-blue-600 hover:text-blue-700 text-sm font-semibold flex items-center space-x-1 group transition-colors">
-                <span>Все операторы</span>
-                <i class="fas fa-arrow-right group-hover:translate-x-1 transition-transform duration-300"></i>
-            </a>
-        </div>
-    </div>
-    <div class="card-body-modern">
-        {% if operators %}
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {% for operator in operators %}
-            <a href="{{ url_for('operators_page') }}#operator-{{ operator.id }}"
-               class="bg-gray-50 border border-gray-200 rounded-lg p-4 hover:bg-white hover:shadow-md transition-all duration-200 group cursor-pointer">
-                <div class="flex items-center justify-between mb-3">
-                    <h3 class="font-semibold text-gray-900 group-hover:text-blue-600 transition-colors text-sm">{{ operator.name }}</h3>
-                    <span class="px-2.5 py-1 text-xs font-bold rounded-full
-                        {% if operator.current_metric >= 70 %}bg-green-100 text-green-800
-                        {% elif operator.current_metric >= 40 %}bg-yellow-100 text-yellow-800
-                        {% else %}bg-red-100 text-red-800{% endif %}">
-                        {{ operator.current_metric|int }}%
-                    </span>
-                </div>
-                <p class="text-xs text-gray-600 mb-3 truncate">{{ operator.email }}</p>
-                <div class="text-xs text-gray-500 font-medium mb-2">
-                    Назначено: <span class="font-bold">{{ operator.assigned_vulnerabilities|length }}</span> уязвимостей
-                </div>
-                {% if operator.assigned_vulnerabilities %}
-                <div class="mb-3">
-                    <div class="flex items-center space-x-1">
-                        {% for vuln in operator.assigned_vulnerabilities[:3] %}
-                        <span class="w-2 h-2 rounded-full
-                            {% if vuln.severity == 'high' %}bg-red-500
-                            {% elif vuln.severity == 'medium' %}bg-yellow-500
-                            {% else %}bg-green-500{% endif %}">
+    <div class="divide-y divide-gray-100">
+        {% for vulnerability in recent_vulnerabilities %}
+        <div class="p-6 hover:bg-blue-50 transition-all duration-200 cursor-pointer group"
+             onclick="window.location.href='{{ url_for('vulnerabilities_list') }}'">
+            <div class="flex items-center justify-between">
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center space-x-3 mb-2">
+                        <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold severity-{{ vulnerability.severity }}">
+                            {% if vulnerability.severity == 'critical' %}🔴 Критический
+                            {% elif vulnerability.severity == 'high' %}🟠 Высокий
+                            {% elif vulnerability.severity == 'medium' %}🟡 Средний
+                            {% else %}🟢 Низкий{% endif %}
                         </span>
-                        {% endfor %}
-                        {% if operator.assigned_vulnerabilities|length > 3 %}
-                        <span class="text-xs text-gray-400 font-medium">+{{ operator.assigned_vulnerabilities|length - 3 }}</span>
+                        {% if vulnerability.cve_id %}
+                        <span class="font-mono text-blue-600 text-sm font-semibold group-hover:underline">
+                            {{ vulnerability.cve_id }}
+                        </span>
                         {% endif %}
-                    </div>
-                </div>
-                {% endif %}
-                <div class="flex items-center justify-end">
-                    <i class="fas fa-arrow-right text-gray-400 group-hover:text-blue-600 group-hover:translate-x-1 transition-all duration-200 text-xs"></i>
-                </div>
-            </a>
-            {% endfor %}
-        </div>
-        {% else %}
-        <div class="text-center py-8">
-            <div class="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                <i class="fas fa-users text-gray-400"></i>
-            </div>
-            <p class="text-gray-600 font-medium mb-2">Операторы не найдены</p>
-            <a href="{{ url_for('operators_page') }}" class="text-blue-600 hover:text-blue-700 text-sm font-semibold">
-                Создайте первого оператора
-            </a>
-        </div>
-        {% endif %}
-    </div>
-</div>
-{% else %}
-<!-- Для user: показываем только свои назначенные уязвимости -->
-<div class="card-modern scroll-reveal" data-reveal-direction="up" data-aos="fade-up" data-aos-delay="700">
-    <div class="card-header-modern">
-        <div class="flex justify-between items-center">
-            <h2 class="text-xl font-bold text-gray-800 flex items-center space-x-2">
-                <i class="fas fa-folder-open text-blue-600"></i>
-                <span>Мои уязвимости</span>
-            </h2>
-            <a href="{{ url_for('my_assignments') }}"
-               class="text-blue-600 hover:text-blue-700 text-sm font-semibold flex items-center space-x-1 group transition-colors">
-                <span>Все мои уязвимости</span>
-                <i class="fas fa-arrow-right group-hover:translate-x-1 transition-transform duration-300"></i>
-            </a>
-        </div>
-    </div>
-    <div class="card-body-modern">
-        {% if my_vulnerabilities %}
-        <div class="space-y-3">
-            {% for vuln in my_vulnerabilities[:5] %}
-            <a href="{{ url_for('vulnerabilities_list') }}#vuln-{{ vuln.id }}"
-               class="flex items-center justify-between p-4 bg-gray-50 border border-gray-200 rounded-lg hover:bg-white hover:shadow-md transition-all duration-200 group cursor-pointer">
-                <div class="flex items-center space-x-4 flex-1 min-w-0">
-                    <div class="flex-shrink-0">
-                        <span class="badge-modern {% if vuln.severity == 'critical' %}badge-critical
-                            {% elif vuln.severity == 'high' %}badge-high
-                            {% elif vuln.severity == 'medium' %}badge-medium
-                            {% else %}badge-low{% endif %}">
-                            {{ vuln.severity|upper }}
+                        <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold status-{{ vulnerability.status }}">
+                            {% if vulnerability.status == 'new' %}🆕 Новый
+                            {% elif vulnerability.status == 'in_progress' %}🔄 В работе
+                            {% elif vulnerability.status == 'completed' %}✅ Завершено
+                            {% else %}📝 На модификации{% endif %}
                         </span>
                     </div>
-                    <div class="flex-1 min-w-0">
-                        <h3 class="text-sm font-semibold text-gray-900 group-hover:text-blue-600 transition-colors truncate">{{ vuln.title }}</h3>
-                        <p class="text-xs text-gray-500 truncate mt-1">{{ vuln.description }}</p>
+                    <p class="text-sm text-gray-900 font-medium mb-1 line-clamp-1">{{ vulnerability.title }}</p>
+                    <p class="text-sm text-gray-600 line-clamp-2">{{ vulnerability.description }}</p>
+                </div>
+                <div class="ml-6 flex-shrink-0 text-right">
+                    <div class="text-2xl font-bold {% if vulnerability.cvss_score >= 9 %}text-red-600{% elif vulnerability.cvss_score >= 7 %}text-orange-600{% elif vulnerability.cvss_score >= 4 %}text-yellow-600{% else %}text-green-600{% endif %}">
+                        {{ "%.1f"|format(vulnerability.cvss_score) }}
                     </div>
+                    <div class="text-xs text-gray-500">CVSS</div>
                 </div>
-                <div class="flex items-center space-x-3 flex-shrink-0 ml-4">
-                    <span class="px-2.5 py-1 text-xs font-semibold rounded-full
-                        {% if vuln.status == 'new' %}bg-blue-100 text-blue-800
-                        {% elif vuln.status == 'in_progress' %}bg-yellow-100 text-yellow-800
-                        {% elif vuln.status == 'completed' %}bg-green-100 text-green-800
-                        {% elif vuln.status == 'approved' %}bg-green-200 text-green-900
-                        {% else %}bg-gray-100 text-gray-800{% endif %}">
-                        {{ vuln.status }}
-                    </span>
-                    <span class="text-xs font-medium text-gray-600 bg-gray-100 px-2 py-1 rounded">CVSS: {{ vuln.cvss_score }}</span>
-                    <i class="fas fa-chevron-right text-gray-400 group-hover:text-blue-600 group-hover:translate-x-1 transition-all duration-200"></i>
-                </div>
-            </a>
-            {% endfor %}
+            </div>
         </div>
         {% else %}
-        <div class="text-center py-12">
-            <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <i class="fas fa-folder-open text-gray-400 text-2xl"></i>
-            </div>
-            <p class="text-gray-600 font-medium mb-2">У вас нет назначенных уязвимостей</p>
-            <span class="text-sm text-gray-400 block">Обратитесь к администратору для назначения</span>
+        <div class="p-12 text-center">
+            <i class="fas fa-database text-6xl text-gray-200 mb-4"></i>
+            <p class="text-gray-500 text-lg font-medium">Нет уязвимостей</p>
+            <p class="text-gray-400 text-sm mt-2">Запустите парсинг, чтобы добавить уязвимости</p>
         </div>
-        {% endif %}
+        {% endfor %}
     </div>
 </div>
-{% endif %}
 
 <script>
-    window.appData = {
-        user: {
-            id: {{ session.get('user_id') | tojson }},
-            role: {{ session.get('role') | tojson }},
-            username: {{ session.get('username') | tojson }},
-            full_name: {{ session.get('full_name') | tojson }}
-        },
-        csrf_token: "{{ csrf_token() }}"
-    };
+function showUserModal() {
+    document.getElementById('userModal').classList.remove('hidden');
+}
 
-    // Функция для открытия модального окна
-    function openUserModal() {
-        document.getElementById('userModal').classList.remove('hidden');
-    }
+function closeUserModal() {
+    document.getElementById('userModal').classList.add('hidden');
+}
 
-    // Функция для закрытия модального окна
-    function closeUserModal() {
-        document.getElementById('userModal').classList.add('hidden');
-    }
-
-    // Функции для управления парсингом
-    function startParsing() {
-        const statusElement = document.getElementById('parsingStatus');
-        const progressBar = document.getElementById('progressBar');
-        const progressText = document.getElementById('parsingProgress');
-        const messageElement = document.getElementById('parsingMessage');
-
-        // Показываем статус парсинга
-        statusElement.classList.remove('hidden');
-
-        // Запускаем парсинг
-        fetch('/api/start-parsing', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            }
-        })
+// Poll for parsing status every 3 seconds
+function pollParsingStatus() {
+    fetch('/api/parsing/status')
         .then(response => response.json())
         .then(data => {
-            if (data.success) {
-                // Запускаем отслеживание прогресса
-                trackParsingProgress();
+            if (data.is_active) {
+                document.getElementById('parsingStatus').classList.remove('hidden');
+                document.getElementById('progressBar').style.width = data.progress + '%';
+                document.getElementById('parsingProgress').innerText = data.progress + '%';
+                document.getElementById('parsingMessage').innerText = data.message || 'Идет парсинг...';
             } else {
-                showNotification('Ошибка запуска парсинга: ' + data.error, 'error');
-                statusElement.classList.add('hidden');
+                document.getElementById('parsingStatus').classList.add('hidden');
             }
         })
         .catch(error => {
-            console.error('Error:', error);
-            showNotification('Ошибка запуска парсинга', 'error');
-            statusElement.classList.add('hidden');
+            console.error('Error polling parsing status:', error);
         });
-    }
+}
 
-    function trackParsingProgress() {
-        const progressBar = document.getElementById('progressBar');
-        const progressText = document.getElementById('parsingProgress');
-        const messageElement = document.getElementById('parsingMessage');
-
-        const eventSource = new EventSource('/api/parsing-progress');
-
-        eventSource.onmessage = function(event) {
-            const data = JSON.parse(event.data);
-
-            if (data.progress !== undefined) {
-                const progress = data.progress;
-                progressBar.style.width = progress + '%';
-                progressText.textContent = progress + '%';
-                messageElement.textContent = data.message || 'Парсинг в процессе...';
-            }
-
-            if (data.status === 'completed') {
-                messageElement.textContent = 'Парсинг завершен! Обновляем страницу...';
-                progressBar.style.width = '100%';
-                progressText.textContent = '100%';
-
-                setTimeout(() => {
-                    location.reload();
-                }, 2000);
-
-                eventSource.close();
-            } else if (data.status === 'error') {
-                messageElement.textContent = 'Ошибка парсинга: ' + data.error;
-                showNotification('Ошибка парсинга', 'error');
-                eventSource.close();
-
-                setTimeout(() => {
-                    document.getElementById('parsingStatus').classList.add('hidden');
-                }, 5000);
-            }
-        };
-
-        eventSource.onerror = function(event) {
-            console.error('EventSource failed:', event);
-            eventSource.close();
-        };
-    }
-
-    // Функция для показа уведомлений
-    function showNotification(message, type) {
-        const notification = document.createElement('div');
-        notification.className = `fixed top-20 right-4 p-4 rounded-lg shadow-lg z-50 transform transition-transform duration-300 ${
-            type === 'success' ? 'bg-green-500 text-white' :
-            type === 'error' ? 'bg-red-500 text-white' : 'bg-blue-500 text-white'
-        }`;
-        notification.textContent = message;
-        document.body.appendChild(notification);
-
-        setTimeout(() => {
-            notification.remove();
-        }, 5000);
-    }
-    // ВАЖНО: на прод-сервере SSE /api/live-vulnerabilities может быть выключен.
-    // Эта страница не должна падать из-за отсутствия эндпоинта или переменных операторов.
-    // Поэтому оставляем только безопасные функции, относящиеся к парсингу.
-
-    // Функция для проверки статуса парсинга при загрузке
-    document.addEventListener('DOMContentLoaded', function () {
-        fetch('/api/parsing-status')
-            .then(r => r.json())
-            .then(data => {
-                if (data.success && data.status.status === 'running') {
-                    // Парсинг уже запущен — подключаем обновления
-                    startLiveUpdates();
-                } else {
-                    // Парсинг не запущен — скрываем прогресс-секции
-                    document.getElementById('parsing-progress-section')?.classList.add('hidden');
-                    document.getElementById('live-vulnerabilities-section')?.classList.add('hidden');
-                }
-            })
-            .catch(err => {
-                console.warn('Не удалось проверить статус парсинга:', err);
-                // На всякий случай скрываем секции
-                document.getElementById('parsing-progress-section')?.classList.add('hidden');
-                document.getElementById('live-vulnerabilities-section')?.classList.add('hidden');
-            });
-    });
-
-    // Функция для запуска обновлений
-    function startLiveUpdates() {
-        // Показываем секции
-        document.getElementById('parsing-progress-section')?.classList.remove('hidden');
-        document.getElementById('live-vulnerabilities-section')?.classList.remove('hidden');
-
-        // Запускаем отслеживание прогресса
-        startProgressTracking();
-
-        // Запускаем отслеживание уязвимостей
-        startVulnerabilitiesTracking();
-    }
-
-    // Функция для отслеживания прогресса
-    function startProgressTracking() {
-        if (progressEventSource) progressEventSource.close();
-        progressEventSource = new EventSource('/api/parsing-progress');
-        progressEventSource.onmessage = function(event) {
-            const data = JSON.parse(event.data);
-            updateProgressUI(data);
-        };
-        progressEventSource.onerror = function(event) {
-            console.error('Progress SSE error:', event);
-            progressEventSource.close();
-        };
-    }
-
-    // Функция для отслеживания уязвимостей
-    function startVulnerabilitiesTracking() {
-        if (vulnerabilitiesEventSource) vulnerabilitiesEventSource.close();
-        vulnerabilitiesEventSource = new EventSource('/api/live-parsing-vulnerabilities');
-        vulnerabilitiesEventSource.onmessage = function(event) {
-            const data = JSON.parse(event.data);
-            if (data.type === 'vulnerability') {
-                addVulnerabilityToList(data.vulnerability);
-            } else if (data.type === 'parsing_complete') {
-                showNotification('Парсинг завершен!', 'success');
-                document.getElementById('start-parsing-btn').disabled = false;
-                document.getElementById('start-parsing-btn').innerHTML = '<i class="fas fa-play mr-2"></i> Запустить парсинг';
-            }
-        };
-        vulnerabilitiesEventSource.onerror = function(event) {
-            console.error('Vulnerabilities SSE error:', event);
-            vulnerabilitiesEventSource.close();
-        };
-    }
-
-    // Функция для обновления UI прогресса
-    function updateProgressUI(progress) {
-        // Обновляем прогресс-бар
-        document.getElementById('progress-bar').style.width = progress.progress + '%';
-        document.getElementById('progress-percent').textContent = progress.progress + '%';
-        document.getElementById('progress-text').textContent = progress.message;
-
-        // Обновляем статистику
-        document.getElementById('vuln-found').textContent = progress.vulnerabilities_found || 0;
-        document.getElementById('vuln-saved').textContent = progress.vulnerabilities_saved || 0;
-        document.getElementById('total-steps').textContent = progress.total_steps || 0;
-        document.getElementById('current-step').textContent = progress.current_step_number || 0;
-    }
-
-    // Функция для добавления уязвимости в список
-    function addVulnerabilityToList(vuln) {
-        // Это пример — вы можете адаптировать под свою логику
-        console.log('Добавлена уязвимость:', vuln);
-    }
+setInterval(pollParsingStatus, 3000);
+pollParsingStatus(); // Initial call
 </script>
-
-<!-- Добавляем кнопку профиля в навигацию -->
-<script>
-    // Добавляем кнопку профиля в навигацию
-    document.addEventListener('DOMContentLoaded', function() {
-        const navItem = document.createElement('li');
-        navItem.className = 'nav-item';
-        navItem.innerHTML = `
-            <a href="#" onclick="openUserModal()" class="text-white block px-3 py-2 rounded-lg font-medium flex items-center space-x-2">
-                <i class="fas fa-user"></i>
-                <span>Профиль</span>
-            </a>
-        `;
-        const navList = document.querySelector('.nav-items'); // замените на правильный селектор
-        if (navList) {
-            navList.appendChild(navItem);
-        }
-    });
-</script>
-
 {% endblock %}
+
