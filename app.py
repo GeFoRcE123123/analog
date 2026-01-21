@@ -3078,4 +3078,3 @@ def save_vulnerabilities_to_db(vulnerabilities, skip_duplicates=True, auto_gener
 
 if __name__ == '__main__':
     app.run(host=Config.BACKEND_HOST, port=Config.BACKEND_PORT, debug=False)
-
