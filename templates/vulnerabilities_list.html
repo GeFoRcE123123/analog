@@ -619,16 +619,13 @@
                     </div>
                 </div>
 
-                <!-- NVD Дополнительные данные (аккордеон) -->
+                <!-- Подробные технические метрики (общие, из NVD и Excel/BDU) -->
                 <div class="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl border border-indigo-200 mt-4">
-                    <button onclick="toggleNVDInfo()" class="w-full px-6 py-4 text-left flex justify-between items-center hover:bg-indigo-100 transition-colors duration-200 rounded-xl">
-                        <h4 class="font-semibold text-indigo-900 flex items-center">
+                    <div class="px-6 pt-4 pb-4">
+                        <h4 class="font-semibold text-indigo-900 flex items-center mb-3">
                             <i class="fas fa-shield-alt text-indigo-500 mr-2"></i>
-                            NVD Дополнительные данные
+                            Подробные метрики уязвимости
                         </h4>
-                        <i class="fas fa-chevron-down text-indigo-500 transition-transform duration-200" id="nvd-info-chevron"></i>
-                    </button>
-                    <div id="nvd-info-content" class="px-6 pb-4 hidden">
                         <div class="bg-white rounded-lg p-4 border border-gray-200 space-y-4">
                             <!-- CVSS векторы -->
                             <div class="border-b pb-3">
@@ -1879,11 +1876,10 @@ function toggleAdditionalInfo() {
     chevron.style.transform = content.classList.contains('hidden') ? 'rotate(0deg)' : 'rotate(180deg)';
 }
 
+// Блок подробных метрик теперь всегда открыт, отдельный тоггл не используется
 function toggleNVDInfo() {
-    const content = document.getElementById('nvd-info-content');
-    const chevron = document.getElementById('nvd-info-chevron');
-    content.classList.toggle('hidden');
-    chevron.style.transform = content.classList.contains('hidden') ? 'rotate(0deg)' : 'rotate(180deg)';
+    // Оставлено для совместимости с уже подключенным JS, но ничего не делает
+    return;
 }
 
 // Функции открытия/закрытия модальных окон
