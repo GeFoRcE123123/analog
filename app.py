@@ -98,13 +98,23 @@ def get_vulnerabilities_with_operators(page: int = 1, per_page: int = 50,
                                        status: Optional[str] = None, 
                                        severity: Optional[str] = None,
                                        search: Optional[str] = None,
+                                       source: Optional[str] = None,
                                        ai_only: Optional[bool] = None,
-                                       tags: Optional[List[str]] = None):
-    """Получить уязвимости с операторами с пагинацией"""
+                                       tags: Optional[List[str]] = None,
+                                       # БДУ фильтры
+                                       vendor: Optional[str] = None,
+                                       product: Optional[str] = None,
+                                       exploit_status: Optional[str] = None,
+                                       bdu_only: Optional[bool] = None,
+                                       cve_id: Optional[str] = None,
+                                       bdu_id: Optional[str] = None):
+    """Получить уязвимости с операторами с пагинацией (с поддержкой БДУ фильтров)"""
     try:
         vulnerabilities, total_count = vuln_service.get_paginated_vulnerabilities(
             page=page, per_page=per_page,
-            status=status, severity=severity, search=search, ai_only=ai_only, tags=tags
+            status=status, severity=severity, search=search, source=source, ai_only=ai_only, tags=tags,
+            vendor=vendor, product=product, exploit_status=exploit_status,
+            bdu_only=bdu_only, cve_id=cve_id, bdu_id=bdu_id
         )
         operators = operator_service.get_all_operators()
         logger.info(f"📊 Получено уязвимостей: {len(vulnerabilities)} из {total_count} (страница {page})")
@@ -421,13 +431,13 @@ def get_analytics_data():
 
 
 def serialize_vulnerability(vuln):
-    """Сериализовать уязвимость для JSON"""
+    """Сериализовать уязвимость для JSON (с БДУ полями)"""
     operator_name = None
     if vuln.assigned_operator:
         operator = operator_service.get_operator_by_id(vuln.assigned_operator)
         operator_name = operator.name if operator else None
     
-    return {
+    result = {
         'id': vuln.id,
         'title': vuln.title,
         'description': vuln.description,
@@ -439,6 +449,47 @@ def serialize_vulnerability(vuln):
         'cve_id': getattr(vuln, 'cve_id', None),
         'tags': getattr(vuln, 'tags', []) or []
     }
+    
+    # Добавляем БДУ данные, если они есть
+    bdu_id = getattr(vuln, 'bdu_id', None)
+    if bdu_id:
+        result['bdu'] = {
+            'bdu_id': bdu_id,
+            'bdu_name': getattr(vuln, 'bdu_name', None),
+            'vendor': getattr(vuln, 'vendor', None),
+            'product_name': getattr(vuln, 'product_name', None),
+            'affected_versions': getattr(vuln, 'affected_versions', None),
+            'platform': getattr(vuln, 'platform', None),
+            'cwes': getattr(vuln, 'cwes', []),
+            'vul_class': getattr(vuln, 'vul_class', None),
+            'cvss': {
+                'cvss2': {
+                    'vector': getattr(vuln, 'cvss2_vector', None),
+                    'score': getattr(vuln, 'cvss2_score', None)
+                },
+                'cvss3': {
+                    'vector': getattr(vuln, 'cvss3_vector', None),
+                    'score': getattr(vuln, 'cvss3_score', None)
+                },
+                'severity_text': getattr(vuln, 'bdu_severity', None)
+            },
+            'status': {
+                'vul_status': getattr(vuln, 'vul_status', None),
+                'exploit_status': getattr(vuln, 'exploit_status', None),
+                'fix_status': getattr(vuln, 'fix_status', None)
+            },
+            'remediation': {
+                'solution': getattr(vuln, 'solution', None),
+                'vul_elimination': getattr(vuln, 'vul_elimination', None)
+            },
+            'dates': {
+                'identify_date': getattr(vuln, 'identify_date', None).isoformat() if getattr(vuln, 'identify_date', None) else None,
+                'publication_date': getattr(vuln, 'publication_date', None).isoformat() if getattr(vuln, 'publication_date', None) else None,
+                'last_upd_date': getattr(vuln, 'last_upd_date', None).isoformat() if getattr(vuln, 'last_upd_date', None) else None
+            }
+        }
+    
+    return result
 
 
 # === HTML МАРШРУТЫ ДЛЯ РЕНДЕРИНГА СТРАНИЦ ===
@@ -516,6 +567,7 @@ def vulnerabilities_list():
     status = request.args.get('status', None)
     severity = request.args.get('severity', None)
     search = request.args.get('search', None)
+    source = request.args.get('source', None)  # Новый параметр источника
     ai_only = request.args.get('ai_only', None)
     ai_only = True if str(ai_only).lower() in ('1', 'true', 'yes', 'on') else None
     tags_q = request.args.get('tags', None)
@@ -532,7 +584,7 @@ def vulnerabilities_list():
     
     vulnerabilities, operators, total_count = get_vulnerabilities_with_operators(
         page=page, per_page=per_page,
-        status=status, severity=severity, search=search, ai_only=ai_only, tags=tags
+        status=status, severity=severity, search=search, source=source, ai_only=ai_only, tags=tags
     )
     total_pages = (total_count + per_page - 1) // per_page
 
@@ -549,6 +601,7 @@ def vulnerabilities_list():
                            status=status,
                            severity=severity,
                            search=search,
+                           source=source,
                            ai_only=ai_only,
                            tags=tags_q)
 
@@ -933,7 +986,7 @@ def api_dashboard_stats():
 
 @app.route('/api/vulnerabilities', methods=['GET'])
 def api_vulnerabilities():
-    """Получить список уязвимостей с пагинацией"""
+    """Получить список уязвимостей с пагинацией (с поддержкой БДУ фильтров)"""
     try:
         page = int(request.args.get('page', 1))
         per_page = int(request.args.get('per_page', 50))
@@ -941,9 +994,19 @@ def api_vulnerabilities():
         severity = request.args.get('severity')
         search = request.args.get('search')
         
+        # БДУ фильтры
+        vendor = request.args.get('vendor')
+        product = request.args.get('product')
+        exploit_status = request.args.get('exploit_status')
+        bdu_only = request.args.get('bdu_only', 'false').lower() == 'true'
+        cve_id = request.args.get('cve_id')
+        bdu_id = request.args.get('bdu_id')
+        
         vulnerabilities, operators, total_count = get_vulnerabilities_with_operators(
             page=page, per_page=per_page,
-            status=status, severity=severity, search=search
+            status=status, severity=severity, search=search,
+            vendor=vendor, product=product, exploit_status=exploit_status,
+            bdu_only=bdu_only, cve_id=cve_id, bdu_id=bdu_id
         )
         
         return jsonify({
@@ -1261,6 +1324,251 @@ def api_bdu_import():
         logger.error(f"Ошибка импорта BDU Excel: {e}", exc_info=True)
         return jsonify({'success': False, 'error': str(e)}), 500
 
+
+@app.route('/api/excel/import/preview', methods=['POST'])
+@login_required
+def api_excel_import_preview():
+    """Предварительный просмотр Excel файла перед импортом"""
+    if pd is None:
+        return jsonify({'success': False, 'error': 'pandas не установлен на сервере'}), 500
+    
+    try:
+        if 'file' not in request.files:
+            return jsonify({'success': False, 'error': 'Файл не загружен'}), 400
+        
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'success': False, 'error': 'Файл не выбран'}), 400
+        
+        if not file.filename.endswith(('.xlsx', '.xls')):
+            return jsonify({'success': False, 'error': 'Неподдерживаемый формат файла'}), 400
+        
+        # Читаем Excel файл
+        df = pd.read_excel(file, header=1)
+        
+        # Нормализуем имена колонок
+        cols = {c: str(c).strip() for c in df.columns}
+        df.rename(columns=cols, inplace=True)
+        
+        # Получаем список колонок
+        columns = df.columns.tolist()
+        
+        # Получаем первые 5 строк для предварительного просмотра
+        sample_data = df.head(5).fillna('').to_dict('records')
+        
+        return jsonify({
+            'success': True,
+            'columns': columns,
+            'row_count': len(df),
+            'sample_data': sample_data
+        })
+    
+    except Exception as e:
+        logger.error(f"Ошибка предварительного просмотра Excel: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/excel/import', methods=['POST'])
+@login_required
+@admin_required
+def api_excel_import():
+    """Импорт уязвимостей из загруженного Excel файла"""
+    if pd is None:
+        return jsonify({'success': False, 'error': 'pandas не установлен на сервере'}), 500
+    
+    try:
+        if 'file' not in request.files:
+            return jsonify({'success': False, 'error': 'Файл не загружен'}), 400
+        
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'success': False, 'error': 'Файл не выбран'}), 400
+        
+        if not file.filename.endswith(('.xlsx', '.xls')):
+            return jsonify({'success': False, 'error': 'Неподдерживаемый формат файла'}), 400
+        
+        # Читаем Excel файл
+        df = pd.read_excel(file, header=1)
+        
+        # Нормализуем имена колонок
+        cols = {c: str(c).strip() for c in df.columns}
+        df.rename(columns=cols, inplace=True)
+        
+        # Используем ту же логику импорта, что и в /api/bdu/import
+        col_status = 'Статус'
+        col_bdu_id = 'Идентификатор'
+        col_name = 'Наименование уязвимости'
+        col_ids_other = 'Идентификаторы других систем описаний уязвимости'
+        col_desc = 'Описание уязвимости'
+        col_vendor = 'Вендор ПО'
+        col_product = 'Название ПО'
+        col_version = 'Версия ПО'
+        col_os = 'Наименование ОС и тип аппаратной платформы'
+        col_date_found = 'Дата выявления'
+        col_severity_text = 'Уровень опасности уязвимости'
+        col_cvss2 = 'CVSS 2.0'
+        col_cvss3 = 'CVSS 3.1'
+        col_cvss4 = 'CVSS 4.0'
+        col_mitigation = 'Возможные меры по устранению'
+        col_fix_status = 'Статус уязвимости'
+        col_fix_info = 'Информация об устранении'
+        col_fix_date = 'Дата устранения'
+        col_exploit = 'Наличие эксплойта'
+        col_fix_method = 'Способ устранения'
+        col_exploit_method = 'Способ эксплуатации'
+        col_refs = 'Ссылки на источники'
+        col_cwe_desc = 'Описание ошибки CWE'
+        col_cwe_type = 'Тип ошибки CWE'
+
+        # Индексация существующих уязвимостей по CVE
+        existing = {}
+        try:
+            all_vulns = vuln_service.get_all_vulnerabilities_unlimited()
+            for v in all_vulns:
+                cve = getattr(v, 'cve_id', None)
+                if cve:
+                    existing.setdefault(cve.upper(), []).append(v)
+        except Exception as e:
+            logger.error(f"Не удалось получить список существующих уязвимостей: {e}", exc_info=True)
+
+        created = 0
+        updated = 0
+        errors = []
+
+        for idx, row in df.iterrows():
+            try:
+                bdu_id = str(row.get(col_bdu_id, '')).strip()
+                name = str(row.get(col_name, '')).strip()
+                base_desc = str(row.get(col_desc, '')).strip()
+
+                if not bdu_id and not name and not base_desc:
+                    continue
+
+                # CVE из поля идентификаторов других систем
+                cve_raw = str(row.get(col_ids_other, '') or '')
+                cve_id = None
+                if 'CVE-' in cve_raw:
+                    import re
+                    m = re.search(r'(CVE-\d{4}-\d+)', cve_raw)
+                    if m:
+                        cve_id = m.group(1).upper()
+
+                severity_text = str(row.get(col_severity_text, '') or '')
+                severity = _detect_severity_from_bdu(severity_text)
+
+                # Базовый CVSS
+                cvss3_text = str(row.get(col_cvss3, '') or '')
+                cvss2_text = str(row.get(col_cvss2, '') or '')
+                cvss_score = _parse_cvss_from_text(cvss3_text) or _parse_cvss_from_text(cvss2_text)
+
+                vendor = str(row.get(col_vendor, '') or '').strip()
+                product = str(row.get(col_product, '') or '').strip()
+                version = str(row.get(col_version, '') or '').strip()
+                os_platform = str(row.get(col_os, '') or '').strip()
+                date_found = row.get(col_date_found, None)
+                mitigation = str(row.get(col_mitigation, '') or '').strip()
+                fix_status = str(row.get(col_fix_status, '') or '').strip()
+                fix_info = str(row.get(col_fix_info, '') or '').strip()
+                date_fix = row.get(col_fix_date, None)
+                exploit = str(row.get(col_exploit, '') or '').strip()
+                fix_method = str(row.get(col_fix_method, '') or '').strip()
+                exploit_method = str(row.get(col_exploit_method, '') or '').strip()
+                refs = str(row.get(col_refs, '') or '').strip()
+                cwe_desc = str(row.get(col_cwe_desc, '') or '').strip()
+                cwe_type = str(row.get(col_cwe_type, '') or '').strip()
+
+                # Собираем расширенное описание
+                parts = []
+                if base_desc:
+                    parts.append(base_desc)
+                if vendor or product or version:
+                    parts.append(f"[ПО] Вендор: {vendor or '-'}, продукт: {product or '-'}, версия: {version or '-'}")
+                if os_platform:
+                    parts.append(f"[Платформа] {os_platform}")
+                if date_found:
+                    parts.append(f"[Дата выявления] {date_found}")
+                if severity_text:
+                    parts.append(f"[Уровень опасности] {severity_text}")
+                if cvss2_text or cvss3_text:
+                    parts.append(f"[CVSS] 2.0: {cvss2_text or '-'}; 3.1: {cvss3_text or '-'}")
+                if mitigation:
+                    parts.append(f"[Меры по устранению] {mitigation}")
+                if fix_status:
+                    parts.append(f"[Статус BDU] {fix_status}")
+                if fix_info:
+                    parts.append(f"[Информация об устранении] {fix_info}")
+                if date_fix:
+                    parts.append(f"[Дата устранения] {date_fix}")
+                if exploit:
+                    parts.append(f"[Наличие эксплойта] {exploit}")
+                if fix_method or exploit_method:
+                    parts.append(f"[Способ устранения] {fix_method or '-'}; [Способ эксплуатации] {exploit_method or '-'}")
+                if refs:
+                    parts.append(f"[Ссылки] {refs}")
+                if cwe_desc or cwe_type:
+                    parts.append(f"[CWE] Тип: {cwe_type or '-'}; Описание: {cwe_desc or '-'}")
+
+                full_description = "\n\n".join(parts)
+
+                # Обновление или создание уязвимости
+                if cve_id and cve_id in existing:
+                    vuln = existing[cve_id][0]
+                    current_desc = vuln.description or ""
+                    if "BDU" not in current_desc:
+                        new_desc = f"{current_desc}\n\n=== БДУ ФСТЭК ===\n{full_description}"
+                        vuln_service.update_vulnerability(
+                            vuln.id,
+                            description=new_desc,
+                            severity=severity or vuln.severity,
+                            cvss_score=float(cvss_score or vuln.cvss_score or 0.0)
+                        )
+                        updated += 1
+                else:
+                    from models.entities import Vulnerability as BaseVuln
+                    title_parts = []
+                    if cve_id:
+                        title_parts.append(cve_id)
+                    if bdu_id:
+                        title_parts.append(bdu_id)
+                    if name:
+                        title_parts.append(name)
+                    title = " - ".join(title_parts)[:255] or (name or bdu_id or "BDU Vulnerability")
+
+                    vuln = BaseVuln(
+                        id=0,
+                        title=title,
+                        description=full_description or base_desc or name,
+                        severity=severity,
+                        status='new',
+                        cvss_score=float(cvss_score or 0.0),
+                        risk_level=severity,
+                        category='bdu',
+                        cve_id=cve_id
+                    )
+
+                    if vuln_service.add_vulnerability(vuln):
+                        created += 1
+                    else:
+                        errors.append(f"Строка {idx + 2}: не удалось добавить уязвимость")
+
+            except Exception as e:
+                logger.error(f"Ошибка импорта на строке {idx + 2}: {e}", exc_info=True)
+                errors.append(f"Строка {idx + 2}: {e}")
+
+        return jsonify({
+            'success': True,
+            'imported_count': created + updated,
+            'created': created,
+            'updated': updated,
+            'errors': errors,
+            'total_rows': len(df)
+        })
+    
+    except Exception as e:
+        logger.error(f"Ошибка импорта Excel: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @app.route('/api/vulnerabilities/<int:vuln_id>', methods=['GET'])
 def api_get_vulnerability(vuln_id):
     """Получить уязвимость по ID"""
@@ -1283,6 +1591,245 @@ def api_update_vulnerability(vuln_id):
         return jsonify({'success': success})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ============================================
+# БДУ ФСТЭК API ENDPOINTS
+# ============================================
+
+@app.route('/api/bdu/vendors', methods=['GET'])
+@login_required
+def get_bdu_vendors():
+    """
+    Получить список всех вендоров из БДУ
+    
+    Query params:
+        - search: строка поиска
+        - limit: макс. количество (default: 100)
+    
+    Returns:
+        JSON: [{"vendor": "Microsoft Corp", "count": 1234}, ...]
+    """
+    search = request.args.get('search', '')
+    limit = int(request.args.get('limit', 100))
+    
+    query = """
+    SELECT vendor, COUNT(*) as count
+    FROM vulnerabilities
+    WHERE vendor IS NOT NULL AND vendor != ''
+    """
+    
+    if search:
+        query += f" AND vendor ILIKE %s"
+        params = (f'%{search}%',)
+    else:
+        params = ()
+    
+    query += """
+    GROUP BY vendor
+    ORDER BY count DESC
+    LIMIT %s
+    """
+    params += (limit,)
+    
+    try:
+        cursor = db.cursor()
+        cursor.execute(query, params)
+        results = [{"vendor": row[0], "count": row[1]} for row in cursor.fetchall()]
+        cursor.close()
+        return jsonify(results)
+    except Exception as e:
+        logger.error(f"Error fetching vendors: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/bdu/products', methods=['GET'])
+@login_required
+def get_bdu_products():
+    """
+    Получить список продуктов из БДУ
+    
+    Query params:
+        - vendor: фильтр по вендору
+        - search: строка поиска
+        - limit: макс. количество (default: 100)
+    """
+    vendor = request.args.get('vendor')
+    search = request.args.get('search', '')
+    limit = int(request.args.get('limit', 100))
+    
+    query = """
+    SELECT vendor, product_name, COUNT(*) as count
+    FROM vulnerabilities
+    WHERE product_name IS NOT NULL AND product_name != ''
+    """
+    params = []
+    
+    if vendor:
+        query += " AND vendor = %s"
+        params.append(vendor)
+    
+    if search:
+        query += " AND product_name ILIKE %s"
+        params.append(f'%{search}%')
+    
+    query += """
+    GROUP BY vendor, product_name
+    ORDER BY count DESC
+    LIMIT %s
+    """
+    params.append(limit)
+    
+    try:
+        cursor = db.cursor()
+        cursor.execute(query, tuple(params))
+        results = [{
+            "vendor": row[0],
+            "product_name": row[1],
+            "count": row[2]
+        } for row in cursor.fetchall()]
+        cursor.close()
+        return jsonify(results)
+    except Exception as e:
+        logger.error(f"Error fetching products: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/bdu/vulnerabilities/exploits', methods=['GET'])
+@login_required
+def get_bdu_vulnerabilities_with_exploits():
+    """
+    Получить уязвимости БДУ с эксплоитами
+    
+    Query params:
+        - vendor: фильтр по вендору
+        - severity: фильтр по severity (critical, high, medium, low)
+        - limit: макс. количество (default: 50)
+        - offset: смещение для пагинации (default: 0)
+    """
+    vendor = request.args.get('vendor')
+    severity = request.args.get('severity')
+    limit = int(request.args.get('limit', 50))
+    offset = int(request.args.get('offset', 0))
+    
+    query = """
+    SELECT 
+        id, bdu_id, cve_id, title, vendor, product_name,
+        cvss3_score, cvss2_score, severity, exploit_status,
+        publication_date, last_upd_date
+    FROM vulnerabilities
+    WHERE exploit_status LIKE '%Существует%'
+      AND bdu_id IS NOT NULL
+    """
+    params = []
+    
+    if vendor:
+        query += " AND vendor = %s"
+        params.append(vendor)
+    
+    if severity:
+        query += " AND severity = %s"
+        params.append(severity)
+    
+    query += """
+    ORDER BY COALESCE(cvss3_score, cvss2_score, 0) DESC
+    LIMIT %s OFFSET %s
+    """
+    params.extend([limit, offset])
+    
+    try:
+        cursor = db.cursor()
+        cursor.execute(query, tuple(params))
+        results = [{
+            "id": row[0],
+            "bdu_id": row[1],
+            "cve_id": row[2],
+            "title": row[3],
+            "vendor": row[4],
+            "product_name": row[5],
+            "cvss3_score": float(row[6]) if row[6] else None,
+            "cvss2_score": float(row[7]) if row[7] else None,
+            "severity": row[8],
+            "exploit_status": row[9],
+            "publication_date": row[10].isoformat() if row[10] else None,
+            "last_upd_date": row[11].isoformat() if row[11] else None,
+        } for row in cursor.fetchall()]
+        cursor.close()
+        return jsonify(results)
+    except Exception as e:
+        logger.error(f"Error fetching exploits: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/bdu/stats', methods=['GET'])
+@login_required
+def get_bdu_stats():
+    """
+    Получить статистику по БДУ данным
+    
+    Returns:
+        JSON: {
+            "total_bdu": 82000,
+            "with_cvss3": 71000,
+            "with_exploits": 15000,
+            "top_vendors": [...],
+            "severity_distribution": {...}
+        }
+    """
+    query = """
+    SELECT 
+        COUNT(*) as total_bdu,
+        COUNT(CASE WHEN cvss3_score IS NOT NULL THEN 1 END) as with_cvss3,
+        COUNT(CASE WHEN cvss2_score IS NOT NULL THEN 1 END) as with_cvss2,
+        COUNT(CASE WHEN exploit_status LIKE '%Существует%' THEN 1 END) as with_exploits,
+        COUNT(CASE WHEN cve_id IS NOT NULL THEN 1 END) as with_cve,
+        COUNT(CASE WHEN severity = 'critical' THEN 1 END) as critical_count,
+        COUNT(CASE WHEN severity = 'high' THEN 1 END) as high_count,
+        COUNT(CASE WHEN severity = 'medium' THEN 1 END) as medium_count,
+        COUNT(CASE WHEN severity = 'low' THEN 1 END) as low_count
+    FROM vulnerabilities
+    WHERE bdu_id IS NOT NULL
+    """
+    
+    # Топ вендоров
+    top_vendors_query = """
+    SELECT vendor, COUNT(*) as count
+    FROM vulnerabilities
+    WHERE vendor IS NOT NULL AND bdu_id IS NOT NULL
+    GROUP BY vendor
+    ORDER BY count DESC
+    LIMIT 10
+    """
+    
+    try:
+        cursor = db.cursor()
+        
+        # Общая статистика
+        cursor.execute(query)
+        row = cursor.fetchone()
+        stats = {
+            "total_bdu": row[0],
+            "with_cvss3": row[1],
+            "with_cvss2": row[2],
+            "with_exploits": row[3],
+            "with_cve": row[4],
+            "severity_distribution": {
+                "critical": row[5],
+                "high": row[6],
+                "medium": row[7],
+                "low": row[8],
+            }
+        }
+        
+        # Топ вендоров
+        cursor.execute(top_vendors_query)
+        stats["top_vendors"] = [{"vendor": r[0], "count": r[1]} for r in cursor.fetchall()]
+        
+        cursor.close()
+        return jsonify(stats)
+    except Exception as e:
+        logger.error(f"Error fetching BDU stats: {e}")
+        return jsonify({'error': str(e)}), 500
 
 
 # === TAGS API ===
