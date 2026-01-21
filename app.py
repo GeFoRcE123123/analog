@@ -581,6 +581,63 @@ def admin_users():
         })
     return render_template('admin/users.html', users=users_list)
 
+@app.route('/api/admin/users', methods=['POST'])
+@csrf.exempt
+@login_required
+@admin_required
+def create_user_api():
+    """API для создания пользователя"""
+    try:
+        data = request.get_json()
+        username = data.get('username')
+        email = data.get('email')
+        password = data.get('password')
+        role = data.get('role', 'user')
+        is_active = data.get('is_active', True)
+        
+        if not username or not email or not password:
+            return jsonify({'error': 'Не указаны обязательные поля'}), 400
+        
+        if role not in ('admin', 'user'):
+            return jsonify({'error': 'Неверная роль'}), 400
+        
+        # Создаем пользователя через AuthService
+        success = auth_service.create_user(username, email, password, role, username)
+        
+        if success:
+            # Обновляем is_active если нужно
+            if not is_active:
+                db_manager.execute_query(
+                    "UPDATE users SET is_active = %s WHERE email = %s",
+                    (is_active, email)
+                )
+            return jsonify({'success': True, 'message': 'Пользователь создан'}), 201
+        else:
+            return jsonify({'error': 'Не удалось создать пользователя (возможно, email уже существует)'}), 400
+            
+    except Exception as e:
+        logger.error(f"Error creating user: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/admin/users/<int:user_id>', methods=['DELETE'])
+@csrf.exempt
+@login_required
+@admin_required
+def delete_user_api(user_id):
+    """API для удаления пользователя"""
+    try:
+        # Проверяем, что не удаляем самого себя
+        if user_id == session.get('user_id'):
+            return jsonify({'error': 'Нельзя удалить самого себя'}), 400
+        
+        # Удаляем пользователя
+        db_manager.execute_query("DELETE FROM users WHERE id = %s", (user_id,))
+        return jsonify({'success': True, 'message': 'Пользователь удален'}), 200
+        
+    except Exception as e:
+        logger.error(f"Error deleting user: {e}")
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/performance')
 @login_required
 def performance_analytics():
