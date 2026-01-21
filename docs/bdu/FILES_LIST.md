@@ -6,7 +6,7 @@
 
 ## 📚 Документация (7 файлов)
 
-### 1. **docs/BDU_INDEX.md** ⭐ ГЛАВНАЯ СТРАНИЦА
+### 1. **docs/bdu/README.md** ⭐ ГЛАВНАЯ СТРАНИЦА
 ```
 Размер: ~8 KB
 Назначение: Навигация по всей документации БДУ
@@ -20,7 +20,7 @@
 
 ---
 
-### 2. **docs/BDU_QUICK_SUMMARY.md** ⭐ КРАТКОЕ РЕЗЮМЕ
+### 2. **docs/bdu/QUICK_SUMMARY.md** ⭐ КРАТКОЕ РЕЗЮМЕ
 ```
 Размер: ~12 KB
 Назначение: Быстрое ознакомление (5-10 мин)
@@ -35,7 +35,7 @@
 
 ---
 
-### 3. **docs/BDU_STRUCTURE_ANALYSIS_2026.md** 📖 ПОЛНЫЙ АНАЛИЗ
+### 3. **docs/bdu/STRUCTURE_ANALYSIS.md** 📖 ПОЛНЫЙ АНАЛИЗ
 ```
 Размер: ~100 KB (70+ страниц)
 Назначение: Детальная техническая документация
@@ -63,7 +63,7 @@
 
 ---
 
-### 4. **docs/BDU_COMPARISON_DIAGRAM.md** 📊 ВИЗУАЛЬНОЕ СРАВНЕНИЕ
+### 4. **docs/bdu/COMPARISON_DIAGRAM.md** 📊 ВИЗУАЛЬНОЕ СРАВНЕНИЕ
 ```
 Размер: ~35 KB
 Назначение: Наглядное сравнение структуры "до" и "после"
@@ -79,7 +79,7 @@
 
 ---
 
-### 5. **docs/BDU_ACTION_PLAN.md** 🎯 ПЛАН ДЕЙСТВИЙ
+### 5. **docs/bdu/ACTION_PLAN.md** 🎯 ПЛАН ДЕЙСТВИЙ
 ```
 Размер: ~20 KB
 Назначение: Пошаговый план внедрения
@@ -98,7 +98,7 @@
 
 ---
 
-### 6. **docs/BDU_FILES_CREATED.md** 📝 ЭТОТ ФАЙЛ
+### 6. **docs/bdu/FILES_LIST.md** 📝 ЭТОТ ФАЙЛ
 ```
 Размер: ~10 KB
 Назначение: Список всех созданных файлов
@@ -232,12 +232,13 @@ psql -U user -d db -f scripts/migration/check_bdu_stats.sql
 ```
 vulnerability_manager/
 ├── docs/
-│   ├── BDU_INDEX.md                          ⭐ НАЧАТЬ ЗДЕСЬ
-│   ├── BDU_QUICK_SUMMARY.md                  📄 5 мин чтения
-│   ├── BDU_STRUCTURE_ANALYSIS_2026.md        📖 Полный анализ
-│   ├── BDU_COMPARISON_DIAGRAM.md             📊 Визуальное сравнение
-│   ├── BDU_ACTION_PLAN.md                    🎯 План на 3 недели
-│   ├── BDU_FILES_CREATED.md                  📝 Этот файл
+│   ├── bdu/                                  📁 Документация БДУ ФСТЭК
+│   │   ├── README.md                         ⭐ НАЧАТЬ ЗДЕСЬ
+│   │   ├── QUICK_SUMMARY.md                  📄 5 мин чтения
+│   │   ├── STRUCTURE_ANALYSIS.md             📖 Полный анализ
+│   │   ├── COMPARISON_DIAGRAM.md             📊 Визуальное сравнение
+│   │   ├── ACTION_PLAN.md                    🎯 План на 3 недели
+│   │   └── FILES_LIST.md                     📝 Этот файл
 │   └── парсеры ии бду.xlsx                   📊 Исходные данные
 │
 └── scripts/
@@ -266,17 +267,17 @@ vulnerability_manager/
 
 ### Для быстрого старта:
 
-1. **Прочитать** `docs/BDU_INDEX.md` (5 мин)
-2. **Изучить** `docs/BDU_QUICK_SUMMARY.md` (10 мин)
-3. **Ознакомиться** с `docs/BDU_ACTION_PLAN.md` (15 мин)
+1. **Прочитать** `docs/bdu/README.md` (5 мин)
+2. **Изучить** `docs/bdu/QUICK_SUMMARY.md` (10 мин)
+3. **Ознакомиться** с `docs/bdu/ACTION_PLAN.md` (15 мин)
 4. **Выбрать** подход:
    - **Быстрый путь:** Миграция БД → Backfill → Обновить UI
    - **Полный путь:** Следовать плану из BDU_ACTION_PLAN.md
 
 ### Для глубокого погружения:
 
-1. Прочитать `docs/BDU_STRUCTURE_ANALYSIS_2026.md` (2-3 часа)
-2. Изучить `docs/BDU_COMPARISON_DIAGRAM.md` (30 мин)
+1. Прочитать `docs/bdu/STRUCTURE_ANALYSIS.md` (2-3 часа)
+2. Изучить `docs/bdu/COMPARISON_DIAGRAM.md` (30 мин)
 3. Просмотреть SQL и Python скрипты (1 час)
 
 ---
@@ -353,5 +354,5 @@ vulnerability_manager/
 **Версия:** 1.0  
 **Статус:** ✅ Полная документация готова
 
-**Начните здесь:** `docs/BDU_INDEX.md` ⭐
+**Начните здесь:** `docs/bdu/README.md` ⭐
 
