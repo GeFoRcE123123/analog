@@ -152,8 +152,26 @@
             </div>
         </div>
     </a>
+    {% else %}
+    <div class="card-modern gradient-primary text-white opacity-60 cursor-not-allowed">
+        <div class="p-6">
+            <div class="flex items-center justify-between mb-4">
+                <div class="w-16 h-16 bg-white bg-opacity-20 rounded-xl flex items-center justify-center backdrop-blur-sm">
+                    <i class="fas fa-rocket text-white text-2xl"></i>
+                </div>
+                <span class="px-3 py-1 bg-white bg-opacity-20 rounded-full text-xs font-bold backdrop-blur-sm">Только Admin</span>
+            </div>
+            <h3 class="text-2xl font-bold mb-2">Парсеры уязвимостей</h3>
+            <p class="text-blue-100 mb-6 text-sm">Доступно только для администраторов</p>
+            <div class="bg-white bg-opacity-50 text-blue-600 font-bold py-3 px-6 rounded-lg shadow-lg w-full text-center cursor-not-allowed">
+                <i class="fas fa-lock mr-2"></i>Недоступно
+            </div>
+        </div>
+    </div>
+    {% endif %}
 
     <!-- Управление операторами -->
+    {% if session.role == 'admin' %}
     <a href="{{ url_for('operators_page') }}"
        class="card-modern gradient-success text-white hover:shadow-2xl transition-all duration-300 transform hover:scale-[1.02] block group">
         <div class="p-6">

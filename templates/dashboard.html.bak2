@@ -154,6 +154,7 @@
     </a>
 
     <!-- Управление операторами -->
+    {% if session.role == 'admin' %}
     <a href="{{ url_for('operators_page') }}"
        class="card-modern gradient-success text-white hover:shadow-2xl transition-all duration-300 transform hover:scale-[1.02] block group">
         <div class="p-6">

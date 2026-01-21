@@ -161,12 +161,22 @@ CREATE INDEX IF NOT EXISTS idx_vulnerabilities_vendor_product ON vulnerabilities
 -- ============================================
 
 -- CVSS 2.0 score должен быть от 0 до 10
-ALTER TABLE vulnerabilities ADD CONSTRAINT IF NOT EXISTS check_cvss2_score 
-    CHECK (cvss2_score IS NULL OR (cvss2_score >= 0 AND cvss2_score <= 10));
+DO $$ 
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'check_cvss2_score') THEN
+        ALTER TABLE vulnerabilities ADD CONSTRAINT check_cvss2_score 
+            CHECK (cvss2_score IS NULL OR (cvss2_score >= 0 AND cvss2_score <= 10));
+    END IF;
+END $$;
 
 -- CVSS 3.0 score должен быть от 0 до 10
-ALTER TABLE vulnerabilities ADD CONSTRAINT IF NOT EXISTS check_cvss3_score 
-    CHECK (cvss3_score IS NULL OR (cvss3_score >= 0 AND cvss3_score <= 10));
+DO $$ 
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'check_cvss3_score') THEN
+        ALTER TABLE vulnerabilities ADD CONSTRAINT check_cvss3_score 
+            CHECK (cvss3_score IS NULL OR (cvss3_score >= 0 AND cvss3_score <= 10));
+    END IF;
+END $$;
 
 -- ============================================
 -- 11. КОММЕНТАРИИ ДЛЯ ПОЛЕЙ (Documentation)
