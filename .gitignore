@@ -206,3 +206,4 @@ parsed_vulnerabilities.json
 config.py.local
 .env.local
 *.local
+temp_bdu/
