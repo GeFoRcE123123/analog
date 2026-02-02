@@ -188,6 +188,7 @@ logs/
 tags
 data/
 vulnerability_data/
+temp_bdu/
 
 # Примеры и демо данные
 examples/*.json
