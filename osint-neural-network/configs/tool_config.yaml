@@ -1,0 +1,24 @@
+shodan:
+  enabled: true
+  cache_ttl_seconds: 3600
+
+censys:
+  enabled: false
+  cache_ttl_seconds: 3600
+
+certificate_search:
+  enabled: true
+  cache_ttl_seconds: 3600
+
+dns_intel:
+  enabled: true
+  max_subdomains: 200
+  resolve_subdomains: true
+
+github:
+  enabled: true
+  max_results: 20
+
+nmap:
+  enabled: true
+  default_args: "-sV -T4"

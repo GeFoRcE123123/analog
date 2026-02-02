@@ -12,7 +12,7 @@
 """
 
 import xml.etree.ElementTree as ET
-from typing import Dict, List, Optional, Generator
+from typing import Dict, List, Optional, Generator, Tuple
 from datetime import datetime, date
 from decimal import Decimal
 import re
@@ -140,19 +140,17 @@ class BDUXMLParser:
         vuln['last_upd_date'] = self._parse_date(self._get_text(elem, 'last_upd_date'))
         
         # 6. ОЦЕНКА РИСКОВ
-        cvss_elem = elem.find('cvss')
-        if cvss_elem is not None:
-            vuln['cvss2_score'] = self._parse_decimal(cvss_elem.get('score'))
-            vuln['cvss2_vector'] = cvss_elem.text.strip() if cvss_elem.text else None
-            if vuln['cvss2_score']:
-                self.stats['with_cvss2'] += 1
-        
-        cvss3_elem = elem.find('cvss3')
-        if cvss3_elem is not None:
-            vuln['cvss3_score'] = self._parse_decimal(cvss3_elem.get('score'))
-            vuln['cvss3_vector'] = cvss3_elem.text.strip() if cvss3_elem.text else None
-            if vuln['cvss3_score']:
-                self.stats['with_cvss3'] += 1
+        cvss2_score, cvss2_vector, cvss3_score, cvss3_vector = self._parse_cvss(elem)
+        if cvss2_score is not None:
+            vuln['cvss2_score'] = cvss2_score
+            self.stats['with_cvss2'] += 1
+        if cvss2_vector:
+            vuln['cvss2_vector'] = cvss2_vector
+        if cvss3_score is not None:
+            vuln['cvss3_score'] = cvss3_score
+            self.stats['with_cvss3'] += 1
+        if cvss3_vector:
+            vuln['cvss3_vector'] = cvss3_vector
         
         vuln['bdu_severity'] = self._get_text(elem, 'severity')
         
@@ -172,6 +170,9 @@ class BDUXMLParser:
         vuln['vul_incident'] = self._get_text(elem, 'vul_incident')
         vuln['vul_state'] = self._get_text(elem, 'vul_state')
         vuln['vul_elimination'] = self._get_text(elem, 'vul_elimination')
+
+        # 8.1 Тактики/угрозы (если присутствуют в XML)
+        vuln['bdu_tactics'] = self._parse_tactics(elem)
         
         # Извлечение CVE ID из identifiers
         vuln['cve_id'] = self._extract_cve_id(vuln['other_identifiers'])
@@ -188,29 +189,41 @@ class BDUXMLParser:
     def _parse_vulnerable_software(self, elem: ET.Element) -> List[Dict]:
         """Парсинг секции vulnerable_software"""
         software_list = []
-        
-        vuln_soft_elem = elem.find('vulnerable_software')
-        if vuln_soft_elem is None:
+
+        containers = [
+            elem.find('vulnerable_software'),
+            elem.find('software'),
+            elem.find('softs'),
+            elem.find('vuln_software')
+        ]
+        containers = [c for c in containers if c is not None]
+        if not containers:
             return software_list
-        
-        for soft_elem in vuln_soft_elem.findall('soft'):
-            software = {
-                'name': self._get_text(soft_elem, 'name'),
-                'vendor': self._get_text(soft_elem, 'vendor'),
-                'version': self._get_text(soft_elem, 'version'),
-                'platform': self._get_text(soft_elem, 'platform'),
-                'registry_number': self._get_text(soft_elem, 'registry_number'),
-                'types': []
-            }
-            
-            # Парсинг типов ПО
-            types_elem = soft_elem.find('types')
-            if types_elem is not None:
-                for type_elem in types_elem.findall('type'):
-                    if type_elem.text:
-                        software['types'].append(type_elem.text.strip())
-            
-            software_list.append(software)
+
+        for container in containers:
+            for soft_elem in list(container.findall('soft')) + list(container.findall('software')) + list(container.findall('product')):
+                software = {
+                    'name': self._get_text_any(soft_elem, ['name', 'sft_name', 'product_name', 'soft_name']),
+                    'vendor': self._get_text_any(soft_elem, ['vendor', 'vnd_name', 'vendor_name']),
+                    'version': self._get_text_any(soft_elem, ['version', 'ver_name', 'version_name']),
+                    'platform': self._get_text_any(soft_elem, ['platform', 'plat_name', 'platform_name']),
+                    'registry_number': self._get_text_any(soft_elem, ['registry_number', 'reg_number']),
+                    'types': []
+                }
+
+                # Парсинг типов ПО
+                types_elem = soft_elem.find('types')
+                if types_elem is not None:
+                    for type_elem in types_elem.findall('type'):
+                        if type_elem.text:
+                            software['types'].append(type_elem.text.strip())
+                else:
+                    type_value = self._get_text_any(soft_elem, ['type', 'sft_type', 'software_type'])
+                    if type_value:
+                        software['types'].append(type_value)
+
+                if any(software.get(k) for k in ('name', 'vendor', 'version', 'platform', 'registry_number', 'types')):
+                    software_list.append(software)
         
         return software_list
     
@@ -298,6 +311,86 @@ class BDUXMLParser:
         if child is not None and child.text:
             return child.text.strip()
         return None
+
+    def _get_text_any(self, elem: ET.Element, tags: List[str]) -> Optional[str]:
+        """Получить текст по первому найденному тегу из списка"""
+        for tag in tags:
+            value = self._get_text(elem, tag)
+            if value:
+                return value
+        return None
+
+    def _strip_ns(self, tag: str) -> str:
+        """Убрать namespace из тега"""
+        return tag.split('}', 1)[-1] if '}' in tag else tag
+
+    def _parse_cvss(self, elem: ET.Element) -> Tuple[Optional[Decimal], Optional[str], Optional[Decimal], Optional[str]]:
+        """Парсинг CVSS 2/3 в разных форматах XML"""
+        cvss2_score = None
+        cvss2_vector = None
+        cvss3_score = None
+        cvss3_vector = None
+
+        candidates = []
+        for tag in ('cvss', 'cvss2', 'cvss3'):
+            found = elem.find(tag)
+            if found is not None:
+                candidates.append(found)
+
+        # Дополнительный поиск по именам тегов
+        for child in elem.iter():
+            tag_name = self._strip_ns(child.tag).lower()
+            if tag_name in ('cvss', 'cvss2', 'cvss3'):
+                if child not in candidates:
+                    candidates.append(child)
+
+        for cvss_elem in candidates:
+            tag_name = self._strip_ns(cvss_elem.tag).lower()
+            score_val = (
+                cvss_elem.get('score')
+                or cvss_elem.get('base_score')
+                or (cvss_elem.findtext('score') or cvss_elem.findtext('base_score'))
+            )
+            vector_val = (
+                cvss_elem.get('vector')
+                or cvss_elem.get('base_vector')
+                or (cvss_elem.findtext('vector') or cvss_elem.findtext('base_vector'))
+            )
+            if not vector_val and cvss_elem.text and cvss_elem.text.strip():
+                vector_val = cvss_elem.text.strip()
+
+            score = self._parse_decimal(score_val) if score_val else None
+
+            # Определяем версию по тегу или префиксу вектора
+            is_v3 = (tag_name == 'cvss3') or (vector_val and vector_val.startswith('CVSS:3'))
+            if is_v3:
+                if cvss3_score is None:
+                    cvss3_score = score
+                if vector_val and not cvss3_vector:
+                    cvss3_vector = vector_val
+            else:
+                if cvss2_score is None:
+                    cvss2_score = score
+                if vector_val and not cvss2_vector:
+                    cvss2_vector = vector_val
+
+        return cvss2_score, cvss2_vector, cvss3_score, cvss3_vector
+
+    def _parse_tactics(self, elem: ET.Element) -> List[str]:
+        """Извлечь тактики/угрозы (MITRE ATT&CK и аналоги)"""
+        tactics = []
+        for child in elem.iter():
+            tag_name = self._strip_ns(child.tag).lower()
+            if tag_name in ('tactic', 'tactics', 'attack', 'mitre', 'mitre_attack', 'threat', 'threats'):
+                if child.text:
+                    tactics.append(child.text.strip())
+        # Нормализация и извлечение идентификаторов TAxxxx/Txxxx из текста
+        extracted = []
+        for item in tactics:
+            for match in re.findall(r'(TA\\d{4}|T\\d{4,5})', item):
+                extracted.append(match)
+        normalized = list(dict.fromkeys([t for t in tactics + extracted if t]))
+        return normalized
     
     def _parse_date(self, date_str: Optional[str]) -> Optional[date]:
         """Парсинг даты в формате DD.MM.YYYY"""

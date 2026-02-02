@@ -1338,12 +1338,7 @@ class LegacyVulnerabilityRepository:
                     where_conditions.append("etc ILIKE %s")
                     params.append(f'%"{t}"%')
             
-            # Всегда фильтруем только записи с CVE
-            base_condition = "cve IS NOT NULL AND cve != ''"
-            if where_conditions:
-                where_clause = f"{base_condition} AND " + " AND ".join(where_conditions)
-            else:
-                where_clause = base_condition
+            where_clause = " AND ".join(where_conditions) if where_conditions else "1=1"
             logger.debug(f"🔍 [get_paginated] WHERE clause: {where_clause}, params={params}")
             
             # Подсчет общего количества

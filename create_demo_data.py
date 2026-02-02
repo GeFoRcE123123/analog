@@ -1,0 +1,143 @@
+#!/usr/bin/env python3
+"""Создание демонстрационных данных для экспорта БДУ"""
+import json
+from pathlib import Path
+from datetime import datetime, timedelta
+
+# Создаем директорию для данных
+data_dir = Path("osint_redi/demo_data")
+data_dir.mkdir(parents=True, exist_ok=True)
+
+# Демонстрационные уязвимости с БДУ данными
+demo_vulnerabilities = [
+    {
+        "id": 1,
+        "title": "Уязвимость функции bson_utf8_validate() драйвера MongoDB C-Driver",
+        "description": "Уязвимость функции bson_utf8_validate() драйвера системы управления базами данных MongoDB C-Driver связана с циклом с недостижимым условием выхода. Эксплуатация уязвимости может позволить нарушителю, действующему удаленно, вызвать отказ в обслуживании",
+        "severity": "high",
+        "status": "open",
+        "risk_level": "high",
+        "category": "DoS",
+        "cve_id": "CVE-2023-0437",
+        "bdu_id": "BDU:2024-02893",
+        "bdu_name": "Уязвимость функции bson_utf8_validate() драйвера системы управления базами данных MongoDB C-Driver, позволяющая нарушителю вызвать отказ в обслуживании",
+        "vendor": "MongoDB Inc.",
+        "product_name": "MongoDB C-Driver",
+        "affected_versions": "1.24.0",
+        "vul_class": "Уязвимость кода",
+        "environment": [
+            {"name": "Astra Linux Special Edition", "os": "Linux"},
+            {"name": "Debian GNU/Linux", "os": "Linux"},
+            {"name": "Fedora", "os": "Linux"}
+        ],
+        "platform": "Linux, Windows",
+        "identify_date": "2024-01-12",
+        "bdu_severity": "Высокий уровень опасности (базовая оценка CVSS 2.0 составляет 7,8)",
+        "cvss2_vector": "AV:N/AC:L/Au:N/C:N/I:N/A:C",
+        "cvss3_vector": "AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+        "cvss_score": 7.8,
+        "solution": "В условиях отсутствия обновлений безопасности от производителя рекомендуется придерживаться \"Рекомендаций по обеспечению безопасности\"",
+        "vul_status": "Опубликована",
+        "vul_state": "Опубликована",
+        "vul_elimination": "Уязвимость устранена",
+        "vul_incident": "Уязвимость устранена",
+        "exploit_status": "Подтверждена производителем",
+        "sources": "https://nvd.nist.gov/vuln/detail/CVE-2023-0437",
+        "references": [
+            {"url": "https://nvd.nist.gov/vuln/detail/CVE-2023-0437"},
+            {"url": "https://github.com/mongodb/mongo-c-driver"}
+        ],
+        "cwes": [
+            {"identifier": "CWE-400", "description": "Uncontrolled Resource Consumption"}
+        ],
+        "weaknesses": []
+    },
+    {
+        "id": 2,
+        "title": "Уязвимость сервера Redis, позволяющая выполнить произвольный код",
+        "description": "Уязвимость сервера системы управления базами данных (СУБД) Redis связана с целочисленным переполнением в буфере при выполнении команд, использующих алгоритм HyperLogLog. Эксплуатация уязвимости может позволить нарушителю выполнить произвольный код путем отправки специально сформированной HLL-команды",
+        "severity": "critical",
+        "status": "open",
+        "risk_level": "critical",
+        "category": "RCE",
+        "cve_id": "CVE-2025-32023",
+        "bdu_id": "BDU:2025-08113",
+        "bdu_name": "Уязвимость сервера системы управления базами данных (СУБД) Redis, позволяющая нарушителю выполнить произвольный код",
+        "vendor": "Redis Labs",
+        "product_name": "Redis",
+        "affected_versions": "7.0.0 - 7.2.0",
+        "vul_class": "Уязвимость кода",
+        "environment": [
+            {"name": "Fedora Project", "os": "Linux"},
+            {"name": "Red Hat Enterprise Linux", "os": "Linux"}
+        ],
+        "platform": "Linux",
+        "identify_date": "2025-01-15",
+        "bdu_severity": "Критический уровень опасности",
+        "cvss2_vector": "AV:N/AC:L/Au:N/C:C/I:C/A:C",
+        "cvss3_vector": "AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+        "cvss_score": 9.8,
+        "solution": "Обновление до версии 7.2.1 или выше",
+        "vul_status": "Опубликована",
+        "vul_state": "Опубликована",
+        "vul_elimination": "Уязвимость устранена в версии 7.2.1",
+        "vul_incident": "Уязвимость устранена",
+        "exploit_status": "Существует публичный эксплойт",
+        "sources": "https://nvd.nist.gov/vuln/detail/CVE-2025-32023",
+        "references": [
+            {"url": "https://nvd.nist.gov/vuln/detail/CVE-2025-32023"},
+            {"url": "https://redis.io/security"}
+        ],
+        "cwes": [
+            {"identifier": "CWE-190", "description": "Integer Overflow or Wraparound"},
+            {"identifier": "CWE-787", "description": "Out-of-bounds Write"}
+        ],
+        "weaknesses": []
+    },
+    {
+        "id": 3,
+        "title": "SQL Injection в модуле аутентификации",
+        "description": "Уязвимость SQL Injection позволяет злоумышленнику выполнить произвольные SQL-запросы через параметр username в форме входа",
+        "severity": "high",
+        "status": "open",
+        "risk_level": "high",
+        "category": "SQL Injection",
+        "cve_id": "CVE-2024-12345",
+        "bdu_id": None,  # Без BDU ID для теста include_all
+        "bdu_name": None,
+        "vendor": "Example Corp",
+        "product_name": "Web Application",
+        "affected_versions": "1.0.0",
+        "vul_class": "Уязвимость кода",
+        "environment": [{"name": "Windows Server", "os": "Windows"}],
+        "platform": "Windows",
+        "identify_date": "2024-03-20",
+        "bdu_severity": None,
+        "cvss2_vector": "AV:N/AC:L/Au:N/C:P/I:P/A:P",
+        "cvss3_vector": "AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N",
+        "cvss_score": 8.1,
+        "solution": "Использовать параметризованные запросы",
+        "vul_status": "Обнаружена",
+        "vul_state": "Обнаружена",
+        "vul_elimination": "",
+        "vul_incident": "",
+        "exploit_status": "Не подтверждено",
+        "sources": "",
+        "references": [],
+        "cwes": [
+            {"identifier": "CWE-89", "description": "SQL Injection"}
+        ],
+        "weaknesses": []
+    }
+]
+
+# Сохраняем в JSON файл
+vuln_file = data_dir / "vulnerabilities.json"
+with open(vuln_file, "w", encoding="utf-8") as f:
+    json.dump(demo_vulnerabilities, f, ensure_ascii=False, indent=2)
+
+print(f"✅ Создано {len(demo_vulnerabilities)} демонстрационных уязвимостей")
+print(f"📁 Файл сохранен: {vuln_file}")
+print(f"\nСтатистика:")
+print(f"  - С BDU ID: {sum(1 for v in demo_vulnerabilities if v.get('bdu_id'))}")
+print(f"  - Без BDU ID: {sum(1 for v in demo_vulnerabilities if not v.get('bdu_id'))}")

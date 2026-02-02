@@ -7,6 +7,7 @@
 
 from datetime import datetime
 from typing import Dict, List, Optional
+from urllib.parse import urljoin
 import re
 import logging
 
@@ -38,11 +39,30 @@ class GrafanaDataMapper:
             grafana_data.get('cvss_score') or severity_info.get('score')
         )
         
+        advisory_url = grafana_data.get('advisory_url') or ''
+        if advisory_url and not advisory_url.startswith('http'):
+            advisory_url = urljoin('https://grafana.com', advisory_url)
+
+        cve_id = grafana_data.get('cve_id') or None
+        if isinstance(cve_id, str):
+            cve_id = cve_id.strip()
+            if not re.match(r"^CVE-\d{4}-\d+$", cve_id, re.IGNORECASE):
+                cve_id = None
+
+        published_dt = GrafanaDataMapper._parse_date(grafana_data.get('published_date')) or GrafanaDataMapper._parse_date(
+            grafana_data.get('updated_date')
+        )
+        updated_dt = GrafanaDataMapper._parse_date(grafana_data.get('updated_date')) or published_dt
+
+        software_type = GrafanaDataMapper._detect_software_type(
+            grafana_data.get('product', '')
+        )
+
         # Формирование данных для БД
         db_data = {
             # Основные поля
-            'cve_id': grafana_data['cve_id'],
-            'title': grafana_data.get('advisory_title', ''),
+            'cve_id': cve_id,
+            'title': grafana_data.get('advisory_title', '') or (cve_id or 'Grafana Advisory'),
             'description': grafana_data.get('summary', ''),
             
             # БДУ поля: Информация о ПО
@@ -51,32 +71,28 @@ class GrafanaDataMapper:
             'affected_versions': GrafanaDataMapper._format_affected_versions(
                 grafana_data.get('fixed_versions', [])
             ),
-            'software_type': GrafanaDataMapper._detect_software_type(
-                grafana_data.get('product', '')
-            ),
+            'software_types': [{'name': software_type}] if software_type else [],
             
             # Оценка опасности
             'cvss_score': grafana_data.get('cvss_score') or severity_info.get('score'),
             'severity': GrafanaDataMapper._map_severity(severity_info.get('level', '')),
             'risk_level': GrafanaDataMapper._map_severity(severity_info.get('level', '')),
-            'metrics': {
-                'cvss_v3': cvss_metrics
-            } if cvss_metrics else {},
+            'metrics': {'cvss_v3': cvss_metrics} if cvss_metrics else {},
+            'cvss3_score': cvss_metrics.get('baseScore') if cvss_metrics else None,
+            'cvss3_vector': cvss_metrics.get('vectorString') if cvss_metrics else None,
             
             # Даты
-            'published_date': GrafanaDataMapper._parse_date(grafana_data.get('published_date')),
-            'last_modified_date': GrafanaDataMapper._parse_date(grafana_data.get('updated_date')),
+            'published': published_dt,
+            'last_modified': updated_dt,
+            'publication_date': published_dt.date() if published_dt else None,
+            'last_upd_date': updated_dt.date() if updated_dt else None,
             
             # БДУ поля: Устранение
-            'remediation_method': 'Обновление ПО',
-            'remediation_info': GrafanaDataMapper._format_remediation_info(grafana_data),
-            'remediation_date': GrafanaDataMapper._parse_date(grafana_data.get('published_date')),
+            'fix_status': 'Обновление ПО',
+            'solution': GrafanaDataMapper._format_remediation_info(grafana_data),
             
             # БДУ поля: Эксплуатация
-            'exploit_available': False,  # Не указывается в Grafana advisory
-            'exploitation_method': GrafanaDataMapper._extract_exploitation_method(
-                grafana_data.get('summary', '')
-            ),
+            'exploit_status': 'Нет данных',
             
             # Ссылки
             'references': GrafanaDataMapper._build_references(grafana_data),
@@ -88,8 +104,10 @@ class GrafanaDataMapper:
             },
             
             # Метаданные
-            'source': 'grafana',
-            'vuln_status': 'PUBLISHED'
+            'sources': advisory_url or 'https://grafana.com/security/security-advisories/',
+            'source_identifier': 'Grafana Labs',
+            'vuln_status': 'PUBLISHED',
+            'category': 'Grafana'  # Категория для группировки
         }
         
         return db_data
@@ -267,14 +285,26 @@ class GrafanaDataMapper:
     def _build_references(grafana_data: Dict) -> List[Dict]:
         """Формирование списка ссылок"""
         cve_id = grafana_data.get('cve_id', '').lower()
+        advisory_url = grafana_data.get('advisory_url') or ''
+        if advisory_url and not advisory_url.startswith('http'):
+            advisory_url = urljoin('https://grafana.com', advisory_url)
         
-        references = [
-            {
-                "url": f"https://grafana.com/security/security-advisories/{cve_id}/",
-                "type": "vendor_advisory",
-                "source": "Grafana Labs"
-            }
-        ]
+        if advisory_url:
+            references = [
+                {
+                    "url": advisory_url,
+                    "type": "vendor_advisory",
+                    "source": "Grafana Labs"
+                }
+            ]
+        else:
+            references = [
+                {
+                    "url": f"https://grafana.com/security/security-advisories/{cve_id}/",
+                    "type": "vendor_advisory",
+                    "source": "Grafana Labs"
+                }
+            ]
         
         if grafana_data.get('credits'):
             references.append({
@@ -289,6 +319,9 @@ class GrafanaDataMapper:
     def _parse_date(date_string: Optional[str]) -> Optional[datetime]:
         """Парсинг даты"""
         if not date_string or date_string == '—':
+            return None
+
+        if not re.search(r'\d{4}[-/]\d{2}[-/]\d{2}', str(date_string)):
             return None
         
         # ISO формат (YYYY-MM-DD)

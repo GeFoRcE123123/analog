@@ -2,15 +2,26 @@
 # Скрипт для развертывания на 4 VM
 # Использование: ./deploy.sh [frontend|backend|database|parsers|all]
 
-set -e
+set -euo pipefail
+IFS=$'\n\t'
+umask 077
 
-FRONTEND_IP="10.0.88.10"
-BACKEND_IP="10.0.88.20"
-DATABASE_IP="10.0.88.11"
-PARSERS_IP="10.0.88.23"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+STRICT_ENV="${SCRIPT_DIR}/deploy_strict.env"
+if [ -f "${STRICT_ENV}" ]; then
+    # shellcheck disable=SC1090
+    source "${STRICT_ENV}"
+fi
 
-USER="user"
-PASSWORD="123"
+FRONTEND_IP="${FRONTEND_IP:-10.0.88.10}"
+BACKEND_IP="${BACKEND_IP:-10.0.88.20}"
+DATABASE_IP="${DATABASE_IP:-10.0.88.11}"
+PARSERS_IP="${PARSERS_IP:-10.0.88.23}"
+
+USER="${DEPLOY_USER:-${USER:-user}}"
+PASSWORD="${DEPLOY_PASSWORD:-${PASSWORD:-123}}"
+
+SSH_OPTIONS="${SSH_OPTIONS:--o StrictHostKeyChecking=accept-new -o ServerAliveInterval=30 -o ServerAliveCountMax=3}"
 
 DEPLOY_TARGET=${1:-all}
 
@@ -66,9 +77,9 @@ copy_files() {
     # Получаем абсолютный путь на удаленной машине и создаем директорию
     local abs_target_dir
     if [ "$USE_SSHPASS" = true ]; then
-        abs_target_dir=$(sshpass -p "$PASSWORD" ssh -o StrictHostKeyChecking=no "$USER@$target_ip" "mkdir -p $target_dir && cd $target_dir && pwd")
+        abs_target_dir=$(sshpass -p "$PASSWORD" ssh ${SSH_OPTIONS} "$USER@$target_ip" "mkdir -p $target_dir && cd $target_dir && pwd")
     else
-        abs_target_dir=$(ssh -o StrictHostKeyChecking=no "$USER@$target_ip" "mkdir -p $target_dir && cd $target_dir && pwd")
+        abs_target_dir=$(ssh ${SSH_OPTIONS} "$USER@$target_ip" "mkdir -p $target_dir && cd $target_dir && pwd")
     fi
     
     local target_parent=$(dirname "$abs_target_dir")
@@ -76,11 +87,11 @@ copy_files() {
     
     # Копируем через временную директорию, затем перемещаем
     if [ "$USE_SSHPASS" = true ]; then
-        sshpass -p "$PASSWORD" scp -r -o StrictHostKeyChecking=no "$clean_source" "$USER@$target_ip:$target_parent/.tmp_${dir_name}_$$" && \
-        sshpass -p "$PASSWORD" ssh -o StrictHostKeyChecking=no "$USER@$target_ip" "rm -rf $abs_target_dir 2>/dev/null; mv $target_parent/.tmp_${dir_name}_$$ $abs_target_dir"
+        sshpass -p "$PASSWORD" scp -r ${SSH_OPTIONS} "$clean_source" "$USER@$target_ip:$target_parent/.tmp_${dir_name}_$$" && \
+        sshpass -p "$PASSWORD" ssh ${SSH_OPTIONS} "$USER@$target_ip" "rm -rf $abs_target_dir 2>/dev/null; mv $target_parent/.tmp_${dir_name}_$$ $abs_target_dir"
     else
-        scp -r -o StrictHostKeyChecking=no "$clean_source" "$USER@$target_ip:$target_parent/.tmp_${dir_name}_$$" && \
-        ssh -o StrictHostKeyChecking=no "$USER@$target_ip" "rm -rf $abs_target_dir 2>/dev/null; mv $target_parent/.tmp_${dir_name}_$$ $abs_target_dir"
+        scp -r ${SSH_OPTIONS} "$clean_source" "$USER@$target_ip:$target_parent/.tmp_${dir_name}_$$" && \
+        ssh ${SSH_OPTIONS} "$USER@$target_ip" "rm -rf $abs_target_dir 2>/dev/null; mv $target_parent/.tmp_${dir_name}_$$ $abs_target_dir"
     fi
     echo "✅ Файлы скопированы на $target_ip"
 }
@@ -90,9 +101,9 @@ get_docker_compose_cmd() {
     local target_ip=$1
     local cmd=""
     if [ "$USE_SSHPASS" = true ]; then
-        cmd=$(sshpass -p "$PASSWORD" ssh -o StrictHostKeyChecking=no "$USER@$target_ip" "if command -v docker-compose >/dev/null 2>&1; then echo 'docker-compose'; else echo 'docker compose'; fi")
+        cmd=$(sshpass -p "$PASSWORD" ssh ${SSH_OPTIONS} "$USER@$target_ip" "if command -v docker-compose >/dev/null 2>&1; then echo 'docker-compose'; else echo 'docker compose'; fi")
     else
-        cmd=$(ssh -o StrictHostKeyChecking=no "$USER@$target_ip" "if command -v docker-compose >/dev/null 2>&1; then echo 'docker-compose'; else echo 'docker compose'; fi")
+        cmd=$(ssh ${SSH_OPTIONS} "$USER@$target_ip" "if command -v docker-compose >/dev/null 2>&1; then echo 'docker-compose'; else echo 'docker compose'; fi")
     fi
     echo "$cmd"
 }
@@ -104,9 +115,9 @@ run_remote() {
     
     echo "🔧 Выполнение команды на $target_ip: $command"
     if [ "$USE_SSHPASS" = true ]; then
-        sshpass -p "$PASSWORD" ssh -o StrictHostKeyChecking=no "$USER@$target_ip" "$command"
+        sshpass -p "$PASSWORD" ssh ${SSH_OPTIONS} "$USER@$target_ip" "$command"
     else
-        ssh -o StrictHostKeyChecking=no "$USER@$target_ip" "$command"
+        ssh ${SSH_OPTIONS} "$USER@$target_ip" "$command"
     fi
 }
 

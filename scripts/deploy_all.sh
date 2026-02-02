@@ -4,6 +4,12 @@
 
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+NEW_DEPLOY="${SCRIPT_DIR}/../deploy/bin/deploy_all.sh"
+if [[ -x "${NEW_DEPLOY}" ]]; then
+    exec "${NEW_DEPLOY}"
+fi
+
 FRONTEND_IP="10.0.88.10"
 BACKEND_IP="10.0.88.20"
 DATABASE_IP="10.0.88.11"

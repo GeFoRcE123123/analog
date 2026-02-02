@@ -1,0 +1,364 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="space-y-8">
+    <div class="card-modern">
+        <div class="card-header-modern">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h1 class="text-2xl font-bold text-gray-900">
+                        <i class="fas fa-satellite-dish text-blue-600 mr-2"></i>
+                        OSINT инструменты
+                    </h1>
+                    <p class="text-sm text-gray-500 mt-1">
+                        Единая панель для разведки по открытым источникам и контроля источников данных.
+                    </p>
+                </div>
+                <span class="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-semibold">Admin only</span>
+            </div>
+        </div>
+        <div class="card-body-modern">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div class="p-4 rounded-lg bg-slate-50 border border-slate-200">
+                    <div class="text-sm font-semibold text-gray-700">Источники</div>
+                    <div class="mt-2 space-y-2 text-sm text-gray-600">
+                        <div class="flex items-center justify-between">
+                            <span>Shodan</span>
+                            <span class="text-emerald-600 font-semibold">API</span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span>crt.sh</span>
+                            <span class="text-blue-600 font-semibold">Public</span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span>DNS/WHOIS</span>
+                            <span class="text-blue-600 font-semibold">Public</span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span>GitHub</span>
+                            <span class="text-emerald-600 font-semibold">Token</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="p-4 rounded-lg bg-slate-50 border border-slate-200">
+                    <div class="text-sm font-semibold text-gray-700">Режимы</div>
+                    <ul class="mt-2 space-y-2 text-sm text-gray-600">
+                        <li><i class="fas fa-check text-emerald-500 mr-2"></i>Пассивная разведка</li>
+                        <li><i class="fas fa-check text-emerald-500 mr-2"></i>Сбор сертификатов</li>
+                        <li><i class="fas fa-check text-emerald-500 mr-2"></i>DNS/WHOIS профили</li>
+                    </ul>
+                </div>
+                <div class="p-4 rounded-lg bg-slate-50 border border-slate-200">
+                    <div class="text-sm font-semibold text-gray-700">Статус</div>
+                    <p class="mt-2 text-sm text-gray-600">
+                        Интерфейс доступен. Запуск активных сканов выполняется через backend-сервисы.
+                    </p>
+                    <p class="text-xs text-gray-400 mt-2">
+                        Конфигурация: `osint-neural-network/configs/tool_config.yaml`
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card-modern">
+        <div class="card-header-modern">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center">
+                        <i class="fas fa-brain"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-gray-900">OSINT Нейросеть</h3>
+                        <p class="text-xs text-gray-500">Запрос через нейросеть + источники</p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-2 text-xs">
+                    <span class="text-gray-500">Статус:</span>
+                    <span id="osint-health" class="px-2 py-1 rounded-full bg-gray-100 text-gray-600">проверка...</span>
+                </div>
+            </div>
+        </div>
+        <div class="card-body-modern space-y-4">
+            <div>
+                <label class="text-sm font-semibold text-gray-600">Запрос</label>
+                <textarea id="osint-query" rows="3"
+                          placeholder="Например: Проведи OSINT разведку домена example.com"
+                          class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent"></textarea>
+            </div>
+            <div class="flex flex-wrap items-center gap-4 text-sm">
+                <label class="flex items-center space-x-2">
+                    <input id="osint-include-tools" type="checkbox" checked class="rounded border-gray-300">
+                    <span>Включать инструменты</span>
+                </label>
+                <label class="flex items-center space-x-2">
+                    <input id="osint-use-cyberintel" type="checkbox" checked class="rounded border-gray-300">
+                    <span>CyberIntel контекст</span>
+                </label>
+            </div>
+            <button id="osint-run" class="btn-modern btn-primary w-full">
+                <i class="fas fa-play"></i>Выполнить запрос
+            </button>
+            <div id="osint-error" class="hidden text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-4 py-2"></div>
+
+            <div id="osint-result" class="hidden border border-slate-200 rounded-lg p-4 bg-slate-50">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 text-sm text-gray-700">
+                    <div>
+                        <div class="text-xs uppercase text-gray-500 mb-1">Задача</div>
+                        <div id="osint-task" class="whitespace-pre-line"></div>
+                    </div>
+                    <div>
+                        <div class="text-xs uppercase text-gray-500 mb-1">Инструменты</div>
+                        <div id="osint-tools" class="whitespace-pre-line"></div>
+                    </div>
+                    <div>
+                        <div class="text-xs uppercase text-gray-500 mb-1">Стратегия</div>
+                        <div id="osint-strategy" class="whitespace-pre-line"></div>
+                    </div>
+                    <div>
+                        <div class="text-xs uppercase text-gray-500 mb-1">Ограничения</div>
+                        <div id="osint-limitations" class="whitespace-pre-line"></div>
+                    </div>
+                </div>
+                <div class="mt-4 text-sm text-gray-700">
+                    <div class="text-xs uppercase text-gray-500 mb-1">Анализ</div>
+                    <div id="osint-analysis" class="whitespace-pre-line"></div>
+                </div>
+                <div class="mt-4 text-sm text-gray-700">
+                    <div class="text-xs uppercase text-gray-500 mb-1">Источники</div>
+                    <div id="osint-sources" class="whitespace-pre-line"></div>
+                </div>
+                <details class="mt-4 text-sm text-gray-600">
+                    <summary class="cursor-pointer">Сырой ответ модели</summary>
+                    <pre id="osint-raw" class="whitespace-pre-wrap mt-2 p-3 rounded bg-white border border-slate-200 text-xs"></pre>
+                </details>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="card-modern">
+            <div class="card-header-modern">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center">
+                        <i class="fas fa-signal"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-gray-900">Shodan Search</h3>
+                        <p class="text-xs text-gray-500">Поиск инфраструктуры по запросу</p>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body-modern space-y-4">
+                <label class="text-sm font-semibold text-gray-600">Запрос</label>
+                <input type="text" placeholder='org:"example.com" port:443'
+                       class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                <button class="btn-modern btn-primary w-full opacity-60 cursor-not-allowed" disabled>
+                    <i class="fas fa-play"></i>Запустить поиск
+                </button>
+                <p class="text-xs text-gray-400">Требуется `SHODAN_API_KEY` в `.env`</p>
+            </div>
+        </div>
+
+        <div class="card-modern">
+            <div class="card-header-modern">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center">
+                        <i class="fas fa-certificate"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-gray-900">Certificate Search</h3>
+                        <p class="text-xs text-gray-500">crt.sh без ключей</p>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body-modern space-y-4">
+                <label class="text-sm font-semibold text-gray-600">Домен</label>
+                <input type="text" placeholder="example.com"
+                       class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                <button class="btn-modern btn-primary w-full opacity-60 cursor-not-allowed" disabled>
+                    <i class="fas fa-search"></i>Собрать поддомены
+                </button>
+                <p class="text-xs text-gray-400">Источник: `crt.sh` (публичный)</p>
+            </div>
+        </div>
+
+        <div class="card-modern">
+            <div class="card-header-modern">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                        <i class="fas fa-network-wired"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-gray-900">DNS Intel</h3>
+                        <p class="text-xs text-gray-500">DNS/WHOIS без ключей</p>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body-modern space-y-4">
+                <label class="text-sm font-semibold text-gray-600">Домен</label>
+                <input type="text" placeholder="example.com"
+                       class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent">
+                <button class="btn-modern btn-primary w-full opacity-60 cursor-not-allowed" disabled>
+                    <i class="fas fa-sitemap"></i>Получить профиль
+                </button>
+                <p class="text-xs text-gray-400">DNS/WHOIS + резолв поддоменов</p>
+            </div>
+        </div>
+
+        <div class="card-modern">
+            <div class="card-header-modern">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center">
+                        <i class="fab fa-github"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-gray-900">GitHub Recon</h3>
+                        <p class="text-xs text-gray-500">Поиск утечек в коде</p>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body-modern space-y-4">
+                <label class="text-sm font-semibold text-gray-600">Запрос</label>
+                <input type="text" placeholder='org:example "API_KEY"'
+                       class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent">
+                <button class="btn-modern btn-primary w-full opacity-60 cursor-not-allowed" disabled>
+                    <i class="fas fa-search"></i>Запустить поиск
+                </button>
+                <p class="text-xs text-gray-400">Требуется `GITHUB_TOKEN` в `.env`</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="card-modern">
+        <div class="card-header-modern">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-lg bg-red-100 text-red-700 flex items-center justify-center">
+                    <i class="fas fa-terminal"></i>
+                </div>
+                <div>
+                    <h3 class="font-bold text-gray-900">Активные сканы</h3>
+                    <p class="text-xs text-gray-500">Запуск скриптов на выделенных хостах</p>
+                </div>
+            </div>
+        </div>
+        <div class="card-body-modern">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="p-4 rounded-lg border border-gray-200 bg-white">
+                    <div class="text-sm font-semibold text-gray-700">Nmap</div>
+                    <p class="text-xs text-gray-500 mt-2">Сканирование портов и сервисов</p>
+                </div>
+                <div class="p-4 rounded-lg border border-gray-200 bg-white">
+                    <div class="text-sm font-semibold text-gray-700">Web Checks</div>
+                    <p class="text-xs text-gray-500 mt-2">HTTP заголовки и TLS</p>
+                </div>
+                <div class="p-4 rounded-lg border border-gray-200 bg-white">
+                    <div class="text-sm font-semibold text-gray-700">Custom</div>
+                    <p class="text-xs text-gray-500 mt-2">Сценарии по запросу</p>
+                </div>
+            </div>
+            <div class="mt-4">
+                <button class="btn-modern btn-primary w-full opacity-60 cursor-not-allowed" disabled>
+                    <i class="fas fa-lock"></i>Запуск активных сканов недоступен в UI
+                </button>
+                <p class="text-xs text-gray-400 mt-2">
+                    Запуск производится на выделенных серверах согласно политике безопасности.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+    (function () {
+        const healthBadge = document.getElementById('osint-health');
+        const runButton = document.getElementById('osint-run');
+        const queryInput = document.getElementById('osint-query');
+        const includeTools = document.getElementById('osint-include-tools');
+        const useCyberintel = document.getElementById('osint-use-cyberintel');
+        const errorBox = document.getElementById('osint-error');
+        const resultBox = document.getElementById('osint-result');
+
+        const taskEl = document.getElementById('osint-task');
+        const strategyEl = document.getElementById('osint-strategy');
+        const analysisEl = document.getElementById('osint-analysis');
+        const sourcesEl = document.getElementById('osint-sources');
+        const limitationsEl = document.getElementById('osint-limitations');
+        const toolsEl = document.getElementById('osint-tools');
+        const rawEl = document.getElementById('osint-raw');
+
+        function setBadge(text, className) {
+            healthBadge.textContent = text;
+            healthBadge.className = `px-2 py-1 rounded-full ${className}`;
+        }
+
+        function setText(el, value) {
+            el.textContent = value && value.length ? value : '—';
+        }
+
+        async function checkHealth() {
+            try {
+                const response = await fetch('/api/osint/health', { method: 'GET' });
+                const payload = await response.json();
+                if (response.ok && payload.success) {
+                    setBadge('доступна', 'bg-emerald-100 text-emerald-700');
+                } else {
+                    setBadge('недоступна', 'bg-red-100 text-red-700');
+                }
+            } catch (err) {
+                setBadge('ошибка', 'bg-red-100 text-red-700');
+            }
+        }
+
+        async function runQuery() {
+            const query = (queryInput.value || '').trim();
+            if (!query) {
+                errorBox.textContent = 'Введите запрос для OSINT нейросети.';
+                errorBox.classList.remove('hidden');
+                return;
+            }
+
+            errorBox.classList.add('hidden');
+            resultBox.classList.add('hidden');
+            runButton.disabled = true;
+            runButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Выполняется...';
+
+            try {
+                const response = await fetch('/api/osint/query', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        query,
+                        include_tools: includeTools.checked,
+                        use_cyberintel: useCyberintel.checked
+                    })
+                });
+                const payload = await response.json();
+
+                if (!response.ok || !payload.success) {
+                    throw new Error(payload.error || 'Ошибка выполнения запроса');
+                }
+
+                const data = payload.data || {};
+                setText(taskEl, data.task);
+                setText(strategyEl, (data.strategy || []).join('\n'));
+                setText(analysisEl, data.analysis);
+                setText(sourcesEl, (data.sources || []).join('\n'));
+                setText(limitationsEl, data.limitations);
+                setText(toolsEl, (data.tools || []).join(', '));
+                setText(rawEl, data.raw_response || '');
+
+                resultBox.classList.remove('hidden');
+            } catch (err) {
+                errorBox.textContent = err.message || 'Не удалось выполнить запрос.';
+                errorBox.classList.remove('hidden');
+            } finally {
+                runButton.disabled = false;
+                runButton.innerHTML = '<i class="fas fa-play"></i>Выполнить запрос';
+            }
+        }
+
+        runButton.addEventListener('click', runQuery);
+        checkHealth();
+    })();
+</script>
+{% endblock %}

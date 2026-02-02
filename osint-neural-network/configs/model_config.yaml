@@ -1,0 +1,11 @@
+base_model: "mistralai/Mistral-7B-v0.1"
+tokenizer:
+  add_special_tokens:
+    - "[OSINT]"
+    - "[TOOL]"
+    - "[CVE]"
+    - "[ETHICS]"
+generation:
+  max_new_tokens: 512
+  temperature: 0.3
+  top_p: 0.9
