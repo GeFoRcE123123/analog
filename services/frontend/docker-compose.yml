@@ -1,0 +1,14 @@
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vulnerability-frontend
+    ports:
+      - "80:80"
+    volumes:
+      - ./templates:/usr/share/nginx/html/templates:ro
+      - ./static:/usr/share/nginx/html/static:ro
+    restart: unless-stopped
+    # Backend находится на другой VM (10.0.88.20), проксирование через nginx.conf
+

@@ -1,0 +1,453 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="bg-white rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-300">
+    <div class="px-6 py-4 border-b border-gray-200">
+        <h2 class="text-xl font-semibold text-gray-800">Статус сканирования уязвимостей</h2>
+        <p class="text-sm text-gray-600 mt-1">Информация о работе парсера OSV</p>
+    </div>
+
+    <div class="p-6">
+        <!-- Карточка статуса -->
+        <div class="bg-gradient-to-r from-blue-50 to-indigo-100 rounded-xl p-6 mb-6 border border-blue-200">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-800 mb-2">
+                        <i class="fas fa-satellite-dish mr-2 text-blue-600"></i>
+                        Статус системы
+                    </h3>
+                    <p class="text-sm text-gray-600">
+                        {% if status.status == 'ready' %}
+                        <span class="text-green-600 font-semibold">✅ Готов к работе</span>
+                        {% elif status.status == 'error' %}
+                        <span class="text-red-600 font-semibold">❌ Ошибка</span>
+                        {% else %}
+                        <span class="text-yellow-600 font-semibold">🔄 В работе</span>
+                        {% endif %}
+                    </p>
+                </div>
+                <div class="text-right">
+                    <p class="text-sm text-gray-600">База URL:</p>
+                    <p class="font-mono text-sm">{{ status.base_url }}</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Прогресс парсинга в реальном времени -->
+        <div id="parsing-progress-section" class="mb-6 hidden">
+            <div class="bg-white rounded-xl border border-gray-200 p-6">
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">
+                    <i class="fas fa-sync-alt mr-2 text-blue-600"></i>
+                    Прогресс сканирования
+                </h3>
+
+                <!-- Прогресс бар -->
+                <div class="mb-4">
+                    <div class="flex justify-between mb-2">
+                        <span class="text-sm font-medium text-gray-700" id="progress-text">Подготовка...</span>
+                        <span class="text-sm font-medium text-gray-700" id="progress-percent">0%</span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-3">
+                        <div id="progress-bar" class="bg-blue-600 h-3 rounded-full transition-all duration-500" style="width: 0%"></div>
+                    </div>
+                </div>
+
+                <!-- Детали прогресса -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    <div class="text-center">
+                        <p class="text-2xl font-bold text-blue-600" id="vuln-found">0</p>
+                        <p class="text-sm text-gray-600">Найдено</p>
+                    </div>
+                    <div class="text-center">
+                        <p class="text-2xl font-bold text-green-600" id="vuln-saved">0</p>
+                        <p class="text-sm text-gray-600">Сохранено</p>
+                    </div>
+                    <div class="text-center">
+                        <p class="text-2xl font-bold text-purple-600" id="current-step">-</p>
+                        <p class="text-sm text-gray-600">Текущий шаг</p>
+                    </div>
+                </div>
+
+                <!-- Сообщения в реальном времени -->
+                <div class="bg-gray-50 rounded-lg p-4 max-h-40 overflow-y-auto">
+                    <h4 class="font-medium text-gray-700 mb-2">Лог выполнения:</h4>
+                    <div id="progress-messages" class="space-y-1 text-sm">
+                        <!-- Сообщения будут добавляться здесь -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Уязвимости в реальном времени -->
+        <div id="live-vulnerabilities-section" class="mb-6 hidden">
+            <div class="bg-white rounded-xl border border-gray-200 p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-semibold text-gray-800">
+                        <i class="fas fa-bolt mr-2 text-green-600"></i>
+                        Уязвимости в реальном времени
+                    </h3>
+                    <div class="flex items-center space-x-2">
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            <span class="w-2 h-2 bg-green-500 rounded-full mr-1 animate-pulse"></span>
+                            LIVE
+                        </span>
+                        <span id="live-vuln-count" class="text-sm text-gray-600">0 добавлено</span>
+                    </div>
+                </div>
+
+                <!-- Список уязвимостей -->
+                <div id="vulnerabilities-list" class="space-y-3 max-h-96 overflow-y-auto">
+                    <!-- Уязвимости будут добавляться здесь в реальном времени -->
+                    <div id="no-vulnerabilities" class="text-center py-8 text-gray-500">
+                        <i class="fas fa-search fa-2x mb-2"></i>
+                        <p>Уязвимости появятся здесь во время сканирования</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Статическая информация -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div class="bg-white rounded-lg p-4 border border-gray-200">
+                <div class="text-center">
+                    <p class="text-2xl font-bold text-blue-600">{{ status.max_pages }}</p>
+                    <p class="text-sm text-gray-600">Макс. страниц</p>
+                </div>
+            </div>
+            <div class="bg-white rounded-lg p-4 border border-gray-200">
+                <div class="text-center">
+                    <p class="text-2xl font-bold text-green-600">{{ status.keywords_count }}</p>
+                    <p class="text-sm text-gray-600">Ключевых слов</p>
+                </div>
+            </div>
+            <div class="bg-white rounded-lg p-4 border border-gray-200">
+                <div class="text-center">
+                    <p class="text-2xl font-bold text-purple-600">{{ status.total_in_system if status.total_in_system else 0 }}</p>
+                    <p class="text-sm text-gray-600">Уязвимостей в системе</p>
+                </div>
+            </div>
+        </div>
+
+        {% if status.error %}
+        <div class="bg-red-50 border border-red-200 rounded-xl p-4 mb-4">
+            <div class="flex items-center">
+                <i class="fas fa-exclamation-triangle text-red-500 mr-3"></i>
+                <div>
+                    <h4 class="font-semibold text-red-800">Ошибка</h4>
+                    <p class="text-red-600 text-sm">{{ status.error }}</p>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Дополнительная информация -->
+        <div class="bg-white rounded-xl border border-gray-200 p-6 mb-6">
+            <h3 class="text-lg font-semibold text-gray-800 mb-4">
+                <i class="fas fa-info-circle mr-2 text-blue-600"></i>
+                Информация о системе
+            </h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <h4 class="font-medium text-gray-700 mb-2">Конфигурация парсера</h4>
+                    <ul class="text-sm text-gray-600 space-y-1">
+                        <li>• Базовая URL: {{ status.base_url }}</li>
+                        <li>• Максимум страниц: {{ status.max_pages }}</li>
+                        <li>• Ключевых слов: {{ status.keywords_count }}</li>
+                    </ul>
+                </div>
+                <div>
+                    <h4 class="font-medium text-gray-700 mb-2">Статистика</h4>
+                    <ul class="text-sm text-gray-600 space-y-1">
+                        <li>• Всего в системе: {{ status.total_in_system if status.total_in_system else 0 }} уязвимостей</li>
+                        <li>• Обработано: {{ status.total_processed if status.total_processed else 0 }} уязвимостей</li>
+                        <li>• Статус:
+                            {% if status.system_status == 'operational' %}
+                                <span class="text-green-600">✅ Операционный</span>
+                            {% else %}
+                                <span class="text-red-600">❌ Ошибка</span>
+                            {% endif %}
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Кнопки действий -->
+        <div class="flex space-x-4 pt-4 border-t border-gray-200">
+            <button onclick="startParsing()" id="start-parsing-btn"
+               class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-xl transition duration-300 shadow-md hover:shadow-lg">
+                <i class="fas fa-play mr-2"></i> Запустить сканирование
+            </button>
+            <a href="{{ url_for('vulnerabilities_list') }}"
+               class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-xl transition duration-300">
+                <i class="fas fa-list mr-2"></i> Список уязвимостей
+            </a>
+            <a href="{{ url_for('dashboard') }}"
+               class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 px-6 rounded-xl transition duration-300">
+                <i class="fas fa-arrow-left mr-2"></i> Назад
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Уведомления -->
+<div id="notifications" class="fixed top-4 right-4 space-y-2 z-50"></div>
+
+<style>
+.vulnerability-item {
+    animation: slideIn 0.3s ease-out;
+    border-left: 4px solid;
+}
+
+.vulnerability-item.critical { border-left-color: #dc2626; }
+.vulnerability-item.high { border-left-color: #ea580c; }
+.vulnerability-item.medium { border-left-color: #d97706; }
+.vulnerability-item.low { border-left-color: #16a34a; }
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateX(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.severity-badge {
+    @apply px-2 py-1 text-xs font-semibold rounded-full;
+}
+
+.severity-critical { @apply bg-red-100 text-red-800; }
+.severity-high { @apply bg-orange-100 text-orange-800; }
+.severity-medium { @apply bg-yellow-100 text-yellow-800; }
+.severity-low { @apply bg-green-100 text-green-800; }
+</style>
+
+<script>
+// Глобальные переменные
+let progressEventSource = null;
+let vulnerabilitiesEventSource = null;
+let liveVulnCount = 0;
+
+// Запуск парсинга
+function startParsing() {
+    const btn = document.getElementById('start-parsing-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-sync-alt animate-spin mr-2"></i> Запуск...';
+
+    fetch('/api/start-parsing', { method: 'POST' })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification('Сканирование запущено!', 'success');
+                startLiveUpdates();
+            } else {
+                showNotification('Ошибка: ' + data.error, 'error');
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-play mr-2"></i> Запустить сканирование';
+            }
+        })
+        .catch(error => {
+            showNotification('Ошибка сети: ' + error, 'error');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-play mr-2"></i> Запустить сканирование';
+        });
+}
+
+// Запуск обновлений в реальном времени
+function startLiveUpdates() {
+    // Показываем секции
+    document.getElementById('parsing-progress-section').classList.remove('hidden');
+    document.getElementById('live-vulnerabilities-section').classList.remove('hidden');
+
+    // Запускаем отслеживание прогресса
+    startProgressTracking();
+
+    // Запускаем отслеживание уязвимостей
+    startVulnerabilitiesTracking();
+}
+
+// Отслеживание прогресса парсинга
+function startProgressTracking() {
+    if (progressEventSource) progressEventSource.close();
+
+    progressEventSource = new EventSource('/api/parsing-progress');
+
+    progressEventSource.onmessage = function(event) {
+        const data = JSON.parse(event.data);
+        updateProgressUI(data);
+    };
+
+    progressEventSource.onerror = function(event) {
+        console.error('Progress SSE error:', event);
+        // Не закрываем, переподключится автоматически
+    };
+}
+
+// Отслеживание уязвимостей в реальном времени
+function startVulnerabilitiesTracking() {
+    if (vulnerabilitiesEventSource) vulnerabilitiesEventSource.close();
+
+    vulnerabilitiesEventSource = new EventSource('/api/live-parsing-vulnerabilities');
+
+    vulnerabilitiesEventSource.onmessage = function(event) {
+        const data = JSON.parse(event.data);
+
+        if (data.type === 'vulnerability') {
+            addVulnerabilityToList(data.vulnerability);
+        } else if (data.type === 'parsing_complete') {
+            showNotification('Сканирование завершено!', 'success');
+            document.getElementById('start-parsing-btn').disabled = false;
+            document.getElementById('start-parsing-btn').innerHTML = '<i class="fas fa-play mr-2"></i> Запустить сканирование';
+        }
+    };
+
+    vulnerabilitiesEventSource.onerror = function(event) {
+        console.error('Vulnerabilities SSE error:', event);
+    };
+}
+
+// Обновление UI прогресса
+function updateProgressUI(progress) {
+    // Прогресс бар
+    document.getElementById('progress-bar').style.width = progress.progress + '%';
+    document.getElementById('progress-percent').textContent = progress.progress + '%';
+    document.getElementById('progress-text').textContent = progress.message;
+
+    // Статистика
+    document.getElementById('vuln-found').textContent = progress.vulnerabilities_found || 0;
+    document.getElementById('vuln-saved').textContent = progress.vulnerabilities_saved || 0;
+    document.getElementById('current-step').textContent = progress.current_step || '-';
+
+    // Добавляем сообщение в лог
+    if (progress.message) {
+        addProgressMessage(progress.message);
+    }
+}
+
+// Добавление уязвимости в список
+function addVulnerabilityToList(vulnerability) {
+    const list = document.getElementById('vulnerabilities-list');
+    const noVuln = document.getElementById('no-vulnerabilities');
+
+    // Убираем сообщение "нет уязвимостей"
+    if (noVuln) noVuln.remove();
+
+    // Создаем элемент уязвимости
+    const vulnElement = document.createElement('div');
+    vulnElement.className = `vulnerability-item ${vulnerability.severity} bg-white p-4 rounded-lg border border-gray-200 shadow-sm`;
+
+    const severityClass = `severity-badge severity-${vulnerability.severity}`;
+
+    vulnElement.innerHTML = `
+        <div class="flex justify-between items-start">
+            <div class="flex-1">
+                <h4 class="font-semibold text-gray-800 mb-1">${vulnerability.title}</h4>
+                <p class="text-sm text-gray-600 mb-2 line-clamp-2">${vulnerability.description}</p>
+                <div class="flex items-center space-x-3 text-xs text-gray-500">
+                    <span class="flex items-center">
+                        <i class="fas fa-tag mr-1"></i>
+                        ${vulnerability.category}
+                    </span>
+                    <span class="flex items-center">
+                        <i class="fas fa-clock mr-1"></i>
+                        ${new Date(vulnerability.timestamp).toLocaleTimeString()}
+                    </span>
+                </div>
+            </div>
+            <div class="text-right ml-4">
+                <span class="${severityClass}">${vulnerability.severity}</span>
+                <p class="text-sm font-semibold mt-1">CVSS: ${vulnerability.cvss_score}</p>
+            </div>
+        </div>
+    `;
+
+    // Добавляем с анимацией в начало
+    list.insertBefore(vulnElement, list.firstChild);
+
+    // Обновляем счетчик
+    liveVulnCount++;
+    document.getElementById('live-vuln-count').textContent = `${liveVulnCount} добавлено`;
+
+    // Показываем уведомление
+    showNewVulnerabilityNotification(vulnerability.title, vulnerability.severity);
+}
+
+// Добавление сообщения в лог прогресса
+function addProgressMessage(message) {
+    const messagesContainer = document.getElementById('progress-messages');
+    const messageElement = document.createElement('div');
+    messageElement.className = 'text-gray-600';
+    messageElement.innerHTML = `<i class="fas fa-circle text-blue-500 mr-2" style="font-size: 6px;"></i>${message}`;
+
+    messagesContainer.appendChild(messageElement);
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
+
+// Показ уведомления о новой уязвимости
+function showNewVulnerabilityNotification(title, severity) {
+    const severityIcons = {
+        'critical': '🔴',
+        'high': '🟠',
+        'medium': '🟡',
+        'low': '🟢'
+    };
+
+    const icon = severityIcons[severity] || '⚪';
+
+    showNotification(`${icon} Добавлена: ${title}`, 'success', 3000);
+}
+
+// Утилита для показа уведомлений
+function showNotification(message, type = 'info', duration = 5000) {
+    const notifications = document.getElementById('notifications');
+    const notification = document.createElement('div');
+
+    const typeClasses = {
+        'success': 'bg-green-500 text-white',
+        'error': 'bg-red-500 text-white',
+        'info': 'bg-blue-500 text-white'
+    };
+
+    notification.className = `${typeClasses[type]} px-4 py-3 rounded-lg shadow-lg transform transition-transform duration-300 translate-x-full`;
+    notification.innerHTML = message;
+
+    notifications.appendChild(notification);
+
+    // Анимация появления
+    setTimeout(() => {
+        notification.classList.remove('translate-x-full');
+    }, 10);
+
+    // Авто-удаление
+    setTimeout(() => {
+        notification.classList.add('translate-x-full');
+        setTimeout(() => {
+            notification.remove();
+        }, 300);
+    }, duration);
+}
+
+// Очистка при размонтировании
+window.addEventListener('beforeunload', function() {
+    if (progressEventSource) progressEventSource.close();
+    if (vulnerabilitiesEventSource) vulnerabilitiesEventSource.close();
+});
+
+// Инициализация при загрузке
+document.addEventListener('DOMContentLoaded', function() {
+    // Проверяем, активен ли парсинг при загрузке страницы
+    fetch('/api/parsing-status')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.status.status === 'running') {
+                // Если парсинг уже запущен, показываем обновления
+                startLiveUpdates();
+                updateProgressUI(data.status);
+            }
+        });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,66 @@
+#Парсинг с paloalto, links - ссылки, identifiers - идентификаторы ,etc - примечание ,lst_CVSSS - вектор (число FLOAT)
+def paloaltonetworks():
+    url = 'https://security.paloaltonetworks.com/?sort=-date&limit=100'
+    r = requests.get(url)
+    soup = BeautifulSoup(r.text, 'lxml')
+
+    links_ = []
+    for quote in soup.find_all('a', href=re.compile("CVE|PAN-SA")):
+        lines = quote.get('href')
+        links_.append(lines)
+    links_ = ["https://security.paloaltonetworks.com" + suit for suit in links_]
+
+    identifiers__ = []
+    for quote in soup.find_all('a', href=re.compile("CVE|PAN-SA")):
+        lines = quote.get('href')
+        identifiers__.append(lines)
+    identifiers_ = []
+    for x in identifiers__:
+        x = x.replace('/','')
+        identifiers_.append(x)
+
+    etc_ = []
+    for quote in soup.find_all('a', href=re.compile("CVE|PAN-SA")):
+        lines = quote.text
+        etc_.append(lines)
+
+    lst_CVSSS_ = []
+    for quote in soup.find_all('b'):
+        lines = quote.text
+        lst_CVSSS_.append(lines)
+
+    z = ([i for i, j in enumerate(lst_CVSSS_) if j == '0'])
+
+    lst_CVSSS = [val for n, val in enumerate(lst_CVSSS_) if n not in z]
+    etc = [val for n, val in enumerate(etc_) if n not in z]
+    identifiers = [val for n, val in enumerate(identifiers_) if n not in z]
+    links = [val for n, val in enumerate(links_) if n not in z]
+            
+    source_in = 'paloalto'
+    for link_in,CVE_in,etc_in,CVSS_in in zip(links,identifiers,etc,lst_CVSSS):
+        while True:
+            #CVE_in = input('Введите идентификатор уязвимости: ')
+            sqlite_select_query = """SELECT * FROM turn WHERE cve = %s"""
+            cursor.execute(sqlite_select_query, (CVE_in, ))
+            record = cursor.fetchone()
+            if record is None:
+                #source_in = input('Источник предоставления уязвимости: ')
+                #link_in = input('Ссылка: ')
+                #CVSS_in = input('CVSS: ')
+                #etc_in = input('Примечание:')
+                joining_date_in = datetime.datetime.now()
+                records_to_insert = (CVE_in,source_in,link_in,CVSS_in,etc_in,joining_date_in)
+                a = """INSERT INTO turn
+                    (cve, source, link, CVSS, etc, joining_date)
+                    VALUES
+                    (%s,%s,%s,%s,%s,%s);"""
+                count = cursor.execute(a,records_to_insert)
+                sqlite_connection.commit()
+            else:
+                #time.sleep(1.1)
+                break
+    Box = QMessageBox() # выводим сообщение о успешном добавлении
+    Box.setText("paloalto успешно спарсено")
+    Box.setStandardButtons(QMessageBox.Ok)
+    Box.setDefaultButton(QMessageBox.Ok)
+    ret = Box.exec_()  

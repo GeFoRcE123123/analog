@@ -1,0 +1,256 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="bg-white rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-300">
+    <div class="px-6 py-4 border-b border-gray-200">
+        <h2 class="text-xl font-semibold text-gray-800">Проверка уязвимостей</h2>
+    </div>
+    <div class="p-6">
+        <div class="space-y-6">
+            {% for operator in operators %}
+                {% if operator.assigned_vulnerabilities %}
+                <div class="border border-gray-200 rounded-lg">
+                    <div class="bg-gray-50 px-4 py-3 border-b border-gray-200">
+                        <h3 class="text-lg font-semibold text-gray-800">{{ operator.name }}</h3>
+                        <p class="text-sm text-gray-600">Производительность: {{ "%.1f"|format(operator.current_metric) }}%</p>
+                    </div>
+
+                    <div class="divide-y divide-gray-200">
+                        {% for vuln in operator.assigned_vulnerabilities %}
+                        <div class="p-4 hover:bg-gray-50 transition duration-300">
+                            <div class="flex justify-between items-start mb-3">
+                                <div class="flex-1">
+                                    <h4 class="text-md font-semibold text-gray-800">{{ vuln.title }}</h4>
+                                    <p class="text-sm text-gray-600 mt-1">{{ vuln.description }}</p>
+                                    <div class="mt-2 flex flex-wrap gap-2">
+                                        <span class="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                                            CVSS: {{ vuln.cvss_score }}
+                                        </span>
+                                        <span class="px-2 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-800">
+                                            Категория: {{ vuln.category }}
+                                        </span>
+                                        {% if vuln.modifications > 0 %}
+                                        <span class="px-2 py-1 text-xs font-semibold rounded-full bg-orange-100 text-orange-800">
+                                            Правок: {{ vuln.modifications }}
+                                        </span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="ml-4 flex space-x-2">
+                                    <span class="px-2 py-1 text-xs font-semibold rounded-full
+                                        {% if vuln.severity == 'high' %}bg-red-100 text-red-800
+                                        {% elif vuln.severity == 'medium' %}bg-yellow-100 text-yellow-800
+                                        {% else %}bg-green-100 text-green-800{% endif %}">
+                                        {% if vuln.severity == 'high' %}ВЫСОКИЙ
+                                        {% elif vuln.severity == 'medium' %}СРЕДНИЙ
+                                        {% else %}НИЗКИЙ{% endif %}
+                                    </span>
+                                    <span class="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                                        {% if vuln.status == 'new' %}Новая
+                                        {% elif vuln.status == 'in_progress' %}В работе
+                                        {% elif vuln.status == 'completed' %}Завершена
+                                        {% elif vuln.status == 'approved' %}Одобрена
+                                        {% elif vuln.status == 'needs_modification' %}Требует правок
+                                        {% else %}{{ vuln.status }}{% endif %}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div class="flex justify-between items-center">
+                                <div class="text-sm text-gray-500">
+                                    Назначена: {{ vuln.created_date.strftime('%Y-%m-%d') if vuln.created_date else 'Н/Д' }}
+                                </div>
+                                <div class="flex space-x-2">
+                                    <button onclick="editVulnerability({{ vuln.id }})"
+                                            class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium py-2 px-4 rounded transition duration-300">
+                                        <i class="fas fa-edit mr-1"></i>Редактировать
+                                    </button>
+                                    <button onclick="reviewAction({{ vuln.id }}, 'approve', {{ operator.id }})"
+                                            class="bg-green-600 hover:bg-green-700 text-white text-sm font-medium py-2 px-4 rounded transition duration-300">
+                                        <i class="fas fa-check mr-1"></i>Одобрить
+                                    </button>
+                                    <button onclick="reviewAction({{ vuln.id }}, 'modify', {{ operator.id }})"
+                                            class="bg-yellow-600 hover:bg-yellow-700 text-white text-sm font-medium py-2 px-4 rounded transition duration-300">
+                                        <i class="fas fa-edit mr-1"></i>Запросить правки
+                                    </button>
+                                    <button onclick="reviewAction({{ vuln.id }}, 'complete', {{ operator.id }})"
+                                            class="bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium py-2 px-4 rounded transition duration-300">
+                                        <i class="fas fa-flag-checkered mr-1"></i>Завершить
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно редактирования уязвимости -->
+<div id="editModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden">
+    <div class="relative top-20 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-1/2 shadow-lg rounded-md bg-white">
+        <div class="mt-3">
+            <h3 class="text-lg font-medium text-gray-900 mb-4">Редактирование уязвимости</h3>
+
+            <div id="editForm" class="space-y-4">
+                <!-- Форма будет заполняться JavaScript -->
+            </div>
+
+            <div class="flex justify-end space-x-3 mt-4">
+                <button onclick="closeEditModal()"
+                        class="px-4 py-2 bg-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-400 transition duration-300">
+                    Отмена
+                </button>
+                <button onclick="saveVulnerability()"
+                        class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 transition duration-300">
+                    Сохранить изменения
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentVulnerabilityId = null;
+
+function reviewAction(vulnId, action, operatorId) {
+    const actions = {
+        'approve': 'Одобрить уязвимость?',
+        'modify': 'Запросить модификации?',
+        'complete': 'Завершить уязвимость?'
+    };
+
+    if (confirm(actions[action])) {
+        fetch('/review-vulnerability', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                vulnerability_id: vulnId,
+                action: action,
+                operator_id: operatorId
+            })
+        }).then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Действие выполнено успешно!');
+                location.reload();
+            } else {
+                alert('Ошибка при выполнении действия');
+            }
+        });
+    }
+}
+
+function editVulnerability(vulnId) {
+    currentVulnerabilityId = vulnId;
+
+    fetch(`/get-vulnerability/${vulnId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const vuln = data.vulnerability;
+                const form = document.getElementById('editForm');
+
+                form.innerHTML = `
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Название</label>
+                        <input type="text" id="editTitle" value="${vuln.title}" class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Описание</label>
+                        <textarea id="editDescription" rows="4" class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2">${vuln.description}</textarea>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Уровень риска</label>
+                            <select id="editSeverity" class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2">
+                                <option value="low" ${vuln.severity === 'low' ? 'selected' : ''}>Низкий</option>
+                                <option value="medium" ${vuln.severity === 'medium' ? 'selected' : ''}>Средний</option>
+                                <option value="high" ${vuln.severity === 'high' ? 'selected' : ''}>Высокий</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">CVSS Score</label>
+                            <input type="number" id="editCvss" step="0.1" min="0" max="10" value="${vuln.cvss_score}" class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Уровень риска</label>
+                            <select id="editRiskLevel" class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2">
+                                <option value="low" ${vuln.risk_level === 'low' ? 'selected' : ''}>Низкий</option>
+                                <option value="medium" ${vuln.risk_level === 'medium' ? 'selected' : ''}>Средний</option>
+                                <option value="high" ${vuln.risk_level === 'high' ? 'selected' : ''}>Высокий</option>
+                                <option value="critical" ${vuln.risk_level === 'critical' ? 'selected' : ''}>Критический</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Категория</label>
+                            <select id="editCategory" class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2">
+                                <option value="web" ${vuln.category === 'web' ? 'selected' : ''}>Web</option>
+                                <option value="authentication" ${vuln.category === 'authentication' ? 'selected' : ''}>Аутентификация</option>
+                                <option value="network" ${vuln.category === 'network' ? 'selected' : ''}>Сеть</option>
+                                <option value="information" ${vuln.category === 'information' ? 'selected' : ''}>Информация</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Статус</label>
+                        <select id="editStatus" class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2">
+                            <option value="new" ${vuln.status === 'new' ? 'selected' : ''}>Новая</option>
+                            <option value="in_progress" ${vuln.status === 'in_progress' ? 'selected' : ''}>В работе</option>
+                            <option value="needs_modification" ${vuln.status === 'needs_modification' ? 'selected' : ''}>Требует правок</option>
+                            <option value="completed" ${vuln.status === 'completed' ? 'selected' : ''}>Завершена</option>
+                            <option value="approved" ${vuln.status === 'approved' ? 'selected' : ''}>Одобрена</option>
+                        </select>
+                    </div>
+                `;
+
+                document.getElementById('editModal').classList.remove('hidden');
+            }
+        });
+}
+
+function closeEditModal() {
+    document.getElementById('editModal').classList.add('hidden');
+    currentVulnerabilityId = null;
+}
+
+function saveVulnerability() {
+    const updates = {
+        title: document.getElementById('editTitle').value,
+        description: document.getElementById('editDescription').value,
+        severity: document.getElementById('editSeverity').value,
+        cvss_score: parseFloat(document.getElementById('editCvss').value),
+        risk_level: document.getElementById('editRiskLevel').value,
+        category: document.getElementById('editCategory').value,
+        status: document.getElementById('editStatus').value
+    };
+
+    fetch('/update-vulnerability', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            vulnerability_id: currentVulnerabilityId,
+            updates: updates
+        })
+    }).then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Уязвимость успешно обновлена!');
+            closeEditModal();
+            location.reload();
+        } else {
+            alert('Ошибка при обновлении уязвимости');
+        }
+    });
+}
+</script>
+{% endblock %}

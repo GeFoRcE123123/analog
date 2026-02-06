@@ -1,0 +1,15 @@
+[Unit]
+Description=OSINT Neural Network API
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/vulnerability_manager/osint-neural-network
+EnvironmentFile=/etc/osint-neural-network.env
+ExecStart=/opt/vulnerability_manager/osint-neural-network/venv/bin/python /opt/vulnerability_manager/osint-neural-network/src/api_server.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

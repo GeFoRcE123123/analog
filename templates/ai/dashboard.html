@@ -1,0 +1,490 @@
+{% extends "base.html" %}
+
+{% block title %}ИИ-Анализ уязвимостей{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <div class="mb-8">
+        <h1 class="text-3xl font-bold text-gray-900 mb-2">🤖 ИИ-Анализ уязвимостей</h1>
+        <p class="text-gray-600">Автоматическая классификация и анализ уязвимостей с помощью искусственного интеллекта</p>
+    </div>
+
+    <!-- Статистика -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-gray-600">Всего проанализировано</p>
+                    <p class="text-2xl font-bold text-gray-900" id="total-analyzed">0</p>
+                </div>
+                <div class="p-3 bg-blue-100 rounded-full">
+                    <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-gray-600">ИИ-уязвимости</p>
+                    <p class="text-2xl font-bold text-purple-600" id="ai-related">0</p>
+                </div>
+                <div class="p-3 bg-purple-100 rounded-full">
+                    <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-gray-600">Средняя уверенность</p>
+                    <p class="text-2xl font-bold text-green-600" id="avg-confidence">0%</p>
+                </div>
+                <div class="p-3 bg-green-100 rounded-full">
+                    <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <button type="button" onclick="openKeywordsModal()" class="bg-white rounded-lg shadow p-6 text-left hover:shadow-md transition-shadow">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-gray-600">Ключевых слов</p>
+                    <p class="text-2xl font-bold text-indigo-600" id="total-keywords">0</p>
+                </div>
+                <div class="p-3 bg-indigo-100 rounded-full">
+                    <svg class="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path>
+                    </svg>
+                </div>
+            </div>
+            <div class="text-xs text-gray-500 mt-2">Нажми, чтобы увидеть топ ключевых слов</div>
+        </button>
+    </div>
+
+    <!-- Статус подключения к ML платформе -->
+    <div id="ml-platform-status" class="bg-white rounded-lg shadow p-4 mb-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <h3 class="text-sm font-medium text-gray-700">ML Платформа (k8s-worker)</h3>
+                <p class="text-xs text-gray-500" id="ml-status-text">Проверка подключения...</p>
+            </div>
+            <div id="ml-status-indicator" class="w-3 h-3 rounded-full bg-gray-400"></div>
+        </div>
+    </div>
+
+    <!-- Действия -->
+    <div class="bg-white rounded-lg shadow p-6 mb-8">
+        <h2 class="text-xl font-bold text-gray-900 mb-4">Действия</h2>
+        <div class="flex flex-wrap gap-4">
+            <button onclick="startAIAnalysis()" id="btn-ai-analysis" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                🚀 Запустить ИИ-анализ
+            </button>
+            <button onclick="openKeywordsModal()" class="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg font-medium transition-colors">
+                📊 Статистика по ключевым словам
+            </button>
+                    <a href="/ai/graph3d" class="bg-slate-700 hover:bg-slate-800 text-white px-6 py-2 rounded-lg font-medium transition-colors inline-flex items-center">
+                        🧬 3D модель обучения
+                    </a>
+            {% if session.role == 'admin' %}
+            <button onclick="openTraining()" class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg font-medium transition-colors">
+                🎓 Управление обучением
+            </button>
+            <button onclick="openMonitoring()" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition-colors">
+                🔍 Мониторинг сайтов
+            </button>
+            {% endif %}
+            <button onclick="openPassports()" class="bg-gray-600 hover:bg-gray-700 text-white px-6 py-2 rounded-lg font-medium transition-colors">
+                📄 Паспорта уязвимостей
+            </button>
+        </div>
+    </div>
+
+    <!-- Обучение (эпохи) -->
+    <div class="bg-white rounded-lg shadow p-6 mb-8">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-xl font-bold text-gray-900">📈 Обучение модели (эпохи)</h2>
+            <div class="flex gap-2">
+                <a href="/ai/training" class="text-sm font-semibold text-green-700 hover:underline">Открыть обучение</a>
+            </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+            <div class="bg-gray-50 rounded p-3">
+                <div class="text-xs text-gray-500">Статус</div>
+                <div class="text-lg font-bold" id="train-status">—</div>
+            </div>
+            <div class="bg-gray-50 rounded p-3">
+                <div class="text-xs text-gray-500">Эпоха</div>
+                <div class="text-lg font-bold" id="train-epoch">—</div>
+            </div>
+            <div class="bg-gray-50 rounded p-3">
+                <div class="text-xs text-gray-500">Val Accuracy</div>
+                <div class="text-lg font-bold text-green-700" id="train-val-acc">—</div>
+            </div>
+            <div class="bg-gray-50 rounded p-3">
+                <div class="text-xs text-gray-500">Val Loss</div>
+                <div class="text-lg font-bold text-red-700" id="train-val-loss">—</div>
+            </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="bg-gray-50 rounded p-4">
+                <h4 class="text-sm font-medium text-gray-700 mb-2">Loss</h4>
+                <div class="h-40 sm:h-44 md:h-52 lg:h-56">
+                    <canvas id="dash-loss-chart"></canvas>
+                </div>
+            </div>
+            <div class="bg-gray-50 rounded p-4">
+                <h4 class="text-sm font-medium text-gray-700 mb-2">Accuracy</h4>
+                <div class="h-40 sm:h-44 md:h-52 lg:h-56">
+                    <canvas id="dash-acc-chart"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="text-xs text-gray-500 mt-3" id="train-meta"></div>
+    </div>
+
+    <!-- Последние результаты -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <h2 class="text-xl font-bold text-gray-900 mb-4">Последние результаты анализа</h2>
+        <div id="recent-results" class="space-y-4">
+            <p class="text-gray-500 text-center py-8">Загрузка результатов...</p>
+        </div>
+    </div>
+</div>
+
+<!-- Keywords modal -->
+<div id="keywords-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50">
+    <div class="absolute inset-0 flex items-start justify-center p-4 overflow-y-auto">
+        <div class="bg-white w-full max-w-3xl rounded-2xl shadow-2xl mt-10">
+            <div class="flex items-center justify-between px-6 py-4 border-b">
+                <div>
+                    <div class="text-lg font-bold text-gray-900">📊 Топ ключевых слов (реальные keyword_hits)</div>
+                    <div class="text-xs text-gray-500" id="keywords-modal-subtitle">—</div>
+                </div>
+                <button onclick="closeKeywordsModal()" class="p-2 rounded-lg hover:bg-gray-100">
+                    <i class="fas fa-times text-gray-600"></i>
+                </button>
+            </div>
+            <div class="p-6 space-y-6">
+                <div id="keywords-modal-error" class="hidden text-sm text-red-600"></div>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div>
+                        <div class="font-semibold text-gray-800 mb-2">Топ ключевые слова</div>
+                        <div id="keywords-modal-top" class="space-y-2"></div>
+                    </div>
+                    <div>
+                        <div class="font-semibold text-gray-800 mb-2">Топ AI-атаки</div>
+                        <div id="keywords-modal-attacks" class="space-y-2"></div>
+                    </div>
+                </div>
+                <div>
+                    <a href="/ai/statistics" class="text-sm font-semibold text-indigo-700 hover:underline">Открыть полную страницу статистики →</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+let dashLossChart = null;
+let dashAccChart = null;
+let dashPoll = null;
+let lastAIStats = null;
+
+function initDashCharts() {
+    const lossCtx = document.getElementById('dash-loss-chart');
+    const accCtx = document.getElementById('dash-acc-chart');
+    if (!lossCtx || !accCtx || !window.Chart) return;
+
+    if (dashLossChart) dashLossChart.destroy();
+    if (dashAccChart) dashAccChart.destroy();
+
+    dashLossChart = new Chart(lossCtx, {
+        type: 'line',
+        data: { labels: [], datasets: [
+            { label: 'Train Loss', data: [], borderColor: 'rgb(59, 130, 246)', backgroundColor: 'rgba(59, 130, 246, 0.08)', tension: 0.35 },
+            { label: 'Val Loss', data: [], borderColor: 'rgb(239, 68, 68)', backgroundColor: 'rgba(239, 68, 68, 0.08)', tension: 0.35 },
+        ]},
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true } }, scales: { y: { beginAtZero: true } } }
+    });
+
+    dashAccChart = new Chart(accCtx, {
+        type: 'line',
+        data: { labels: [], datasets: [
+            { label: 'Train Acc', data: [], borderColor: 'rgb(34, 197, 94)', backgroundColor: 'rgba(34, 197, 94, 0.08)', tension: 0.35 },
+            { label: 'Val Acc', data: [], borderColor: 'rgb(168, 85, 247)', backgroundColor: 'rgba(168, 85, 247, 0.08)', tension: 0.35 },
+        ]},
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true } }, scales: { y: { beginAtZero: true, max: 1 } } }
+    });
+}
+
+function setTrainCards({status, epoch, total, valAcc, valLoss, meta}) {
+    const s = document.getElementById('train-status');
+    const e = document.getElementById('train-epoch');
+    const a = document.getElementById('train-val-acc');
+    const l = document.getElementById('train-val-loss');
+    const m = document.getElementById('train-meta');
+    if (s) s.textContent = status || '—';
+    if (e) e.textContent = (epoch && total) ? `${epoch}/${total}` : (epoch ? String(epoch) : '—');
+    if (a) a.textContent = (valAcc !== null && valAcc !== undefined) ? (Number(valAcc).toFixed(4)) : '—';
+    if (l) l.textContent = (valLoss !== null && valLoss !== undefined) ? (Number(valLoss).toFixed(4)) : '—';
+    if (m) m.textContent = meta || '';
+}
+
+function updateDashChartsFromHistory(history) {
+    if (!Array.isArray(history) || history.length === 0) return;
+    const labels = history.map(h => h.epoch ?? h.current_epoch ?? '');
+    const trainLoss = history.map(h => h.train_loss ?? h.loss ?? 0);
+    const valLoss = history.map(h => h.val_loss ?? h.validation_loss ?? 0);
+    const trainAcc = history.map(h => h.train_accuracy ?? h.accuracy ?? 0);
+    const valAcc = history.map(h => h.val_accuracy ?? h.validation_accuracy ?? 0);
+
+    if (dashLossChart) {
+        dashLossChart.data.labels = labels;
+        dashLossChart.data.datasets[0].data = trainLoss;
+        dashLossChart.data.datasets[1].data = valLoss;
+        dashLossChart.update('none');
+    }
+    if (dashAccChart) {
+        dashAccChart.data.labels = labels;
+        dashAccChart.data.datasets[0].data = trainAcc;
+        dashAccChart.data.datasets[1].data = valAcc;
+        dashAccChart.update('none');
+    }
+}
+
+async function loadLatestTrainingForDashboard() {
+    try {
+        if (!dashLossChart || !dashAccChart) initDashCharts();
+        const histResp = await fetch('/api/ml-platform/training/history');
+        const hist = await histResp.json();
+        if (!hist.success) {
+            setTrainCards({status:'нет данных', meta:'История обучения недоступна'});
+            return;
+        }
+        const items = Array.isArray(hist.history) ? hist.history : [];
+        if (items.length === 0) {
+            setTrainCards({status:'нет запусков', meta:'Запусти обучение в разделе “Управление обучением”'});
+            return;
+        }
+
+        // берем последнюю запись
+        const last = items[0];
+        const taskId = last.task_id;
+        const status = last.status || 'unknown';
+        const bestAcc = last.best_accuracy;
+        setTrainCards({status, meta: `task_id: ${taskId}${bestAcc !== undefined ? ` • best_acc: ${Number(bestAcc).toFixed(4)}` : ''}`});
+
+        // если history уже сохранена на стороне ML — рисуем её сразу
+        if (Array.isArray(last.history) && last.history.length > 0) {
+            updateDashChartsFromHistory(last.history);
+            const tail = last.history[last.history.length - 1];
+            setTrainCards({
+                status,
+                epoch: tail.epoch,
+                total: (tail.total_epochs || last.total_epochs),
+                valAcc: tail.val_accuracy,
+                valLoss: tail.val_loss,
+                meta: `task_id: ${taskId}${bestAcc !== undefined ? ` • best_acc: ${Number(bestAcc).toFixed(4)}` : ''}`,
+            });
+        }
+
+        // если обучение идет — подпишемся на статус
+        if (status === 'running' || status === 'pending') {
+            if (dashPoll) clearInterval(dashPoll);
+            dashPoll = setInterval(async () => {
+                const sResp = await fetch(`/api/ml-platform/training/status/${taskId}`);
+                const sJson = await sResp.json();
+                if (!sJson.success) return;
+                const st = sJson.status || {};
+                const prog = st.progress || {};
+                const histArr = prog.history || [];
+                if (Array.isArray(histArr) && histArr.length > 0) {
+                    updateDashChartsFromHistory(histArr);
+                    const tail = histArr[histArr.length - 1];
+                    setTrainCards({
+                        status: st.status,
+                        epoch: prog.current_epoch || tail.epoch,
+                        total: prog.total_epochs,
+                        valAcc: prog.val_accuracy,
+                        valLoss: prog.val_loss,
+                        meta: `task_id: ${taskId}`,
+                    });
+                }
+                if (st.status === 'completed' || st.status === 'failed') {
+                    clearInterval(dashPoll);
+                }
+            }, 2000);
+        }
+    } catch (e) {
+        console.error('Training dashboard error:', e);
+        setTrainCards({status:'ошибка', meta: e.message});
+    }
+}
+
+// Проверка подключения к ML платформе
+async function checkMLPlatformConnection() {
+    try {
+        const response = await fetch('/api/ml-platform/connection');
+        const data = await response.json();
+        
+        const statusIndicator = document.getElementById('ml-status-indicator');
+        const statusText = document.getElementById('ml-status-text');
+        
+        if (data.success && data.status.success) {
+            statusIndicator.className = 'w-3 h-3 rounded-full bg-green-500';
+            statusText.textContent = `✅ Подключено (${data.status.vm_host})`;
+            document.getElementById('btn-ai-analysis').disabled = false;
+        } else {
+            statusIndicator.className = 'w-3 h-3 rounded-full bg-red-500';
+            statusText.textContent = '❌ ML платформа недоступна';
+            document.getElementById('btn-ai-analysis').disabled = true;
+        }
+    } catch (error) {
+        console.error('Ошибка проверки подключения:', error);
+        document.getElementById('ml-status-indicator').className = 'w-3 h-3 rounded-full bg-red-500';
+        document.getElementById('ml-status-text').textContent = '❌ Ошибка подключения';
+    }
+}
+
+async function loadStatistics() {
+    try {
+        const response = await fetch('/api/ai/statistics');
+        const data = await response.json();
+        
+        if (data.success) {
+            const stats = data.statistics;
+            lastAIStats = stats;
+            document.getElementById('total-analyzed').textContent = stats.total_analyzed || 0;
+            document.getElementById('ai-related').textContent = stats.ai_related || 0;
+            document.getElementById('avg-confidence').textContent = (stats.avg_confidence || 0).toFixed(1) + '%';
+            document.getElementById('total-keywords').textContent = stats.total_keywords || 0;
+        } else {
+            console.error('Ошибка загрузки статистики:', data.error);
+        }
+    } catch (error) {
+        console.error('Ошибка загрузки статистики:', error);
+    }
+}
+
+function closeKeywordsModal() {
+    const m = document.getElementById('keywords-modal');
+    if (m) m.classList.add('hidden');
+}
+
+function _renderTopList(containerId, items, colorClass) {
+    const el = document.getElementById(containerId);
+    if (!el) return;
+    const arr = Array.isArray(items) ? items : [];
+    if (arr.length === 0) {
+        el.innerHTML = '<div class="text-sm text-gray-500">Нет данных (нужно запустить ИИ-анализ после обновления сервиса k8s-worker)</div>';
+        return;
+    }
+    el.innerHTML = arr.slice(0, 30).map(r => `
+        <div class="flex items-center justify-between border rounded-lg px-3 py-2">
+            <div class="font-semibold ${colorClass}">#${r.keyword}</div>
+            <div class="text-sm text-gray-600">${r.count}</div>
+        </div>
+    `).join('');
+}
+
+async function openKeywordsModal() {
+    const m = document.getElementById('keywords-modal');
+    const err = document.getElementById('keywords-modal-error');
+    const sub = document.getElementById('keywords-modal-subtitle');
+    if (err) { err.classList.add('hidden'); err.textContent = ''; }
+    if (m) m.classList.remove('hidden');
+
+    try {
+        // ensure we have fresh stats
+        const response = await fetch('/api/ai/statistics', { cache: 'no-store' });
+        const data = await response.json();
+        if (!data.success) throw new Error(data.error || 'statistics failed');
+        const stats = data.statistics || {};
+        lastAIStats = stats;
+
+        if (sub) {
+            sub.textContent = `Всего: ${stats.total_analyzed || 0} • AI: ${stats.ai_related || 0} • avg_conf: ${(stats.avg_confidence || 0).toFixed(1)}%`;
+        }
+
+        _renderTopList('keywords-modal-top', stats.top_keywords || [], 'text-indigo-700');
+        _renderTopList('keywords-modal-attacks', stats.top_attacks || [], 'text-red-700');
+    } catch (e) {
+        if (err) { err.classList.remove('hidden'); err.textContent = 'Ошибка: ' + e.message; }
+        _renderTopList('keywords-modal-top', [], 'text-indigo-700');
+        _renderTopList('keywords-modal-attacks', [], 'text-red-700');
+    }
+}
+
+async function startAIAnalysis() {
+    if (!confirm('Запустить ИИ-анализ всех уязвимостей через ML платформу? Это может занять некоторое время.')) {
+        return;
+    }
+
+    const button = document.getElementById('btn-ai-analysis');
+    button.disabled = true;
+    button.textContent = '⏳ Анализ запущен...';
+
+    try {
+        // Запускаем анализ через ML платформу
+        const response = await fetch('/api/ai/batch-analyze', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                vulnerability_ids: []  // Пустой список = все уязвимости
+            })
+        });
+
+        const result = await response.json();
+        
+        if (result.success) {
+            const resultData = result.result || {};
+            alert(`✅ Анализ запущен через ML платформу!\n\nЗадача отправлена на k8s-worker для обработки.`);
+            loadStatistics();
+        } else {
+            throw new Error(result.error || 'Ошибка анализа');
+        }
+    } catch (error) {
+        console.error('Ошибка ИИ-анализа:', error);
+        alert('❌ Ошибка: ' + error.message);
+    } finally {
+        button.disabled = false;
+        button.textContent = '🚀 Запустить ИИ-анализ';
+    }
+}
+
+function openTraining() {
+    window.location.href = '/ai/training';
+}
+
+function openMonitoring() {
+    window.location.href = '/ai/monitoring';
+}
+
+function openPassports() {
+    window.location.href = '/ai/passports';
+}
+
+// Загрузка при открытии страницы
+document.addEventListener('DOMContentLoaded', () => {
+    checkMLPlatformConnection();
+    loadStatistics();
+    initDashCharts();
+    loadLatestTrainingForDashboard();
+    
+    // Обновление статуса каждые 30 секунд
+    setInterval(checkMLPlatformConnection, 30000);
+});
+</script>
+{% endblock %}
+

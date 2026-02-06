@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+{% block title %}Мониторинг сайтов{% endblock %}
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <h1 class="text-3xl font-bold mb-6">🔍 Мониторинг сайтов</h1>
+    
+    <!-- Статус ML платформы -->
+    <div id="ml-status" class="bg-white rounded-lg shadow p-4 mb-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <h3 class="text-sm font-medium text-gray-700">ML Платформа (k8s-worker)</h3>
+                <p class="text-xs text-gray-500" id="ml-status-text">Проверка подключения...</p>
+            </div>
+            <div id="ml-status-indicator" class="w-3 h-3 rounded-full bg-gray-400"></div>
+        </div>
+    </div>
+    
+    <!-- Управление мониторингом -->
+    <div class="bg-white rounded-lg shadow p-6 mb-6">
+        <h2 class="text-xl font-bold mb-4">Управление мониторингом</h2>
+        <div class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Сайты для мониторинга (по одному на строку)</label>
+                <textarea id="sites-list" rows="5" class="border rounded px-3 py-2 w-full" placeholder="https://example.com&#10;https://another-site.com">https://nvd.nist.gov
+https://cve.mitre.org
+https://github.com/advisories</textarea>
+            </div>
+            <div class="flex gap-4">
+                <button onclick="startMonitoring()" id="btn-start" class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg">
+                    ▶️ Запустить мониторинг
+                </button>
+                <button onclick="stopMonitoring()" id="btn-stop" class="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg">
+                    ⏹️ Остановить мониторинг
+                </button>
+                <button onclick="loadMonitoringStatus()" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg">
+                    🔄 Обновить статус
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Статус мониторинга -->
+    <div id="monitoring-status" class="bg-white rounded-lg shadow p-6">
+        <h2 class="text-xl font-bold mb-4">Статус мониторинга</h2>
+        <div id="status-content">
+            <p class="text-gray-500">Загрузка статуса...</p>
+        </div>
+    </div>
+</div>
+<script>
+async function checkMLPlatform() {
+    try {
+        const response = await fetch('/api/ml-platform/connection');
+        const data = await response.json();
+        
+        const indicator = document.getElementById('ml-status-indicator');
+        const text = document.getElementById('ml-status-text');
+        
+        if (data.success && data.status.success) {
+            indicator.className = 'w-3 h-3 rounded-full bg-green-500';
+            text.textContent = `✅ Подключено (${data.status.vm_host})`;
+        } else {
+            indicator.className = 'w-3 h-3 rounded-full bg-red-500';
+            text.textContent = '❌ ML платформа недоступна';
+        }
+    } catch (error) {
+        console.error('Ошибка проверки:', error);
+    }
+}
+
+async function loadMonitoringStatus() {
+    try {
+        const response = await fetch('/api/ai/monitor-status');
+        const data = await response.json();
+        
+        if (data.success) {
+            const status = data.status || {};
+            document.getElementById('status-content').innerHTML = `
+                <div class="space-y-2">
+                    <p><strong>Статус:</strong> ${status.status || 'unknown'}</p>
+                    <p><strong>Мониторируемых сайтов:</strong> ${status.sites ? status.sites.length : 0}</p>
+                    ${status.sites ? `
+                        <div class="mt-4">
+                            <h3 class="font-bold mb-2">Сайты:</h3>
+                            <ul class="list-disc list-inside">
+                                ${status.sites.map(s => `<li>${s}</li>`).join('')}
+                            </ul>
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }
+    } catch (error) {
+        document.getElementById('status-content').innerHTML = 
+            '<p class="text-red-500">Ошибка: ' + error.message + '</p>';
+    }
+}
+
+async function startMonitoring() {
+    const sitesText = document.getElementById('sites-list').value;
+    const sites = sitesText.split('\n').filter(s => s.trim()).map(s => s.trim());
+    
+    if (sites.length === 0) {
+        alert('⚠️ Укажите хотя бы один сайт для мониторинга');
+        return;
+    }
+    
+    const button = document.getElementById('btn-start');
+    button.disabled = true;
+    button.textContent = '⏳ Запуск...';
+    
+    try {
+        const response = await fetch('/api/ai/monitor-start', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({sites: sites})
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert('✅ Мониторинг запущен!');
+            loadMonitoringStatus();
+        } else {
+            throw new Error(result.error || 'Ошибка запуска');
+        }
+    } catch (error) {
+        alert('❌ Ошибка: ' + error.message);
+    } finally {
+        button.disabled = false;
+        button.textContent = '▶️ Запустить мониторинг';
+    }
+}
+
+async function stopMonitoring() {
+    if (!confirm('Остановить мониторинг?')) return;
+    
+    try {
+        const response = await fetch('/api/ai/monitor-stop', {
+            method: 'POST'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert('✅ Мониторинг остановлен');
+            loadMonitoringStatus();
+        }
+    } catch (error) {
+        alert('❌ Ошибка: ' + error.message);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    checkMLPlatform();
+    loadMonitoringStatus();
+    setInterval(() => {
+        checkMLPlatform();
+        loadMonitoringStatus();
+    }, 30000);
+});
+</script>
+{% endblock %}
+

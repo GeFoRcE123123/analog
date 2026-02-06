@@ -1,0 +1,19 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vulnerability-backend
+    ports:
+      - "5000:5000"
+    env_file:
+      - .env
+    environment:
+      - FLASK_APP=app.py
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./logs:/app/logs
+      - /tmp/cve_data:/tmp/cve_data  # Монтируем репозиторий CVE
+    restart: unless-stopped
+    # Database находится на другой VM (10.0.88.11), поэтому нет зависимости
+

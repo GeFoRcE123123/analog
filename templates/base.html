@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vulnerability Management System</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Custom Styles -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+    
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(to bottom, #f8fafc 0%, #f1f5f9 100%);
+            min-height: 100vh;
+        }
+        
+        .nav-modern {
+            background: linear-gradient(135deg, #1e40af 0%, #3b82f6 50%, #2563eb 100%);
+            backdrop-filter: blur(10px);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .logo-modern {
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .nav-link-modern {
+            position: relative;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            border-radius: 0.5rem;
+            padding: 0.5rem 0.75rem;
+            font-weight: 500;
+            font-size: 0.875rem;
+        }
+        
+        .nav-link-modern:hover {
+            background: rgba(255, 255, 255, 0.15);
+            transform: translateY(-1px);
+        }
+        
+        .nav-link-modern.active {
+            background: rgba(255, 255, 255, 0.25);
+            backdrop-filter: blur(10px);
+        }
+        
+        .user-menu-modern {
+            background: white;
+            border-radius: 0.75rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            border: 1px solid #e5e7eb;
+            padding: 0.5rem;
+            min-width: 12rem;
+        }
+        
+        .user-menu-item {
+            padding: 0.625rem 0.75rem;
+            border-radius: 0.5rem;
+            transition: all 0.15s ease;
+            color: #374151;
+            font-size: 0.875rem;
+        }
+        
+        .user-menu-item:hover {
+            background: #f3f4f6;
+            color: #111827;
+        }
+        
+        .mobile-menu-modern {
+            background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
+            backdrop-filter: blur(10px);
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+    <!-- Современная навигационная панель -->
+    <nav class="nav-modern sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <!-- Логотип и навигация -->
+                <div class="flex items-center space-x-8 flex-1">
+                    <!-- Логотип -->
+                    <div class="flex items-center space-x-3">
+                        <div class="w-10 h-10 bg-white bg-opacity-20 rounded-lg flex items-center justify-center backdrop-blur-sm">
+                            <i class="fas fa-shield-alt text-white text-lg"></i>
+                        </div>
+                        <span class="text-white font-bold text-lg logo-modern">Vulnerability Manager</span>
+                    </div>
+
+                    <!-- Основные разделы -->
+                    <div class="hidden lg:flex items-center space-x-1">
+                        <a href="{{ url_for('dashboard') }}"
+                           class="nav-link-modern text-white flex items-center space-x-2 {% if request.path in ['/', '/dashboard'] %}active{% endif %}">
+                            <i class="fas fa-chart-line text-sm"></i>
+                            <span>Дашборд</span>
+                        </a>
+
+                        <a href="{{ url_for('vulnerabilities_list') }}"
+                           class="nav-link-modern text-white flex items-center space-x-2 {% if request.path == '/vulnerabilities' %}active{% endif %}">
+                            <i class="fas fa-bug text-sm"></i>
+                            <span>Уязвимости</span>
+                            {% if vulnerabilities %}
+                            <span class="notification-badge-modern">
+                                {{ vulnerabilities|selectattr('status', 'equalto', 'new')|list|length }}
+                            </span>
+                            {% endif %}
+                        </a>
+
+                        {% if session.role == 'admin' %}
+                        <a href="{{ url_for('operators_page') }}"
+                           class="nav-link-modern text-white flex items-center space-x-2 {% if request.path == '/operators' %}active{% endif %}">
+                            <i class="fas fa-users text-sm"></i>
+                            <span>Операторы</span>
+                        </a>
+                        {% endif %}
+
+                        <a href="{{ url_for('performance_analytics') }}"
+                           class="nav-link-modern text-white flex items-center space-x-2 {% if request.path in ['/performance','/analytics'] %}active{% endif %}">
+                            <i class="fas fa-chart-bar text-sm"></i>
+                            <span>Аналитика</span>
+                        </a>
+
+                        {% if session.role == 'admin' %}
+                        <a href="{{ url_for('parsers_page') }}"
+                           class="nav-link-modern text-white flex items-center space-x-2 {% if request.path == '/parsers' %}active{% endif %}">
+                            <i class="fas fa-rocket text-sm"></i>
+                            <span>Парсеры</span>
+                        </a>
+
+                        <a href="{{ url_for('ai_dashboard') }}"
+                           class="nav-link-modern text-white flex items-center space-x-2 {% if request.path.startswith('/ai') %}active{% endif %}">
+                            <i class="fas fa-brain text-sm"></i>
+                            <span>ИИ-Анализ</span>
+                        </a>
+                        
+                        <a href="{{ url_for('review_vulnerabilities') }}"
+                           class="nav-link-modern text-white flex items-center space-x-2 {% if request.path in ['/review','/check'] %}active{% endif %}">
+                            <i class="fas fa-check-double text-sm"></i>
+                            <span>Проверка</span>
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Правая часть: действия и пользователь -->
+                <div class="flex items-center space-x-3">
+                    <!-- Импорт Excel -->
+                    <a href="{{ url_for('import_excel_page') }}"
+                       class="btn-modern btn-success text-white hidden sm:flex">
+                        <i class="fas fa-file-excel"></i>
+                        <span class="hidden xl:inline">Импорт Excel</span>
+                    </a>
+
+                    <!-- Меню пользователя -->
+                    {% if session.user_id %}
+                    <div class="relative" x-data="{ open: false }">
+                        <button @click="open = !open" 
+                                class="flex items-center space-x-2 text-white hover:bg-white hover:bg-opacity-10 px-3 py-2 rounded-lg transition-all duration-200">
+                            <div class="w-8 h-8 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
+                                <i class="fas fa-user text-sm"></i>
+                            </div>
+                            <span class="hidden sm:inline font-medium">{{ session.full_name or session.username }}</span>
+                            {% if session.role == 'admin' %}
+                            <span class="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full font-semibold">Admin</span>
+                            {% endif %}
+                            <i class="fas fa-chevron-down text-xs"></i>
+                        </button>
+
+                        <!-- Выпадающее меню -->
+                        <div x-show="open" 
+                             @click.away="open = false" 
+                             x-transition:enter="transition ease-out duration-100"
+                             x-transition:enter-start="opacity-0 scale-95"
+                             x-transition:enter-end="opacity-100 scale-100"
+                             x-transition:leave="transition ease-in duration-75"
+                             x-transition:leave-start="opacity-100 scale-100"
+                             x-transition:leave-end="opacity-0 scale-95"
+                             class="absolute right-0 mt-2 user-menu-modern z-50">
+                            <a href="{{ url_for('profile') }}" class="user-menu-item flex items-center space-x-2">
+                                <i class="fas fa-user-circle text-gray-400"></i>
+                                <span>Мой профиль</span>
+                            </a>
+                            <a href="{{ url_for('my_assignments') }}" class="user-menu-item flex items-center space-x-2">
+                                <i class="fas fa-tasks text-gray-400"></i>
+                                <span>Назначения</span>
+                            </a>
+                            <a href="{{ url_for('performance_analytics') }}" class="user-menu-item flex items-center space-x-2">
+                                <i class="fas fa-chart-line text-gray-400"></i>
+                                <span>Статистика</span>
+                            </a>
+
+                            {% if session.role == 'admin' %}
+                            <div class="border-t border-gray-200 my-1"></div>
+                            <a href="{{ url_for('admin_users') }}" class="user-menu-item flex items-center space-x-2">
+                                <i class="fas fa-users-gear text-gray-400"></i>
+                                <span>Управление пользователями</span>
+                            </a>
+                            {% endif %}
+
+                            <div class="border-t border-gray-200 my-1"></div>
+                            <a href="{{ url_for('auth_logout') }}" class="user-menu-item flex items-center space-x-2 text-red-600 hover:bg-red-50">
+                                <i class="fas fa-sign-out-alt text-red-500"></i>
+                                <span>Выйти</span>
+                            </a>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Мобильное меню -->
+                    <button id="mobile-menu-button" class="lg:hidden text-white hover:bg-white hover:bg-opacity-10 p-2 rounded-lg transition-all">
+                        <i class="fas fa-bars text-xl"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Мобильное меню -->
+        <div id="mobile-menu" class="lg:hidden hidden mobile-menu-modern">
+            <div class="px-4 pt-2 pb-4 space-y-1">
+                <a href="{{ url_for('dashboard') }}" class="text-white block px-4 py-3 rounded-lg font-medium flex items-center space-x-3 hover:bg-white hover:bg-opacity-10 transition-all">
+                    <i class="fas fa-chart-line w-5"></i>
+                    <span>Дашборд</span>
+                </a>
+                <a href="{{ url_for('vulnerabilities_list') }}" class="text-white block px-4 py-3 rounded-lg font-medium flex items-center space-x-3 hover:bg-white hover:bg-opacity-10 transition-all">
+                    <i class="fas fa-bug w-5"></i>
+                    <span>Уязвимости</span>
+                </a>
+
+                {% if session.role == 'admin' %}
+                <a href="{{ url_for('parsers_page') }}" class="text-white block px-4 py-3 rounded-lg font-medium flex items-center space-x-3 hover:bg-white hover:bg-opacity-10 transition-all">
+                    <i class="fas fa-rocket w-5"></i>
+                    <span>Парсеры</span>
+                </a>
+                <a href="{{ url_for('operators_page') }}" class="text-white block px-4 py-3 rounded-lg font-medium flex items-center space-x-3 hover:bg-white hover:bg-opacity-10 transition-all">
+                    <i class="fas fa-users w-5"></i>
+                    <span>Операторы</span>
+                </a>
+                <a href="{{ url_for('review_vulnerabilities') }}" class="text-white block px-4 py-3 rounded-lg font-medium flex items-center space-x-3 hover:bg-white hover:bg-opacity-10 transition-all">
+                    <i class="fas fa-check-double w-5"></i>
+                    <span>Проверка</span>
+                </a>
+                {% endif %}
+
+                <a href="{{ url_for('performance_analytics') }}" class="text-white block px-4 py-3 rounded-lg font-medium flex items-center space-x-3 hover:bg-white hover:bg-opacity-10 transition-all">
+                    <i class="fas fa-chart-bar w-5"></i>
+                    <span>Аналитика</span>
+                </a>
+                <a href="{{ url_for('import_excel_page') }}" class="text-white block px-4 py-3 rounded-lg font-medium flex items-center space-x-3 hover:bg-white hover:bg-opacity-10 transition-all">
+                    <i class="fas fa-file-excel w-5"></i>
+                    <span>Импорт Excel</span>
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Основной контент -->
+    <main class="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="mb-6 space-y-3">
+                    {% for category, message in messages %}
+                        <div class="alert-modern {% if category == 'error' %}alert-error
+                                           {% elif category == 'success' %}alert-success
+                                           {% elif category == 'warning' %}alert-warning
+                                           {% else %}alert-info{% endif %}">
+                            <i class="fas {% if category == 'error' %}fa-exclamation-circle
+                                        {% elif category == 'success' %}fa-check-circle
+                                        {% elif category == 'warning' %}fa-exclamation-triangle
+                                        {% else %}fa-info-circle{% endif %}"></i>
+                            <span>{{ message }}</span>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Alpine.js для выпадающего меню -->
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+
+    <!-- Скрипт для мобильного меню -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const mobileMenuButton = document.getElementById('mobile-menu-button');
+            const mobileMenu = document.getElementById('mobile-menu');
+            
+            if (mobileMenuButton && mobileMenu) {
+                mobileMenuButton.addEventListener('click', function() {
+                    mobileMenu.classList.toggle('hidden');
+                });
+            }
+        });
+    </script>
+
+    <!-- Глобальные JS-функции (парсинг и уведомления) -->
+    <script>
+        // ... ваш существующий JS-код для парсинга (startGlobalParsing, showNotification и т.д.)
+        // (оставьте его без изменений — он уже внизу base.html)
+    </script>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,1024 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="max-w-7xl mx-auto space-y-6">
+    <!-- Заголовок -->
+    <div class="flex items-center justify-between mb-4">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900">Парсеры уязвимостей</h1>
+            <p class="text-gray-600 text-sm mt-1">Автоматический сбор данных из всех источников</p>
+        </div>
+        <button onclick="toggleAdvancedSettings()" class="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm">
+            <i class="fas fa-cog mr-1"></i>Настройки
+        </button>
+    </div>
+
+    <!-- Основная статистика -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div class="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-lg p-6 text-white">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-blue-100 text-sm font-medium">Всего в БД</p>
+                    <p class="text-3xl font-bold mt-1" id="statTotal">0</p>
+                </div>
+                <div class="bg-blue-400 bg-opacity-30 rounded-full p-3">
+                    <i class="fas fa-database text-2xl"></i>
+                </div>
+            </div>
+        </div>
+        
+        <div class="bg-gradient-to-br from-green-500 to-green-600 rounded-xl shadow-lg p-6 text-white">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-green-100 text-sm font-medium">Спарсено</p>
+                    <p class="text-3xl font-bold mt-1" id="statParsed">0</p>
+                    <p class="text-green-100 text-xs mt-1 opacity-90">за последний запуск</p>
+                </div>
+                <div class="bg-green-400 bg-opacity-30 rounded-full p-3">
+                    <i class="fas fa-check-circle text-2xl"></i>
+                </div>
+            </div>
+        </div>
+        
+        <div class="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl shadow-lg p-6 text-white">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-purple-100 text-sm font-medium">Сохранено</p>
+                    <p class="text-3xl font-bold mt-1" id="statSaved">0</p>
+                    <p class="text-purple-100 text-xs mt-1 opacity-90">за последний запуск</p>
+                </div>
+                <div class="bg-purple-400 bg-opacity-30 rounded-full p-3">
+                    <i class="fas fa-save text-2xl"></i>
+                </div>
+            </div>
+        </div>
+        
+        <div class="bg-gradient-to-br from-red-500 to-red-600 rounded-xl shadow-lg p-6 text-white">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-red-100 text-sm font-medium">Ошибок</p>
+                    <p class="text-3xl font-bold mt-1" id="statErrors">0</p>
+                </div>
+                <div class="bg-red-400 bg-opacity-30 rounded-full p-3">
+                    <i class="fas fa-exclamation-triangle text-2xl"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Главная кнопка запуска -->
+    <div class="bg-white rounded-xl shadow-lg border-2 border-dashed border-gray-300 p-8 text-center">
+        <div class="max-w-md mx-auto">
+            <div class="mb-6">
+                <div class="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full mb-4">
+                    <i class="fas fa-rocket text-white text-3xl"></i>
+                </div>
+                <h2 class="text-2xl font-bold text-gray-900 mb-2">Запустить парсинг</h2>
+                <p class="text-gray-600">Запустите все активные парсеры одной кнопкой</p>
+            </div>
+            
+            <button 
+                id="startParsingBtn"
+                onclick="startAllParsers()" 
+                class="w-full px-8 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-lg font-semibold rounded-xl hover:from-indigo-700 hover:to-purple-700 transform hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none">
+                <i class="fas fa-play mr-2"></i>
+                <span id="startBtnText">Запустить все парсеры</span>
+            </button>
+            
+            <!-- Прогресс бар -->
+            <div id="parsingProgress" class="mt-6 hidden">
+                <div class="flex items-center justify-between text-sm text-gray-600 mb-2">
+                    <span id="progressText">Инициализация...</span>
+                    <span id="progressPercent">0%</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                    <div id="progressBar" class="bg-gradient-to-r from-indigo-500 to-purple-500 h-full rounded-full transition-all duration-300" style="width: 0%"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Расширенные настройки (скрыто по умолчанию) -->
+    <div id="advancedSettings" class="bg-white rounded-xl shadow-lg p-6 hidden">
+        <h3 class="text-xl font-bold text-gray-900 mb-4">
+            <i class="fas fa-cog mr-2 text-indigo-600"></i>Расширенные настройки парсеров
+        </h3>
+        
+        <div class="space-y-6">
+            <!-- NVD Parser Settings -->
+            <div class="border border-gray-200 rounded-lg p-4">
+                <div class="flex items-center justify-between mb-3">
+                    <h4 class="font-semibold text-gray-800">
+                        <i class="fas fa-shield-alt mr-2 text-blue-600"></i>NVD Парсер
+                    </h4>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="enableNvdParser" class="sr-only peer" checked>
+                        <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                    </label>
+                </div>
+                <div id="nvdParserSettings" class="mt-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Дней назад для инкрементального парсинга</label>
+                    <input type="number" id="nvdDays" class="w-full px-3 py-2 border border-gray-300 rounded-lg" value="30" min="1" max="365">
+                    <p class="text-xs text-gray-500 mt-1">Рекомендуется: 7-30 дней для регулярного обновления. Последний парсинг: 4,948 уязвимостей сохранено</p>
+                </div>
+            </div>
+            
+            <!-- Red Hat Parser Settings -->
+            <div class="border border-gray-200 rounded-lg p-4">
+                <div class="flex items-center justify-between mb-3">
+                    <h4 class="font-semibold text-gray-800">
+                        <i class="fas fa-hat-wizard mr-2 text-red-600"></i>Red Hat Парсер
+                    </h4>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="enableRedHatParser" class="sr-only peer" checked>
+                        <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-red-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600"></div>
+                    </label>
+                </div>
+                <div id="redhatParserSettings" class="mt-4">
+                    <div class="space-y-3">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Режим работы</label>
+                            <select id="redhatMode" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                                <option value="download">Скачать из API и импортировать</option>
+                                <option value="import">Импортировать из существующих файлов</option>
+                                <option value="csv">Импортировать из CSV</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Максимальное количество страниц (для скачивания)</label>
+                            <input type="number" id="redhatMaxPages" class="w-full px-3 py-2 border border-gray-300 rounded-lg" value="10" min="1" max="1000">
+                            <p class="text-xs text-gray-500 mt-1">Каждая страница содержит до 1000 CVE. Рекомендуется: 5-10 для теста, без ограничения для полного скачивания</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Лимит импорта (опционально)</label>
+                            <input type="number" id="redhatImportLimit" class="w-full px-3 py-2 border border-gray-300 rounded-lg" value="" min="1" placeholder="Без ограничений">
+                            <p class="text-xs text-gray-500 mt-1">Ограничить количество записей для импорта. Оставьте пустым для импорта всех</p>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <input type="checkbox" id="redhatSkipExisting" class="rounded" checked>
+                            <label for="redhatSkipExisting" class="text-sm text-gray-700">Пропускать существующие CVE</label>
+                        </div>
+                    </div>
+                    <button 
+                        id="redhatImportBtn"
+                        onclick="importRedHatCVE()" 
+                        class="mt-4 w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">
+                        <i class="fas fa-download mr-2"></i>
+                        <span id="redhatBtnText">Импортировать Red Hat CVE</span>
+                    </button>
+                    <div id="redhatProgress" class="mt-4 hidden">
+                        <div class="flex items-center justify-between text-sm text-gray-600 mb-2">
+                            <span id="redhatProgressText">Инициализация...</span>
+                            <span id="redhatProgressPercent">0%</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2">
+                            <div id="redhatProgressBar" class="bg-red-600 h-2 rounded-full transition-all" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Legacy Parsers Settings -->
+            <div class="border border-gray-200 rounded-lg p-4">
+                <div class="flex items-center justify-between mb-3">
+                    <h4 class="font-semibold text-gray-800">
+                        <i class="fas fa-code-branch mr-2 text-purple-600"></i>Legacy Парсеры (17 источников)
+                    </h4>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="enableLegacyParsers" class="sr-only peer">
+                        <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                    </label>
+                </div>
+                <div id="legacyParsersSettings" class="mt-4 hidden">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Выберите парсеры для запуска:</label>
+                    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 max-h-64 overflow-y-auto border border-gray-200 rounded-lg p-3">
+                        <label class="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-2 rounded">
+                            <input type="checkbox" class="legacy-parser-checkbox" value="redhat" checked>
+                            <span class="text-sm">RedHat</span>
+                        </label>
+                        <label class="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-2 rounded">
+                            <input type="checkbox" class="legacy-parser-checkbox" value="debian" checked>
+                            <span class="text-sm">Debian</span>
+                        </label>
+                        <label class="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-2 rounded">
+                            <input type="checkbox" class="legacy-parser-checkbox" value="cisco" checked>
+                            <span class="text-sm">Cisco</span>
+                        </label>
+                        <label class="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-2 rounded">
+                            <input type="checkbox" class="legacy-parser-checkbox" value="cert" checked>
+                            <span class="text-sm">Cert</span>
+                        </label>
+                        <label class="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-2 rounded">
+                            <input type="checkbox" class="legacy-parser-checkbox" value="fortiguard" checked>
+                            <span class="text-sm">FortiGuard</span>
+                        </label>
+                        <label class="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-2 rounded">
+                            <input type="checkbox" class="legacy-parser-checkbox" value="ibm" checked>
+                            <span class="text-sm">IBM</span>
+                        </label>
+                        <label class="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-2 rounded">
+                            <input type="checkbox" class="legacy-parser-checkbox" value="postgresql" checked>
+                            <span class="text-sm">PostgreSQL</span>
+                        </label>
+                        <label class="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-2 rounded">
+                            <input type="checkbox" class="legacy-parser-checkbox" value="suse" checked>
+                            <span class="text-sm">SUSE</span>
+                        </label>
+                        <label class="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-2 rounded">
+                            <input type="checkbox" class="legacy-parser-checkbox" value="paloalto" checked>
+                            <span class="text-sm">Palo Alto</span>
+                        </label>
+                        <label class="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-2 rounded">
+                            <input type="checkbox" class="legacy-parser-checkbox" value="juniper" checked>
+                            <span class="text-sm">Juniper</span>
+                        </label>
+                        <label class="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-2 rounded">
+                            <input type="checkbox" class="legacy-parser-checkbox" value="cybersecurity" checked>
+                            <span class="text-sm">CyberSecurity</span>
+                        </label>
+                        <label class="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-2 rounded">
+                            <input type="checkbox" class="legacy-parser-checkbox" value="cxsecurity" checked>
+                            <span class="text-sm">CXSecurity</span>
+                        </label>
+                        <label class="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-2 rounded">
+                            <input type="checkbox" class="legacy-parser-checkbox" value="kaspersky" checked>
+                            <span class="text-sm">Kaspersky</span>
+                        </label>
+                        <label class="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-2 rounded">
+                            <input type="checkbox" class="legacy-parser-checkbox" value="kaspersky_stat" checked>
+                            <span class="text-sm">Kaspersky Stat</span>
+                        </label>
+                        <label class="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-2 rounded">
+                            <input type="checkbox" class="legacy-parser-checkbox" value="nvd_keywords" checked>
+                            <span class="text-sm">NVD Keywords</span>
+                        </label>
+                        <label class="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-2 rounded">
+                            <input type="checkbox" class="legacy-parser-checkbox" value="zerodayinitiative" checked>
+                            <span class="text-sm">Zero Day Initiative</span>
+                        </label>
+                        <label class="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-2 rounded">
+                            <input type="checkbox" class="legacy-parser-checkbox" value="cvedetails" checked>
+                            <span class="text-sm">CVE Details</span>
+                        </label>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-2">Выберите парсеры для запуска. По умолчанию выбраны все.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Результаты парсинга -->
+    <div id="parsingResults" class="bg-white rounded-xl shadow-lg p-6 hidden">
+        <h3 class="text-xl font-bold text-gray-900 mb-4">
+            <i class="fas fa-chart-line mr-2 text-green-600"></i>Результаты последнего парсинга
+        </h3>
+        <div id="resultsContent" class="space-y-4"></div>
+    </div>
+
+    <!-- Детальная статистика по источникам -->
+    <div class="bg-white rounded-xl shadow-lg p-4">
+        <h3 class="text-lg font-bold text-gray-900 mb-3">
+            <i class="fas fa-list-ul mr-2 text-indigo-600"></i>Статистика по источникам
+        </h3>
+        <div class="overflow-x-auto">
+            <div id="sourcesStats" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
+                <!-- Заполнится через JS -->
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let parsingActive = false;
+let progressInterval = null;
+
+// Переключение расширенных настроек
+function toggleAdvancedSettings() {
+    const settings = document.getElementById('advancedSettings');
+    settings.classList.toggle('hidden');
+}
+
+// Переключение Red Hat парсера
+document.getElementById('enableRedHatParser').addEventListener('change', function() {
+    const settings = document.getElementById('redhatParserSettings');
+    if (settings) {
+        if (this.checked) {
+            settings.style.opacity = '1';
+            Array.from(settings.querySelectorAll('input, select, button')).forEach(el => el.disabled = false);
+        } else {
+            settings.style.opacity = '0.5';
+            Array.from(settings.querySelectorAll('input, select, button')).forEach(el => el.disabled = true);
+        }
+    }
+});
+
+// Переключение Legacy парсеров
+document.getElementById('enableLegacyParsers').addEventListener('change', function() {
+    const settings = document.getElementById('legacyParsersSettings');
+    if (this.checked) {
+        settings.classList.remove('hidden');
+    } else {
+        settings.classList.add('hidden');
+    }
+});
+
+// Обновление статистики
+async function refreshStats(force = false) {
+    try {
+        // Добавляем timestamp для предотвращения кеширования
+        const url = force ? `/api/parsers/stats?t=${Date.now()}` : '/api/parsers/stats';
+        const response = await fetch(url, {
+            method: 'GET',
+            cache: 'no-cache',
+            headers: {
+                'Cache-Control': 'no-cache'
+            }
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+            const totalInDb = data.stats.total_in_db || 0;
+            const totalParsed = data.stats.total_parsed || 0;
+            const totalSaved = data.stats.total_saved || 0;
+            const totalErrors = data.stats.total_errors || 0;
+            
+            // Обновляем элементы
+            const statTotalEl = document.getElementById('statTotal');
+            const statParsedEl = document.getElementById('statParsed');
+            const statSavedEl = document.getElementById('statSaved');
+            const statErrorsEl = document.getElementById('statErrors');
+            
+            // Всегда обновляем значения для гарантии актуальности
+            if (statTotalEl) {
+                const oldValue = parseInt(statTotalEl.textContent) || 0;
+                statTotalEl.textContent = totalInDb;
+                // Анимация обновления если значение изменилось
+                if (oldValue !== totalInDb) {
+                    statTotalEl.classList.add('animate-pulse');
+                    setTimeout(() => statTotalEl.classList.remove('animate-pulse'), 1000);
+                }
+            }
+            if (statParsedEl) statParsedEl.textContent = totalParsed;
+            if (statSavedEl) statSavedEl.textContent = totalSaved;
+            if (statErrorsEl) statErrorsEl.textContent = totalErrors;
+            
+            // Логирование для отладки
+            console.log(`📊 Статистика обновлена: Всего в БД = ${totalInDb}, Спарсено = ${totalParsed}, Сохранено = ${totalSaved}`);
+            
+            // Обновление статистики по источникам
+            updateSourcesStats(data.stats.by_source || {});
+        }
+    } catch (e) {
+        console.error('Ошибка обновления статистики:', e);
+    }
+}
+
+// Обновление статистики по источникам
+function updateSourcesStats(sources) {
+    const container = document.getElementById('sourcesStats');
+    if (!container) return;
+    
+    container.innerHTML = '';
+    
+    // Сортируем источники по количеству записей в БД (in_db)
+    const sortedSources = Object.entries(sources).sort((a, b) => (b[1].in_db || 0) - (a[1].in_db || 0));
+    
+    for (const [source, stats] of sortedSources) {
+        const card = document.createElement('div');
+        
+        // Определяем цвет карточки: если в БД уже есть данные по источнику — подсветим
+        const hasInDb = (stats.in_db || 0) > 0;
+        const hasRecentRun = (stats.parsed || 0) > 0 || (stats.saved || 0) > 0;
+        const bgColor = hasInDb ? 'bg-blue-50 border-blue-200' : (hasRecentRun ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200');
+        
+        // Форматируем название источника
+        let displayName = source;
+        if (source.includes('@')) {
+            // Для email - берем часть до @ или домен
+            const parts = source.split('@');
+            displayName = parts[0].length > 15 ? parts[0].substring(0, 15) + '...' : parts[0];
+        } else if (source.length > 20) {
+            displayName = source.substring(0, 20) + '...';
+        }
+        
+        card.className = `${bgColor} rounded-lg p-2 border`;
+        card.innerHTML = `
+            <div class="flex items-center justify-between mb-1">
+                <span class="font-semibold text-gray-800 text-xs truncate flex-1" title="${source}">${displayName}</span>
+                <span class="px-1.5 py-0.5 bg-blue-100 text-blue-800 rounded text-xs font-semibold ml-1 flex-shrink-0">${stats.in_db || 0}</span>
+            </div>
+            <div class="text-xs text-gray-600 space-y-0.5">
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-500">Парс:</span>
+                    <b class="${(stats.parsed || 0) > 0 ? 'text-green-600' : 'text-gray-400'}">${stats.parsed || 0}</b>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-500">Сохр:</span>
+                    <b class="${(stats.saved || 0) > 0 ? 'text-green-600' : 'text-gray-400'}">${stats.saved || 0}</b>
+                </div>
+            </div>
+        `;
+        container.appendChild(card);
+    }
+}
+
+// Переменная для хранения ID текущего парсинга
+let currentParsingId = null;
+let statusCheckInterval = null;
+
+// Проверка активного парсинга при загрузке страницы
+async function checkActiveParsing() {
+    try {
+        const response = await fetch('/api/parsing-status');
+        const data = await response.json();
+        
+        if (data.success && data.status && data.status.status === 'running') {
+            // Парсинг активен, продолжаем отслеживание
+            currentParsingId = data.status.id;
+            parsingActive = true;
+            startParsingTracking(data.status);
+        }
+    } catch (e) {
+        console.error('Ошибка проверки статуса парсинга:', e);
+    }
+}
+
+// Запуск отслеживания парсинга
+function startParsingTracking(initialStatus) {
+    const btn = document.getElementById('startParsingBtn');
+    const btnText = document.getElementById('startBtnText');
+    const progressDiv = document.getElementById('parsingProgress');
+    const resultsDiv = document.getElementById('parsingResults');
+    
+    // Подготовка UI
+    btn.disabled = true;
+    btnText.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Парсинг выполняется...';
+    progressDiv.classList.remove('hidden');
+    resultsDiv.classList.add('hidden');
+    
+    // Обновляем прогресс на основе начального статуса
+    if (initialStatus) {
+        const total = initialStatus.total_parsed || 1;
+        const saved = initialStatus.total_saved || 0;
+        const progress = total > 0 ? Math.min(100, Math.round((saved / total) * 100)) : 0;
+        updateProgress(progress, `Спарсено: ${initialStatus.total_parsed || 0} | Сохранено: ${initialStatus.total_saved || 0}`);
+    }
+    
+    // Запускаем периодическую проверку статуса
+    if (statusCheckInterval) {
+        clearInterval(statusCheckInterval);
+    }
+    statusCheckInterval = setInterval(async () => {
+        try {
+            const response = await fetch('/api/parsing-status');
+            const data = await response.json();
+            
+            if (data.success && data.status) {
+                const status = data.status;
+                
+                if (status.status === 'running') {
+                    // Обновляем прогресс
+                    const total = status.total_parsed || 1;
+                    const saved = status.total_saved || 0;
+                    const progress = total > 0 ? Math.min(100, Math.round((saved / total) * 100)) : 0;
+                    
+                    // Формируем детальное сообщение по источникам
+                    let message = `Спарсено: ${status.total_parsed || 0} | Сохранено: ${status.total_saved || 0}`;
+                    if (status.by_source && Object.keys(status.by_source).length > 0) {
+                        const sourcesInfo = Object.entries(status.by_source)
+                            .map(([source, stats]) => `${source}: ${stats.parsed || 0}/${stats.saved || 0}`)
+                            .join(', ');
+                        message += ` | ${sourcesInfo}`;
+                    }
+                    updateProgress(progress, message);
+                    
+                    // Обновляем статистику по источникам
+                    if (status.by_source) {
+                        updateSourcesStats(status.by_source);
+                    }
+                } else if (status.status === 'completed') {
+                    // Парсинг завершен
+                    clearInterval(statusCheckInterval);
+                    parsingActive = false;
+                    btn.disabled = false;
+                    btnText.innerHTML = '<i class="fas fa-play mr-2"></i>Запустить парсинг';
+                    updateProgress(100, `Парсинг завершен! Спарсено: ${status.total_parsed || 0}, Сохранено: ${status.total_saved || 0}`);
+                    refreshStats();
+                    setTimeout(() => {
+                        progressDiv.classList.add('hidden');
+                        resultsDiv.classList.remove('hidden');
+                    }, 2000);
+                } else if (status.status === 'failed') {
+                    // Парсинг завершился с ошибкой
+                    clearInterval(statusCheckInterval);
+                    parsingActive = false;
+                    btn.disabled = false;
+                    btnText.innerHTML = '<i class="fas fa-play mr-2"></i>Запустить парсинг';
+                    updateProgress(0, `Ошибка парсинга: ${status.error_message || 'Неизвестная ошибка'}`);
+                }
+            } else {
+                // Парсинг не активен
+                clearInterval(statusCheckInterval);
+                parsingActive = false;
+                btn.disabled = false;
+                btnText.innerHTML = '<i class="fas fa-play mr-2"></i>Запустить парсинг';
+            }
+        } catch (e) {
+            console.error('Ошибка проверки статуса:', e);
+        }
+    }, 2000); // Проверяем каждые 2 секунды
+}
+
+// Запуск всех парсеров
+async function startAllParsers() {
+    if (parsingActive) {
+        return;
+    }
+    
+    parsingActive = true;
+    const btn = document.getElementById('startParsingBtn');
+    const btnText = document.getElementById('startBtnText');
+    const progressDiv = document.getElementById('parsingProgress');
+    const resultsDiv = document.getElementById('parsingResults');
+    
+    // Подготовка UI
+    btn.disabled = true;
+    btnText.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Парсинг выполняется...';
+    progressDiv.classList.remove('hidden');
+    resultsDiv.classList.add('hidden');
+    
+    // Сброс прогресса
+    updateProgress(0, 'Инициализация парсеров...');
+    
+    // Получение настроек
+    const settings = getParserSettings();
+    
+    try {
+        // Обновляем прогресс во время запроса
+        updateProgress(10, 'Отправка запроса на сервер...');
+        
+        const response = await fetch('/api/parsers/run-all', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(settings)
+        });
+        
+        updateProgress(30, 'Получение ответа от сервера...');
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`HTTP ${response.status}: ${errorText}`);
+        }
+        
+        updateProgress(50, 'Парсинг запущен, ожидание результатов...');
+        
+        const data = await response.json();
+        
+        if (data.success && data.parsing_id) {
+            currentParsingId = data.parsing_id;
+            // Запускаем отслеживание статуса
+            startParsingTracking({ status: 'running', id: data.parsing_id });
+        } else {
+            throw new Error(data.message || 'Неизвестная ошибка');
+        }
+        
+        // Отображение детальных сообщений о прогрессе
+        if (data.progress_messages && data.progress_messages.length > 0) {
+            displayProgressMessages(data.progress_messages);
+        }
+        
+        updateProgress(80, 'Сохранение результатов...');
+        
+        if (data.success) {
+            updateProgress(100, 'Парсинг завершен успешно!');
+            
+            // Небольшая задержка для отображения 100%
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            // Отображение результатов
+            showParsingResults(data);
+            
+            // Обновление статистики
+            await refreshStats();
+        } else {
+            updateProgress(0, 'Ошибка при парсинге');
+            showError(data.message || 'Ошибка при запуске парсинга');
+        }
+    } catch (e) {
+        console.error('Ошибка парсинга:', e);
+        updateProgress(0, 'Ошибка соединения');
+        let errorMessage = 'Ошибка соединения с сервером';
+        if (e.name === 'AbortError') {
+            errorMessage = 'Превышено время ожидания ответа (10 минут). Парсинг может быть еще выполняется на сервере.';
+        } else if (e.message) {
+            errorMessage = e.message;
+        }
+        showError(errorMessage);
+    } finally {
+        parsingActive = false;
+        btn.disabled = false;
+        btnText.textContent = 'Запустить все парсеры';
+        // Не скрываем прогресс сразу, чтобы пользователь видел результат
+        setTimeout(() => {
+            progressDiv.classList.add('hidden');
+        }, 2000);
+    }
+}
+
+// Обновление прогресс-бара с детальной информацией
+function updateProgress(percent, text, details = null) {
+    const progressBar = document.getElementById('progressBar');
+    const progressText = document.getElementById('progressText');
+    const progressDetails = document.getElementById('progressDetails');
+    
+    if (progressBar) {
+        progressBar.style.width = `${Math.min(100, Math.max(0, percent))}%`;
+        progressBar.setAttribute('aria-valuenow', percent);
+    }
+    
+    if (progressText) {
+        progressText.textContent = text || `${percent}%`;
+    }
+    
+    // Добавляем детальную информацию о прогрессе
+    if (progressDetails && details) {
+        let detailsHtml = '';
+        if (details.source) {
+            detailsHtml += `<div class="text-sm text-gray-600"><strong>Источник:</strong> ${details.source}</div>`;
+        }
+        if (details.parsed_count !== undefined) {
+            detailsHtml += `<div class="text-sm text-gray-600"><strong>Спарсено:</strong> ${details.parsed_count}</div>`;
+        }
+        if (details.saved_count !== undefined) {
+            detailsHtml += `<div class="text-sm text-gray-600"><strong>Сохранено:</strong> ${details.saved_count}</div>`;
+        }
+        if (details.error) {
+            detailsHtml += `<div class="text-sm text-red-600"><strong>Ошибка:</strong> ${details.error}</div>`;
+        }
+        progressDetails.innerHTML = detailsHtml;
+    }
+}
+
+// Получение настроек парсеров
+function getParserSettings() {
+    const nvdEnabled = document.getElementById('enableNvdParser').checked;
+    const nvdDays = parseInt(document.getElementById('nvdDays').value) || 30;
+    
+    // ⭐ Получение настроек Legacy парсеров
+    const legacyEnabled = document.getElementById('enableLegacyParsers').checked;
+    const legacyCheckboxes = document.querySelectorAll('.legacy-parser-checkbox:checked');
+    const legacySources = Array.from(legacyCheckboxes).map(cb => cb.value);
+    
+    return {
+        sources: [], // HTML парсер отключен
+        limit_per_source: 50, // Лимит для legacy парсеров
+        enable_nvd: nvdEnabled,
+        enable_redhat: false, // RedHat парсер отключен (используется отдельный endpoint)
+        nvd_days: nvdDays,
+        enable_legacy_parsers: legacyEnabled,
+        legacy_parser_sources: legacySources
+    };
+}
+
+// Импорт Red Hat CVE
+async function importRedHatCVE() {
+    // Проверка, включен ли парсер
+    const enabled = document.getElementById('enableRedHatParser').checked;
+    if (!enabled) {
+        alert('Включите Red Hat парсер для импорта');
+        return;
+    }
+    
+    const btn = document.getElementById('redhatImportBtn');
+    const btnText = document.getElementById('redhatBtnText');
+    const progressDiv = document.getElementById('redhatProgress');
+    const progressBar = document.getElementById('redhatProgressBar');
+    const progressText = document.getElementById('redhatProgressText');
+    const progressPercent = document.getElementById('redhatProgressPercent');
+    
+    // Получение настроек
+    const mode = document.getElementById('redhatMode').value;
+    const maxPages = parseInt(document.getElementById('redhatMaxPages').value) || null;
+    const importLimit = document.getElementById('redhatImportLimit').value ? parseInt(document.getElementById('redhatImportLimit').value) : null;
+    const skipExisting = document.getElementById('redhatSkipExisting').checked;
+    
+    // Подготовка UI
+    btn.disabled = true;
+    btnText.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Импорт выполняется...';
+    progressDiv.classList.remove('hidden');
+    updateRedHatProgress(0, 'Инициализация...');
+    
+    try {
+        // Используем синхронный endpoint для небольших объемов
+        const response = await fetch('/api/redhat/import-sync', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                mode: mode,
+                max_pages: maxPages,
+                import_limit: importLimit,
+                skip_existing: skipExisting
+            })
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+        }
+        
+        const data = await response.json();
+        
+        // Обновление прогресса во время импорта
+        updateRedHatProgress(50, 'Импорт выполняется...');
+        
+        if (data.success) {
+            updateRedHatProgress(100, `Импорт завершен! Импортировано: ${data.imported || 0}, Пропущено: ${data.skipped || 0}`);
+            
+            // Принудительное обновление статистики с небольшой задержкой для синхронизации БД
+            // Обновляем сразу после получения ответа
+            await refreshStats(true);
+            
+            // Дополнительные обновления для гарантии синхронизации
+            setTimeout(async () => {
+                await refreshStats(true);
+            }, 500);
+            
+            setTimeout(async () => {
+                await refreshStats(true);
+            }, 1500);
+            
+            // Показ результатов
+            setTimeout(() => {
+                const message = `Импорт Red Hat CVE завершен!\n\n` +
+                    `Всего обработано: ${data.total || 0}\n` +
+                    `Импортировано: ${data.imported || 0}\n` +
+                    `Пропущено: ${data.skipped || 0}\n` +
+                    `Ошибок: ${data.errors || 0}\n\n` +
+                    `Статистика обновлена. Проверьте общее количество уязвимостей.`;
+                alert(message);
+                progressDiv.classList.add('hidden');
+            }, 2000);
+        } else {
+            throw new Error(data.message || 'Ошибка импорта');
+        }
+    } catch (e) {
+        console.error('Ошибка импорта Red Hat CVE:', e);
+        updateRedHatProgress(0, `Ошибка: ${e.message}`);
+        alert(`Ошибка импорта: ${e.message}`);
+    } finally {
+        btn.disabled = false;
+        btnText.innerHTML = '<i class="fas fa-download mr-2"></i>Импортировать Red Hat CVE';
+    }
+}
+
+// Обновление прогресса Red Hat импорта
+function updateRedHatProgress(percent, text) {
+    const progressBar = document.getElementById('redhatProgressBar');
+    const progressText = document.getElementById('redhatProgressText');
+    const progressPercent = document.getElementById('redhatProgressPercent');
+    
+    if (progressBar) {
+        progressBar.style.width = `${Math.min(100, Math.max(0, percent))}%`;
+    }
+    if (progressText) {
+        progressText.textContent = text || `${percent}%`;
+    }
+    if (progressPercent) {
+        progressPercent.textContent = `${percent}%`;
+    }
+}
+
+// Отображение детальных сообщений о прогрессе парсинга
+function displayProgressMessages(messages) {
+    const progressDetails = document.getElementById('progressDetails');
+    if (!progressDetails) return;
+    
+    let html = '<div class="mt-4 space-y-2 max-h-64 overflow-y-auto">';
+    messages.forEach(msg => {
+        const stageClass = {
+            'parsing': 'text-blue-600',
+            'parsed': 'text-green-600',
+            'saving': 'text-yellow-600',
+            'saved': 'text-green-700 font-semibold',
+            'error': 'text-red-600',
+            'warning': 'text-orange-600'
+        }[msg.stage] || 'text-gray-600';
+        
+        const icon = {
+            'parsing': '🌐',
+            'parsed': '✅',
+            'saving': '💾',
+            'saved': '✅',
+            'error': '❌',
+            'warning': '⚠️'
+        }[msg.stage] || '📋';
+        
+        html += `<div class="text-sm ${stageClass}">${icon} ${msg.message}</div>`;
+        
+        if (msg.parsed_count !== undefined) {
+            html += `<div class="text-xs text-gray-500 ml-4">Спарсено: ${msg.parsed_count}</div>`;
+        }
+        if (msg.saved_count !== undefined) {
+            html += `<div class="text-xs text-gray-500 ml-4">Сохранено: ${msg.saved_count}</div>`;
+        }
+        if (msg.cvss_found !== undefined) {
+            html += `<div class="text-xs text-gray-500 ml-4">CVSS найден: ${msg.cvss_found}, средний: ${msg.avg_cvss || 0}</div>`;
+        }
+        if (msg.error) {
+            html += `<div class="text-xs text-red-500 ml-4">${msg.error}</div>`;
+        }
+    });
+    html += '</div>';
+    progressDetails.innerHTML = html;
+}
+
+// Отображение результатов парсинга
+function showParsingResults(data) {
+    const resultsDiv = document.getElementById('parsingResults');
+    const content = document.getElementById('resultsContent');
+    
+    resultsDiv.classList.remove('hidden');
+    
+    // Проверка на ошибки
+    const hasErrors = data.errors && data.errors.length > 0;
+    const totalParsed = data.total_parsed || 0;
+    const totalSaved = data.total_saved || 0;
+    
+    let html = '';
+    
+    // Сообщение о результате
+    if (hasErrors && totalParsed === 0) {
+        html += `
+        <div class="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+            <div class="flex items-center">
+                <i class="fas fa-exclamation-circle text-red-600 text-2xl mr-3"></i>
+                <div>
+                    <p class="font-semibold text-red-900">Ошибки при парсинге</p>
+                    <p class="text-sm text-red-700">Спарсено: ${totalParsed} | Сохранено: ${totalSaved}</p>
+                    <div class="mt-2 text-xs text-red-600">
+                        ${data.errors.map(e => `• ${e}`).join('<br>')}
+                    </div>
+                </div>
+            </div>
+        </div>
+        `;
+    } else if (totalParsed === 0 && totalSaved === 0) {
+        html += `
+        <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+            <div class="flex items-center">
+                <i class="fas fa-info-circle text-yellow-600 text-2xl mr-3"></i>
+                <div>
+                    <p class="font-semibold text-yellow-900">Парсинг завершен, но данных не найдено</p>
+                    <p class="text-sm text-yellow-700">Спарсено: ${totalParsed} | Сохранено: ${totalSaved}</p>
+                    <p class="text-xs text-yellow-600 mt-1">Возможно, источники недоступны или лимит слишком мал</p>
+                </div>
+            </div>
+        </div>
+        `;
+    } else {
+        html += `
+        <div class="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+            <div class="flex items-center">
+                <i class="fas fa-check-circle text-green-600 text-2xl mr-3"></i>
+                <div>
+                    <p class="font-semibold text-green-900">Парсинг завершен успешно</p>
+                    <p class="text-sm text-green-700">Спарсено: ${totalParsed} | Сохранено: ${totalSaved}</p>
+                </div>
+            </div>
+        </div>
+        `;
+    }
+    
+    // Предупреждения об ошибках, если есть
+    if (hasErrors && totalParsed > 0) {
+        html += `
+        <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+            <div class="flex items-center">
+                <i class="fas fa-exclamation-triangle text-yellow-600 mr-2"></i>
+                <p class="font-semibold text-yellow-900">Частичные ошибки:</p>
+            </div>
+            <div class="mt-2 text-sm text-yellow-700">
+                ${data.errors.map(e => `• ${e}`).join('<br>')}
+            </div>
+        </div>
+        `;
+    }
+    
+    // Используем правильные классы grid с сохранением responsive layout
+    html += '<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">';
+    
+    // Детализация по источникам
+    if (Object.keys(data.by_source || {}).length > 0) {
+        for (const [source, stats] of Object.entries(data.by_source || {})) {
+            const hasError = stats.error;
+            const borderColor = hasError ? 'border-red-300' : (stats.saved > 0 ? 'border-green-300' : 'border-gray-200');
+            const bgColor = hasError ? 'bg-red-50' : (stats.saved > 0 ? 'bg-green-50' : 'bg-gray-50');
+            
+            html += `
+            <div class="border ${borderColor} ${bgColor} rounded-lg p-4 min-w-0">
+                <div class="flex items-center justify-between mb-2 flex-wrap gap-2">
+                    <span class="font-semibold text-gray-800 capitalize break-words">${source}</span>
+                    <span class="px-2 py-1 ${stats.parsed > 0 ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-600'} rounded text-xs whitespace-nowrap flex-shrink-0">${stats.parsed || 0} спарсено</span>
+                </div>
+                ${hasError ? `
+                    <div class="text-sm text-red-600 mb-2 break-words">
+                        <i class="fas fa-exclamation-circle mr-1"></i>Ошибка: ${stats.error}
+                    </div>
+                ` : ''}
+                <div class="text-sm text-gray-600 break-words">
+                    Сохранено в БД: <b class="${stats.saved > 0 ? 'text-green-600' : 'text-gray-500'}">${stats.saved || 0}</b>
+                </div>
+            </div>
+            `;
+        }
+    } else {
+        html += `
+        <div class="col-span-full text-center py-4 text-gray-500">
+            <i class="fas fa-info-circle text-2xl mb-2"></i>
+            <p>Нет данных по источникам</p>
+        </div>
+        `;
+    }
+    
+    html += '</div>';
+    
+    // Используем requestAnimationFrame для плавного обновления DOM
+    requestAnimationFrame(() => {
+        content.innerHTML = html;
+    });
+}
+
+// Показ ошибки
+function showError(message) {
+    const resultsDiv = document.getElementById('parsingResults');
+    const content = document.getElementById('resultsContent');
+    
+    resultsDiv.classList.remove('hidden');
+    content.innerHTML = `
+        <div class="bg-red-50 border border-red-200 rounded-lg p-4">
+            <div class="flex items-center">
+                <i class="fas fa-exclamation-circle text-red-600 text-2xl mr-3"></i>
+                <div>
+                    <p class="font-semibold text-red-900">Ошибка</p>
+                    <p class="text-sm text-red-700">${message}</p>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// Обновление UI настроек при включении/выключении парсеров
+document.addEventListener('DOMContentLoaded', function() {
+    // Инициализация
+    refreshStats();
+    // Проверяем активный парсинг при загрузке страницы
+    checkActiveParsing();
+    
+    // NVD Parser toggle
+    const nvdToggle = document.getElementById('enableNvdParser');
+    if (nvdToggle) {
+        nvdToggle.addEventListener('change', function(e) {
+            const settings = document.getElementById('nvdParserSettings');
+            if (settings) {
+                settings.style.opacity = e.target.checked ? '1' : '0.5';
+                Array.from(settings.querySelectorAll('input, select')).forEach(el => el.disabled = !e.target.checked);
+            }
+        });
+    }
+    
+    // Первоначальная загрузка статистики
+    refreshStats();
+    loadParsingHistory();
+    
+    // Автообновление статистики каждые 30 секунд
+    setInterval(refreshStats, 30000);
+});
+
+// Загрузка истории сканирования
+async function loadParsingHistory() {
+    try {
+        const response = await fetch('/api/parsers/history?limit=1');
+        const data = await response.json();
+        
+        if (data.success && data.history && data.history.length > 0) {
+            // Показываем последнее сканирование
+            const lastScan = data.history[0];
+            showParsingResults({
+                success: true,
+                total_parsed: lastScan.total_parsed,
+                total_saved: lastScan.total_saved,
+                by_source: lastScan.by_source,
+                errors: lastScan.total_errors > 0 ? [`Ошибок: ${lastScan.total_errors}`] : []
+            });
+            
+            // Обновляем статистику
+            document.getElementById('statParsed').textContent = lastScan.total_parsed || 0;
+            document.getElementById('statSaved').textContent = lastScan.total_saved || 0;
+            document.getElementById('statErrors').textContent = lastScan.total_errors || 0;
+        }
+    } catch (e) {
+        console.error('Ошибка загрузки истории:', e);
+    }
+}
+</script>
+{% endblock %}

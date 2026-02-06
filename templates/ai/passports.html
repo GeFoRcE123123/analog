@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}Паспорта уязвимостей{% endblock %}
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <h1 class="text-3xl font-bold mb-6">📄 Паспорта уязвимостей</h1>
+    
+    <!-- Поиск паспорта -->
+    <div class="bg-white rounded-lg shadow p-6 mb-6">
+        <h2 class="text-xl font-bold mb-4">Поиск паспорта CVE</h2>
+        <div class="flex gap-4">
+            <input type="text" id="cve-search" placeholder="CVE-2024-XXXX" class="border rounded px-4 py-2 flex-1">
+            <button onclick="searchPassport()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg">
+                🔍 Найти
+            </button>
+        </div>
+    </div>
+    
+    <!-- Список паспортов -->
+    <div class="bg-white rounded-lg shadow p-6 mb-6">
+        <h2 class="text-xl font-bold mb-4">Последние паспорта</h2>
+        <button onclick="loadAllPassports()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg mb-4">
+            📋 Загрузить все паспорта
+        </button>
+        <div id="passports-list" class="space-y-4">
+            <p class="text-gray-500">Начните поиск или загрузите список паспортов</p>
+        </div>
+    </div>
+    
+    <!-- Детали паспорта -->
+    <div id="passport-details" class="bg-white rounded-lg shadow p-6 hidden">
+        <h2 class="text-xl font-bold mb-4">Детали паспорта</h2>
+        <div id="passport-content"></div>
+    </div>
+</div>
+<script>
+async function searchPassport() {
+    const cveId = document.getElementById('cve-search').value.trim();
+    if (!cveId) {
+        alert('⚠️ Введите CVE ID');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/ml-platform/passports/${cveId}`);
+        const data = await response.json();
+        
+        if (data.success && data.passport) {
+            displayPassport(data.passport);
+        } else {
+            alert('❌ Паспорт не найден: ' + (data.error || 'Неизвестная ошибка'));
+        }
+    } catch (error) {
+        alert('❌ Ошибка: ' + error.message);
+    }
+}
+
+async function loadAllPassports() {
+    try {
+        const response = await fetch('/api/ml-platform/passports?limit=50');
+        const data = await response.json();
+        
+        if (data.success && data.passports) {
+            const passports = Array.isArray(data.passports) ? data.passports : [];
+            if (passports.length > 0) {
+                document.getElementById('passports-list').innerHTML = passports.map(p => `
+                    <div class="border p-4 rounded cursor-pointer hover:bg-gray-50" onclick="displayPassport(${JSON.stringify(p).replace(/"/g, '&quot;')})">
+                        <strong>${p.cve_id || 'N/A'}</strong>
+                        <p class="text-sm text-gray-600">${p.description ? p.description.substring(0, 100) + '...' : 'Нет описания'}</p>
+                    </div>
+                `).join('');
+            } else {
+                document.getElementById('passports-list').innerHTML = '<p class="text-gray-500">Паспорты не найдены</p>';
+            }
+        }
+    } catch (error) {
+        document.getElementById('passports-list').innerHTML = 
+            '<p class="text-red-500">Ошибка: ' + error.message + '</p>';
+    }
+}
+
+function displayPassport(passport) {
+    const detailsDiv = document.getElementById('passport-details');
+    const contentDiv = document.getElementById('passport-content');
+    
+    detailsDiv.classList.remove('hidden');
+    
+    contentDiv.innerHTML = `
+        <div class="space-y-4">
+            <div>
+                <strong>CVE ID:</strong> ${passport.cve_id || 'N/A'}
+            </div>
+            <div>
+                <strong>Описание:</strong> ${passport.description || 'Нет описания'}
+            </div>
+            <div>
+                <strong>CVSS Score:</strong> ${passport.cvss_score || 'N/A'}
+            </div>
+            <div>
+                <strong>Severity:</strong> ${passport.severity || 'N/A'}
+            </div>
+            ${passport.cwe_ids ? `
+                <div>
+                    <strong>CWE:</strong> ${passport.cwe_ids.join(', ')}
+                </div>
+            ` : ''}
+            <div>
+                <strong>Данные:</strong>
+                <pre class="bg-gray-100 p-4 rounded mt-2 overflow-auto">${JSON.stringify(passport, null, 2)}</pre>
+            </div>
+        </div>
+    `;
+    
+    // Прокрутка к деталям
+    detailsDiv.scrollIntoView({ behavior: 'smooth' });
+}
+
+// Поиск по Enter
+document.getElementById('cve-search').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+        searchPassport();
+    }
+});
+</script>
+{% endblock %}
+

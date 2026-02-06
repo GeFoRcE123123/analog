@@ -1,0 +1,44 @@
+model:
+  base_model: "mistralai/Mistral-7B-v0.1"
+  load_in_4bit: true
+  bnb_4bit_quant_type: "nf4"
+  bnb_4bit_compute_dtype: "float16"
+  bnb_4bit_use_double_quant: true
+  use_quantization: true
+
+lora:
+  r: 8
+  lora_alpha: 32
+  target_modules: ["q_proj", "k_proj", "v_proj", "o_proj"]
+  lora_dropout: 0.05
+  bias: "none"
+
+training:
+  use_lora: true
+  num_epochs: 4
+  per_device_train_batch_size: 2
+  per_device_eval_batch_size: 2
+  gradient_accumulation_steps: 4
+  learning_rate: 2e-4
+  weight_decay: 0.01
+  warmup_steps: 200
+  logging_steps: 100
+  eval_steps: 200
+  save_steps: 200
+  max_seq_length: 2048
+  fp16: true
+  bf16: false
+  gradient_checkpointing: true
+  optim: "paged_adamw_32bit"
+  lr_scheduler_type: "cosine"
+  max_grad_norm: 1.0
+
+paths:
+  dataset_dir: "data/processed"
+  model_dir: "models/final_model"
+  checkpoint_dir: "models/checkpoints"
+
+wandb:
+  enabled: true
+  project_name: "osint-neural-network"
+  run_name: "mistral-7b-osint-v2"

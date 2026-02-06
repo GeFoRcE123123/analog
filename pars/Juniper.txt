@@ -1,0 +1,93 @@
+#Парсинг juniper, links - ссылки, identifiers - идентификаторы ,etc - примечание ,lst_CVSSS - вектор (число FLOAT)
+def juniper():
+    options = webdriver.ChromeOptions()
+    options.add_argument('headless')
+    options.add_argument('window-size=1920x1080')
+    options.add_argument("disable-gpu")
+    driver = webdriver.Chrome('chromedriver', chrome_options=options)
+    links = []
+    identifiers = []
+    lst_CVSSS = []
+    etc = []
+    links_ = []
+    links__ = []
+    lst_CVSSS_ = []
+    for x in range(0,60,15):
+        url = 'https://kb.juniper.net/InfoCenter/index?page=content&channel=SECURITY_ADVISORIES&cat=SIRT_1&actp=&sort=datemodified&dir=descending&max=1000&batch=15&rss=true&itData.offset=' + str(x)
+        driver.get(url)
+        page = driver.page_source
+        soup = BeautifulSoup(page,'html.parser')
+        for quote in soup.find_all('a', href=re.compile("LIST&showDraft")):
+            links_.append('https://kb.juniper.net/InfoCenter/' + quote.attrs['href'])
+        for y in links_:
+            r = requests.get(y)
+            soup = BeautifulSoup(r.text, 'lxml')
+            try:
+                for quote_ in soup.find_all('a', href=re.compile("cve.mitre")):
+                    if re.search('at cve.mitre',str(quote_)) is None:
+                        links.append(y)
+                        identifiers.append(((quote_.text).split(":"))[0])
+                        etc_ = soup.find('div', {'class':'content nonfileattachment'})
+                        etc.append(etc_.text.rstrip())
+                        lst_CVSSS__  = soup.find('div', {'class':'content contentlist'})
+                        if 'Low' in lst_CVSSS__.text:
+                            lst_CVSSS.append(float(3))
+                        elif  'Medium' in lst_CVSSS__.text:
+                            lst_CVSSS.append(float(5))
+                        elif  'High' in lst_CVSSS__.text:
+                            lst_CVSSS.append(float(8))
+                        elif  'Critical' in lst_CVSSS__.text:
+                            lst_CVSSS.append(float(10))
+                        else:
+                            lst_CVSSS.append(float(1))
+                quote_ = soup.find('table', {'class':'striped'})
+                if quote_ != None:  
+                    i = 1
+                    while True:
+                        try:      
+                            s1 = soup.find('table', {'class':'striped'}).find('tbody').findChildren('tr')[i].findChildren('td')[0]
+                            s2 = soup.find('table', {'class':'striped'}).find('tbody').findChildren('tr')[i].findChildren('td')[1]
+                            s3 = soup.find('table', {'class':'striped'}).find('tbody').findChildren('tr')[i].findChildren('td')[2]
+                            i = i + 1
+                            identifiers.append(((s1.text).split(":"))[0])
+                            lst_CVSSS_.append(s2.text[:3])
+                            etc.append(s3.text)
+                            links.append(y)
+                        except:
+                            break
+                    for x in lst_CVSSS_:
+                        if x == '\xa0':
+                            lst_CVSSS.append(float(1))
+                        else:
+                            lst_CVSSS.append(float(x))
+            except:
+                raise
+    source_in = 'juniper'
+
+    for link_in,CVE_in,etc_in,CVSS_in in zip(links,identifiers,etc,lst_CVSSS):
+        while True:
+            #CVE_in = input('Введите идентификатор уязвимости: ')
+            sqlite_select_query = """SELECT * FROM turn WHERE cve = %s"""
+            cursor.execute(sqlite_select_query, (CVE_in, ))
+            record = cursor.fetchone()
+            if record is None:
+                #source_in = input('Источник предоставления уязвимости: ')
+                #link_in = input('Ссылка: ')
+                #CVSS_in = input('CVSS: ')
+                #etc_in = input('Примечание:')
+                joining_date_in = datetime.datetime.now()
+                records_to_insert = (CVE_in,source_in,link_in,CVSS_in,etc_in,joining_date_in)
+                a = """INSERT INTO turn
+                    (cve, source, link, CVSS, etc, joining_date)
+                    VALUES
+                    (%s,%s,%s,%s,%s,%s);"""
+                count = cursor.execute(a,records_to_insert)
+                sqlite_connection.commit()
+            else:
+                #time.sleep(1.1)
+                break   
+    Box = QMessageBox() # выводим сообщение о успешном добавлении
+    Box.setText("juniper успешно спарсено")
+    Box.setStandardButtons(QMessageBox.Ok)
+    Box.setDefaultButton(QMessageBox.Ok)
+    ret = Box.exec_()    

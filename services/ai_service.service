@@ -1,0 +1,18 @@
+[Unit]
+Description=AI Service Server for Vulnerability Analysis
+After=network.target
+
+[Service]
+Type=simple
+User=k8s-worker
+WorkingDirectory=/home/k8s-worker
+Environment="PATH=/home/k8s-worker/venv/bin:/usr/local/bin:/usr/bin:/bin"
+ExecStart=/home/k8s-worker/venv/bin/python3 /home/k8s-worker/ai_service_server.py
+Restart=always
+RestartSec=10
+StandardOutput=append:/home/k8s-worker/ai_service.log
+StandardError=append:/home/k8s-worker/ai_service_error.log
+
+[Install]
+WantedBy=multi-user.target
+
